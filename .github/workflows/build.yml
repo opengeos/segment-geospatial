@@ -1,0 +1,42 @@
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+        branches:
+            - main
+
+name: build
+jobs:
+    py-check:
+        runs-on: ${{ matrix.config.os }}
+        name: ${{ matrix.config.os }} (${{ matrix.config.py }})
+        strategy:
+            fail-fast: false
+            matrix:
+                config:
+                    - { os: windows-latest, py: "3.9" }
+                    - { os: macOS-latest, py: "3.9" }
+                    - { os: ubuntu-latest, py: "3.7" }
+                    - { os: ubuntu-latest, py: "3.8" }
+                    - { os: ubuntu-latest, py: "3.9" }
+                    - { os: ubuntu-latest, py: "3.10" }
+
+        env:
+            SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+        steps:
+            - name: CHECKOUT CODE
+              uses: actions/checkout@v3
+            - name: SETUP PYTHON
+              uses: actions/setup-python@v4
+              with:
+                  python-version: ${{ matrix.config.py }}
+            - name: Install dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install --user --no-cache-dir Cython
+                  pip install --user -r requirements.txt
+                  pip install --user -r requirements_dev.txt
+            - name: PKG-TEST
+              run: |
+                  python -m unittest discover tests/
