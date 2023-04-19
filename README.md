@@ -5,7 +5,7 @@
 [![image](https://img.shields.io/conda/vn/conda-forge/segment-geospatial.svg)](https://anaconda.org/conda-forge/segment-geospatial)
 
 
-**Meta AI' Segment Anything Model for Geospatial Data**
+**Meta AI' Segment Anything Model (SAM) for Geospatial Data**
 
 
 -   Free software: MIT license
