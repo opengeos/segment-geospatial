@@ -1,8 +1,8 @@
 site_name: segment-geospatial
 
-site_url: https://giswqs.github.io/segment-geospatial
+site_url: https://samgeo.gishub.org
 
-repo_url: https://github.com/giswqs/segment-geospatial
+repo_url: https://github.com/opengeos/segment-geospatial
 
 theme:
     palette:
@@ -23,10 +23,10 @@ plugins:
     - git-revision-date
     - mkdocs-jupyter:
           include_source: True
-        #   ignore_h1_titles: True
-        #   execute: True
-        #   execute_ignore: "*.ipynb"
-          
+          #   ignore_h1_titles: True
+          #   execute: True
+          #   execute_ignore: "*.ipynb"
+
 markdown_extensions:
     - attr_list
     - pymdownx.superfences
@@ -47,6 +47,6 @@ nav:
     - Contributing: contributing.md
     - FAQ: faq.md
     - Changelog: changelog.md
-    - Report Issues: https://github.com/giswqs/segment-geospatial/issues
+    - Report Issues: https://github.com/opengeos/segment-geospatial/issues
     - API Reference:
           - samgeo module: samgeo.md
