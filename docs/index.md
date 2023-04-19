@@ -1,14 +1,15 @@
 # Welcome to samgeo
 
 
-[![image](https://img.shields.io/pypi/v/samgeo.svg)](https://pypi.python.org/pypi/samgeo)
+[![image](https://img.shields.io/pypi/v/segment-geospatial.svg)](https://pypi.python.org/pypi/segment-geospatial)
+[![image](https://img.shields.io/conda/vn/conda-forge/segment-geospatial.svg)](https://anaconda.org/conda-forge/segment-geospatial)
 
 
-**Meta AI' Segment Anything Model for Geospatial Data**
+**Meta AI' Segment Anything Model (SAM) for Geospatial Data**
 
 
 -   Free software: MIT license
--   Documentation: <https://giswqs.github.io/samgeo>
+-   Documentation: <https://samgeo.gishub.org>
     
 
 ## Features
