@@ -1,11 +1,13 @@
 # Changelog
 
-## v0.0.1 - Date
+## v0.1.0 - Apr 19, 2023
 
-**Improvement**:
+**New Features**
 
--   TBD
+-   Added `SamGeo` class
+-   Added GitHub Actions
+-   Added notebook example
 
-**New Features**:
+## v0.0.1 - Apr 18, 2023
 
--   TBD
+Initial release
