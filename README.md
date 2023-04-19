@@ -9,7 +9,7 @@
 
 
 -   Free software: MIT license
--   Documentation: https://giswqs.github.io/segment-geospatial
+-   Documentation: https://samgeo.gishub.org
     
 
 ## Features
