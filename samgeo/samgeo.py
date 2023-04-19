@@ -14,7 +14,7 @@ from rasterio import features
 
 from .common import *
 
-# Availble sam_kwargs:
+# Available sam_kwargs:
 
 # points_per_side: Optional[int] = 32,
 # points_per_batch: int = 64,

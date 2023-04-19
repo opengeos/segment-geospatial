@@ -487,14 +487,14 @@ def tiff_to_tiff(
                         uint8_rgb_in, resize_hw, interpolation=cv2.INTER_LINEAR
                     )
 
-                # Do someting
+                # Do something
                 uin8_out = func(uint8_rgb_in)
 
                 if resize_hw is not None:
                     uin8_out = cv2.resize(
                         uin8_out, orig_size, interpolation=cv2.INTER_NEAREST
                     )
-                # Zero chennel, becouse
+                # Zero channel, because
                 write_block(dst, uin8_out, **b)
 
 
