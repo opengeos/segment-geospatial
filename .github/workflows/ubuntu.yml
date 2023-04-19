@@ -6,7 +6,7 @@ on:
         branches:
             - main
 
-name: build
+name: Linux build
 jobs:
     py-check:
         runs-on: ${{ matrix.config.os }}
@@ -15,8 +15,6 @@ jobs:
             fail-fast: false
             matrix:
                 config:
-                    - { os: windows-latest, py: "3.10" }
-                    - { os: macOS-latest, py: "3.10" }
                     - { os: ubuntu-latest, py: "3.8" }
                     - { os: ubuntu-latest, py: "3.9" }
                     - { os: ubuntu-latest, py: "3.10" }
