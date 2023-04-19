@@ -1,1 +1,10 @@
 segment-anything-py
+opencv-python 
+pycocotools 
+matplotlib 
+onnxruntime 
+onnx
+geopandas
+rasterio
+tqdm
+gdal
