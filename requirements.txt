@@ -2,7 +2,7 @@ segment-anything-py
 opencv-python 
 pycocotools 
 matplotlib 
-onnxruntime 
+onnxruntime; python_version < '3.11'
 onnx
 geopandas
 rasterio

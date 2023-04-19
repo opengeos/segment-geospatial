@@ -1,0 +1,33 @@
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+        branches:
+            - main
+
+name: macOS build
+jobs:
+    test-macOS:
+        runs-on: ${{ matrix.config.os }}
+        name: ${{ matrix.config.os }} (${{ matrix.config.py }})
+        strategy:
+            fail-fast: false
+            matrix:
+                config:
+                    - { os: macOS-latest, py: "3.10" }
+        env:
+            SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+        steps:
+            - name: CHECKOUT CODE
+              uses: actions/checkout@v3
+            - name: SETUP PYTHON
+              uses: actions/setup-python@v4
+              with:
+                  python-version: ${{ matrix.config.py }}
+            - name: Install dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install --no-cache-dir Cython
+                  pip install codespell -r requirements.txt
+                  pip install .
