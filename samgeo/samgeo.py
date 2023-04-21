@@ -88,7 +88,7 @@ class SamGeo:
         resulting_mask_with_borders = resulting_mask - resulting_borders
         return resulting_mask_with_borders * self.mask_multiplier
 
-    def tiff_to_tiff(self, in_path, out_path, **kwargs):
+    def generate(self, in_path, out_path, **kwargs):
         return tiff_to_tiff(in_path, out_path, self, **kwargs)
 
     def image_to_image(self, image, **kwargs):

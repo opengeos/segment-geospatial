@@ -23,8 +23,8 @@ plugins:
     - git-revision-date
     - mkdocs-jupyter:
           include_source: True
+          execute: False
           #   ignore_h1_titles: True
-          #   execute: True
           #   execute_ignore: "*.ipynb"
 
 markdown_extensions:
@@ -48,5 +48,7 @@ nav:
     - FAQ: faq.md
     - Changelog: changelog.md
     - Report Issues: https://github.com/opengeos/segment-geospatial/issues
+    - Examples:
+          - examples/satellite.ipynb
     - API Reference:
           - samgeo module: samgeo.md

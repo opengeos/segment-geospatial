@@ -243,6 +243,7 @@ def tms_to_geotiff(
     source="OpenStreetMap",
     to_cog=False,
     return_image=False,
+    overwrite=False,
     quiet=False,
     **kwargs,
 ):
@@ -258,11 +259,13 @@ def tms_to_geotiff(
             "SATELLITE", "TERRAIN", "HYBRID", or an HTTP URL. Defaults to "OpenStreetMap".
         to_cog (bool, optional): Convert to Cloud Optimized GeoTIFF. Defaults to False.
         return_image (bool, optional): Return the image as PIL.Image. Defaults to False.
+        overwrite (bool, optional): Overwrite the output file if it already exists. Defaults to False.
         quiet (bool, optional): Suppress output. Defaults to False.
         **kwargs: Additional arguments to pass to gdal.GetDriverByName("GTiff").Create().
 
     """
 
+    import os
     import io
     import math
     import itertools
@@ -284,6 +287,10 @@ def tms_to_geotiff(
         import requests
 
         SESSION = requests.Session()
+
+    if not overwrite and os.path.exists(output):
+        print(f"The output file {output} already exists. Use `overwrite=True` to overwrite it.")
+        return
 
     xyz_tiles = {
         "OPENSTREETMAP": {
