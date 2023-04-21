@@ -7,3 +7,4 @@ onnx
 geopandas
 rasterio
 tqdm
+gdown

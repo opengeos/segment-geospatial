@@ -2,7 +2,7 @@
 The source code is adapted from https://github.com/aliaksandr960/segment-anything-eo. Credit to the author Aliaksandr Hancharenka.
 """
 
-
+import os
 import numpy as np
 import cv2
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
@@ -41,6 +41,12 @@ class SamGeo:
         mask_multiplier=255,
         sam_kwargs=None,
     ):
+        
+        if not os.path.exists(checkpoint):
+            print(f'Checkpoint {checkpoint} does not exist.')
+            download_checkpoint(output=checkpoint)
+
+
         self.checkpoint = checkpoint
         self.model_type = model_type
         self.device = device
