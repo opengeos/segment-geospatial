@@ -1,23 +1,33 @@
 # Installation
 
-## Stable release
+## Install from PyPI
 
-To install segment-geospatial, run this command in your terminal:
+**segment-geospatial** is available on [PyPI](https://pypi.org/project/segment-geospatial/). To install **segment-geospatial**, run this command in your terminal:
 
-```
+```bash
 pip install segment-geospatial
 ```
 
-This is the preferred method to install segment-geospatial, as it will always install the most recent stable release.
+## Install from conda-forge
 
-If you don't have [pip](https://pip.pypa.io) installed, this [Python installation guide](http://docs.python-guide.org/en/latest/starting/installation/) can guide you through the process.
+**segment-geospatial** is also available on [conda-forge](https://anaconda.org/conda-forge/segment-geospatial). If you have
+[Anaconda](https://www.anaconda.com/distribution/#download-section) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html) installed on your computer, you can install segment-geospatial using the following command:
 
-## From sources
-
-The sources for segment-geospatial can be downloaded from the Github repo.
-
-You can clone the public repository:
-
+```bash
+conda install -c conda-forge segment-geospatial
 ```
-git clone git://github.com/giswqs/segment-geospatial
+
+It is recommended to create a fresh conda environment for **segment-geospatial**. The following command will create a new conda environment named `geo` and install **segment-geospatial** and its dependencies:
+
+```bash
+conda install -n base mamba -c conda-forge
+mamba create -n geo segment-geospatial python -c conda-forge
+```
+
+## Install from GitHub
+
+To install the development version from GitHub using [Git](https://git-scm.com/), run the following command in your terminal:
+
+```bash
+pip install git+https://github.com/opengeos/segment-geospatial
 ```
