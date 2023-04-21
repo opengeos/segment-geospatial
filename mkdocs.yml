@@ -51,4 +51,5 @@ nav:
     - Examples:
           - examples/satellite.ipynb
     - API Reference:
+          - common module: common.md
           - samgeo module: samgeo.md
