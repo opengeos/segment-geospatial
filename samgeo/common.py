@@ -118,6 +118,7 @@ def download_file(
         str: The output file path.
     """
     import zipfile
+
     try:
         import gdown
     except ImportError:
@@ -171,7 +172,7 @@ def download_checkpoint(url=None, output=None, overwrite=False, **kwargs):
     """Download a checkpoint from URL. It can be one of the following: sam_vit_h_4b8939.pth, sam_vit_l_0b3195.pth, sam_vit_b_01ec64.pth.
 
     Args:
-        url (str, optional): The checkpoint URL. Defaults to None. 
+        url (str, optional): The checkpoint URL. Defaults to None.
         output (str, optional): The output file path. Defaults to None.
         overwrite (bool, optional): Overwrite the file if it already exists. Defaults to False.
 
@@ -193,7 +194,7 @@ def download_checkpoint(url=None, output=None, overwrite=False, **kwargs):
     if output is None:
         output = os.path.basename(url)
 
-    return download_file(url, output,overwrite=overwrite, **kwargs)
+    return download_file(url, output, overwrite=overwrite, **kwargs)
 
 
 def image_to_cog(source, dst_path=None, profile="deflate", **kwargs):
@@ -289,7 +290,9 @@ def tms_to_geotiff(
         SESSION = requests.Session()
 
     if not overwrite and os.path.exists(output):
-        print(f"The output file {output} already exists. Use `overwrite=True` to overwrite it.")
+        print(
+            f"The output file {output} already exists. Use `overwrite=True` to overwrite it."
+        )
         return
 
     xyz_tiles = {

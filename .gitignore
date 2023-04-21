@@ -5,6 +5,7 @@ private/
 *$py.class
 **/*.tiff
 **/*.tif
+**/*.gpkg
 
 # C extensions
 *.so

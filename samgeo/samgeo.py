@@ -32,8 +32,8 @@ from .common import *
 
 
 class SamGeo:
-    """The main class for segmenting geospatial data with the Segment Anything Model (SAM). See 
-        https://github.com/facebookresearch/segment-anything
+    """The main class for segmenting geospatial data with the Segment Anything Model (SAM). See
+    https://github.com/facebookresearch/segment-anything
     """
 
     def __init__(
@@ -45,7 +45,7 @@ class SamGeo:
         mask_multiplier=255,
         sam_kwargs=None,
     ):
-        """Initialize the class. 
+        """Initialize the class.
 
         Args:
             checkpoint (str, optional): The path to the checkpoint. It can be one of the following:
@@ -55,11 +55,10 @@ class SamGeo:
             erosion_kernel (tuple, optional): The erosion kernel. Defaults to (3, 3).
             mask_multiplier (int, optional): The mask multiplier. Defaults to 255.
             sam_kwargs (_type_, optional): The arguments for the SAM model. Defaults to None.
-        """        
+        """
         if not os.path.exists(checkpoint):
             print(f'Checkpoint {checkpoint} does not exist.')
             download_checkpoint(output=checkpoint)
-
 
         self.checkpoint = checkpoint
         self.model_type = model_type
@@ -127,7 +126,7 @@ class SamGeo:
             gpkg_path (str): The path to the gpkg file.
             simplify_tolerance (_type_, optional): The simplify tolerance. Defaults to None.
         """
-    
+
         with rasterio.open(tiff_path) as src:
             band = src.read()
 
@@ -146,7 +145,6 @@ class SamGeo:
         gdf.set_crs(epsg=src.crs.to_epsg(), inplace=True)
         gdf.to_file(gpkg_path, driver='GPKG', **kwargs)
 
-
     def tiff_to_vector(self, tiff_path, output, simplify_tolerance=None, **kwargs):
         """Convert a tiff file to a gpkg file.
 
@@ -155,7 +153,7 @@ class SamGeo:
             output (str): The path to the vector file.
             simplify_tolerance (_type_, optional): The simplify tolerance. Defaults to None.
         """
-    
+
         with rasterio.open(tiff_path) as src:
             band = src.read()
 
