@@ -19,6 +19,10 @@ The **segment-geospatial** package draws its inspiration from [segment-anything-
 -   Segment GeoTIFF files using the Segment Anything Model (SAM)
 -   Save segmentation results as common vector formats (GeoPackage, Shapefile, GeoJSON, etc.)
 
+## Examples
+
+- [Segmenting satellite imagery](https://samgeo.gishub.org/examples/satellite)
+
 ## Acknowledgements
 
 This package was made possible by the following open source projects. Credit goes to the developers of these projects.

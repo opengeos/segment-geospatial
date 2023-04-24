@@ -1,0 +1,48 @@
+name: docs-build
+on:
+    pull_request:
+        branches:
+            - main
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+              with:
+                  fetch-depth: 0
+            - uses: actions/setup-python@v4
+              with:
+                  python-version: "3.10"
+            - name: Install GDAL
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install --find-links=https://girder.github.io/large_image_wheels --no-cache GDAL pyproj
+            - name: Test GDAL installation
+              run: |
+                  python -c "from osgeo import gdal"
+                  gdalinfo --version
+            - name: Install dependencies
+              run: |
+                  pip install --no-cache-dir Cython
+                  pip install -r requirements.txt -r requirements_dev.txt -r requirements_docs.txt
+                  pip install .
+            - name: Discover typos with codespell
+              run: codespell --skip="*.csv,*.geojson,*.json,*.js,*.html,*cff,*.pdf" --ignore-words-list="aci,acount,acounts,fallow,hart,hist,nd,ned,ois,wqs"
+            - name: PKG-TEST
+              run: |
+                  python -m unittest discover tests/
+            - run: mkdocs build
+            - name: Deploy to Netlify
+              uses: nwtgck/actions-netlify@v2.0
+              with:
+                  publish-dir: "./site"
+                  production-branch: master
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  deploy-message: "Deploy from GitHub Actions"
+                  enable-pull-request-comment: true
+                  enable-commit-comment: false
+                  overwrites-pull-request-comment: true
+              env:
+                  NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+                  NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+              timeout-minutes: 10
