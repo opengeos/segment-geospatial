@@ -236,12 +236,70 @@ def image_to_cog(source, dst_path=None, profile="deflate", **kwargs):
     cog_translate(source, dst_path, dst_profile, **kwargs)
 
 
+def reproject(
+    image, output, dst_crs="EPSG:4326", resampling="nearest", to_cog=True, **kwargs
+):
+    """Reprojects an image.
+
+    Args:
+        image (str): The input image filepath.
+        output (str): The output image filepath.
+        dst_crs (str, optional): The destination CRS. Defaults to "EPSG:4326".
+        resampling (Resampling, optional): The resampling method. Defaults to "nearest".
+        to_cog (bool, optional): Whether to convert the output image to a Cloud Optimized GeoTIFF. Defaults to True.
+        **kwargs: Additional keyword arguments to pass to rasterio.open.
+
+    """
+    import rasterio as rio
+    from rasterio.warp import calculate_default_transform, reproject, Resampling
+
+    if isinstance(resampling, str):
+        resampling = getattr(Resampling, resampling)
+
+    image = os.path.abspath(image)
+    output = os.path.abspath(output)
+
+    if not os.path.exists(os.path.dirname(output)):
+        os.makedirs(os.path.dirname(output))
+
+    with rio.open(image, **kwargs) as src:
+        transform, width, height = calculate_default_transform(
+            src.crs, dst_crs, src.width, src.height, *src.bounds
+        )
+        kwargs = src.meta.copy()
+        kwargs.update(
+            {
+                "crs": dst_crs,
+                "transform": transform,
+                "width": width,
+                "height": height,
+            }
+        )
+
+        with rio.open(output, "w", **kwargs) as dst:
+            for i in range(1, src.count + 1):
+                reproject(
+                    source=rio.band(src, i),
+                    destination=rio.band(dst, i),
+                    src_transform=src.transform,
+                    src_crs=src.crs,
+                    dst_transform=transform,
+                    dst_crs=dst_crs,
+                    resampling=resampling,
+                    **kwargs,
+                )
+
+    if to_cog:
+        image_to_cog(output, output)
+
+
 def tms_to_geotiff(
     output,
     bbox,
     zoom=None,
     resolution=None,
     source="OpenStreetMap",
+    crs="EPSG:3857",
     to_cog=False,
     return_image=False,
     overwrite=False,
@@ -258,6 +316,7 @@ def tms_to_geotiff(
         resolution (float, optional): The resolution in meters. Defaults to None.
         source (str, optional): The tile source. It can be one of the following: "OPENSTREETMAP", "ROADMAP",
             "SATELLITE", "TERRAIN", "HYBRID", or an HTTP URL. Defaults to "OpenStreetMap".
+        crs (str, optional): The output CRS. Defaults to "EPSG:3857".
         to_cog (bool, optional): Convert to Cloud Optimized GeoTIFF. Defaults to False.
         return_image (bool, optional): Return the image as PIL.Image. Defaults to False.
         overwrite (bool, optional): Overwrite the output file if it already exists. Defaults to False.
@@ -296,37 +355,22 @@ def tms_to_geotiff(
         return
 
     xyz_tiles = {
-        "OPENSTREETMAP": {
-            "url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-            "attribution": "OpenStreetMap",
-            "name": "OpenStreetMap",
-        },
-        "ROADMAP": {
-            "url": "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
-            "attribution": "Google",
-            "name": "Google Maps",
-        },
-        "SATELLITE": {
-            "url": "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-            "attribution": "Google",
-            "name": "Google Satellite",
-        },
-        "TERRAIN": {
-            "url": "https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}",
-            "attribution": "Google",
-            "name": "Google Terrain",
-        },
-        "HYBRID": {
-            "url": "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
-            "attribution": "Google",
-            "name": "Google Satellite",
-        },
+        "OPENSTREETMAP": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        "ROADMAP": "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+        "SATELLITE": "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+        "TERRAIN": "https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}",
+        "HYBRID": "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
     }
 
-    if isinstance(source, str) and source.upper() in xyz_tiles:
-        source = xyz_tiles[source.upper()]["url"]
-    elif isinstance(source, str) and source.startswith("http"):
-        pass
+    basemaps = get_basemaps()
+
+    if isinstance(source, str):
+        if source.upper() in xyz_tiles:
+            source = xyz_tiles[source.upper()]
+        elif source in basemaps:
+            source = basemaps[source]
+        elif source.startswith("http"):
+            pass
     else:
         raise ValueError(
             'source must be one of "OpenStreetMap", "ROADMAP", "SATELLITE", "TERRAIN", "HYBRID", or a URL'
@@ -528,7 +572,9 @@ def tms_to_geotiff(
         )
         if return_image:
             return image
-        if to_cog:
+        if crs.upper() != "EPSG:3857":
+            reproject(output, output, crs, to_cog=to_cog)
+        elif to_cog:
             image_to_cog(output, output)
     except Exception as e:
         raise Exception(e)
@@ -709,3 +755,148 @@ def draw_tile(source, lat0, lon0, lat1, lon1, zoom, filename, **kwargs):
         **kwargs,
     )
     return image
+
+
+def tiff_to_vector(tiff_path, output, simplify_tolerance=None, **kwargs):
+    """Convert a tiff file to a gpkg file.
+
+    Args:
+        tiff_path (str): The path to the tiff file.
+        output (str): The path to the vector file.
+        simplify_tolerance (float, optional): The maximum allowed geometry displacement.
+            The higher this value, the smaller the number of vertices in the resulting geometry.
+    """
+
+    with rasterio.open(tiff_path) as src:
+        band = src.read()
+
+        mask = band != 0
+        shapes = features.shapes(band, mask=mask, transform=src.transform)
+
+    fc = [
+        {"geometry": shapely.geometry.shape(shape), "properties": {"value": value}}
+        for shape, value in shapes
+    ]
+    if simplify_tolerance is not None:
+        for i in fc:
+            i["geometry"] = i["geometry"].simplify(tolerance=simplify_tolerance)
+
+    gdf = gpd.GeoDataFrame.from_features(fc)
+    if src.crs is not None:
+        gdf.set_crs(crs=src.crs, inplace=True)
+    gdf.to_file(output, **kwargs)
+
+
+def tiff_to_gpkg(tiff_path, output, simplify_tolerance=None, **kwargs):
+    """Convert a tiff file to a gpkg file.
+
+    Args:
+        tiff_path (str): The path to the tiff file.
+        output (str): The path to the gpkg file.
+        simplify_tolerance (float, optional): The maximum allowed geometry displacement.
+            The higher this value, the smaller the number of vertices in the resulting geometry.
+    """
+
+    if not output.endswith(".gpkg"):
+        output += ".gpkg"
+
+    tiff_to_vector(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
+
+
+def tiff_to_shp(tiff_path, output, simplify_tolerance=None, **kwargs):
+    """Convert a tiff file to a shapefile.
+
+    Args:
+        tiff_path (str): The path to the tiff file.
+        output (str): The path to the shapefile.
+        simplify_tolerance (float, optional): The maximum allowed geometry displacement.
+            The higher this value, the smaller the number of vertices in the resulting geometry.
+    """
+
+    if not output.endswith(".shp"):
+        output += ".shp"
+
+    tiff_to_vector(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
+
+
+def tiff_to_geojson(tiff_path, output, simplify_tolerance=None, **kwargs):
+    """Convert a tiff file to a GeoJSON file.
+
+    Args:
+        tiff_path (str): The path to the tiff file.
+        output (str): The path to the GeoJSON file.
+        simplify_tolerance (float, optional): The maximum allowed geometry displacement.
+            The higher this value, the smaller the number of vertices in the resulting geometry.
+    """
+
+    if not output.endswith(".geojson"):
+        output += ".geojson"
+
+    tiff_to_vector(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
+
+
+def get_xyz_dict(free_only=True):
+    """Returns a dictionary of xyz services.
+
+    Args:
+        free_only (bool, optional): Whether to return only free xyz tile services that do not require an access token. Defaults to True.
+
+    Returns:
+        dict: A dictionary of xyz services.
+    """
+    import collections
+    import xyzservices.providers as xyz
+
+    def _unpack_sub_parameters(var, param):
+        temp = var
+        for sub_param in param.split("."):
+            temp = getattr(temp, sub_param)
+        return temp
+
+    xyz_dict = {}
+    for item in xyz.values():
+        try:
+            name = item["name"]
+            tile = _unpack_sub_parameters(xyz, name)
+            if _unpack_sub_parameters(xyz, name).requires_token():
+                if free_only:
+                    pass
+                else:
+                    xyz_dict[name] = tile
+            else:
+                xyz_dict[name] = tile
+
+        except Exception:
+            for sub_item in item:
+                name = item[sub_item]["name"]
+                tile = _unpack_sub_parameters(xyz, name)
+                if _unpack_sub_parameters(xyz, name).requires_token():
+                    if free_only:
+                        pass
+                    else:
+                        xyz_dict[name] = tile
+                else:
+                    xyz_dict[name] = tile
+
+    xyz_dict = collections.OrderedDict(sorted(xyz_dict.items()))
+    return xyz_dict
+
+
+def get_basemaps(free_only=True):
+    """Returns a dictionary of xyz basemaps.
+
+    Args:
+        free_only (bool, optional): Whether to return only free xyz tile services that do not require an access token. Defaults to True.
+
+    Returns:
+        dict: A dictionary of xyz basemaps.
+    """
+
+    basemaps = {}
+    xyz_dict = get_xyz_dict(free_only=free_only)
+    for item in xyz_dict:
+        name = xyz_dict[item].name
+        url = xyz_dict[item].build_url()
+        basemaps[name] = url
+
+    return basemaps

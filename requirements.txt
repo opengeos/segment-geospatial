@@ -8,3 +8,4 @@ geopandas
 rasterio
 tqdm
 gdown
+xyzservices
