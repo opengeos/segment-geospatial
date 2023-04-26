@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.3.0 - Apr 26, 2023
+
+**New Features**
+
+-   Added several new functions, including `get_basemaps`, `reproject`, `tiff_to_shp`, and `tiff_to_geojson`
+-   Added hundereds of new basemaps through xyzservices
+
+**Improvement**
+
+-   Fixed `tiff_to_vector` crs bug #12
+-   Add `crs` parameter to `tms_to_geotiff`
+
 ## v0.2.0 - Apr 21, 2023
 
 **New Features**

@@ -118,56 +118,50 @@ class SamGeo:
         image = draw_tile(source, pt1[0], pt1[1], pt2[0], pt2[1], zoom, dist)
         return image
 
-    def tiff_to_gpkg(self, tiff_path, gpkg_path, simplify_tolerance=None, **kwargs):
-        """Convert a tiff file to a gpkg file.
-
-        Args:
-            tiff_path (str): The path to the tiff file.
-            gpkg_path (str): The path to the gpkg file.
-            simplify_tolerance (_type_, optional): The simplify tolerance. Defaults to None.
-        """
-
-        with rasterio.open(tiff_path) as src:
-            band = src.read()
-
-            mask = band != 0
-            shapes = features.shapes(band, mask=mask, transform=src.transform)
-
-        fc = [
-            {"geometry": shapely.geometry.shape(shape), "properties": {"value": value}}
-            for shape, value in shapes
-        ]
-        if simplify_tolerance is not None:
-            for i in fc:
-                i["geometry"] = i["geometry"].simplify(tolerance=simplify_tolerance)
-
-        gdf = gpd.GeoDataFrame.from_features(fc)
-        gdf.set_crs(epsg=src.crs.to_epsg(), inplace=True)
-        gdf.to_file(gpkg_path, driver='GPKG', **kwargs)
-
     def tiff_to_vector(self, tiff_path, output, simplify_tolerance=None, **kwargs):
         """Convert a tiff file to a gpkg file.
 
         Args:
             tiff_path (str): The path to the tiff file.
             output (str): The path to the vector file.
-            simplify_tolerance (_type_, optional): The simplify tolerance. Defaults to None.
+            simplify_tolerance (float, optional): The maximum allowed geometry displacement.
+                The higher this value, the smaller the number of vertices in the resulting geometry.
         """
 
-        with rasterio.open(tiff_path) as src:
-            band = src.read()
+        tiff_to_vector(tiff_path, output, simplify_tolerance=None, **kwargs)
 
-            mask = band != 0
-            shapes = features.shapes(band, mask=mask, transform=src.transform)
+    def tiff_to_gpkg(self, tiff_path, output, simplify_tolerance=None, **kwargs):
+        """Convert a tiff file to a gpkg file.
 
-        fc = [
-            {"geometry": shapely.geometry.shape(shape), "properties": {"value": value}}
-            for shape, value in shapes
-        ]
-        if simplify_tolerance is not None:
-            for i in fc:
-                i["geometry"] = i["geometry"].simplify(tolerance=simplify_tolerance)
+        Args:
+            tiff_path (str): The path to the tiff file.
+            output (str): The path to the gpkg file.
+            simplify_tolerance (float, optional): The maximum allowed geometry displacement.
+                The higher this value, the smaller the number of vertices in the resulting geometry.
+        """
 
-        gdf = gpd.GeoDataFrame.from_features(fc)
-        gdf.set_crs(epsg=src.crs.to_epsg(), inplace=True)
-        gdf.to_file(output, **kwargs)
+        tiff_to_gpkg(tiff_path, output, simplify_tolerance=None, **kwargs)
+
+    def tiff_to_shp(self, tiff_path, output, simplify_tolerance=None, **kwargs):
+        """Convert a tiff file to a shapefile.
+
+        Args:
+            tiff_path (str): The path to the tiff file.
+            output (str): The path to the shapefile.
+            simplify_tolerance (float, optional): The maximum allowed geometry displacement.
+                The higher this value, the smaller the number of vertices in the resulting geometry.
+        """
+
+        tiff_to_shp(tiff_path, output, simplify_tolerance=None, **kwargs)
+
+    def tiff_to_geojson(self, tiff_path, output, simplify_tolerance=None, **kwargs):
+        """Convert a tiff file to a GeoJSON file.
+
+        Args:
+            tiff_path (str): The path to the tiff file.
+            output (str): The path to the GeoJSON file.
+            simplify_tolerance (float, optional): The maximum allowed geometry displacement.
+                The higher this value, the smaller the number of vertices in the resulting geometry.
+        """
+
+        tiff_to_geojson(tiff_path, output, simplify_tolerance=None, **kwargs)

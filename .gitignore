@@ -6,6 +6,10 @@ private/
 **/*.tiff
 **/*.tif
 **/*.gpkg
+**/*.xml
+**/*.shp
+**/*.shx
+**/*.dbf
 
 # C extensions
 *.so
