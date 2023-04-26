@@ -7,11 +7,6 @@ import numpy as np
 import cv2
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 
-import shapely
-import geopandas as gpd
-import rasterio
-from rasterio import features
-
 from .common import *
 
 # Available sam_kwargs:
@@ -82,7 +77,7 @@ class SamGeo:
     def __call__(self, image):
         h, w, _ = image.shape
 
-        resulting_mask = np.zeros((h, w), dtype=np.uint8)
+        resulting_mask = np.ones((h, w), dtype=np.uint8)
         resulting_borders = np.zeros((h, w), dtype=np.uint8)
 
         masks = self.mask_generator.generate(image)
