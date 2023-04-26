@@ -130,7 +130,7 @@ class SamGeo:
 
         tiff_to_vector(tiff_path, output, simplify_tolerance=None, **kwargs)
 
-    def tiff_to_gpkg(self, tiff_path, ouput, simplify_tolerance=None, **kwargs):
+    def tiff_to_gpkg(self, tiff_path, output, simplify_tolerance=None, **kwargs):
         """Convert a tiff file to a gpkg file.
 
         Args:
@@ -140,7 +140,7 @@ class SamGeo:
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
 
-        tiff_to_gpkg(tiff_path, ouput, simplify_tolerance=None, **kwargs)
+        tiff_to_gpkg(tiff_path, output, simplify_tolerance=None, **kwargs)
 
     def tiff_to_shp(self, tiff_path, output, simplify_tolerance=None, **kwargs):
         """Convert a tiff file to a shapefile.
