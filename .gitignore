@@ -111,3 +111,5 @@ ENV/
 
 # IDE settings
 .vscode/
+docs/examples/segment.cpg
+docs/examples/segment.prj

@@ -116,41 +116,42 @@ class SamGeo:
         resulting_mask_with_borders = resulting_mask - resulting_borders
         return resulting_mask_with_borders * self.mask_multiplier
 
-    def generate_geo(self, in_path, out_path, **kwargs):
-        """Segment the input image and save the result to the output path.
+    def generate(self, source, output=None, foreground=True, batch=False, **kwargs):
+        if isinstance(source, str):
+            if source.startswith("http"):
+                source = download_file(source)
 
-        Args:
-            in_path (str): The path to the input image.
-            out_path (str): The path to the output image.
-        """
+            if not os.path.exists(source):
+                raise ValueError(f"Input path {source} does not exist.")
 
-        return tiff_to_tiff(in_path, out_path, self, **kwargs)
+            if batch:
+                return tiff_to_tiff(source, output, self, **kwargs)
 
-    def generate(self, in_path, output=None, **kwargs):
-        if isinstance(in_path, str):
-            if in_path.startswith("http"):
-                in_path = download_file(in_path)
+            self.source = source
 
-            if not os.path.exists(in_path):
-                raise ValueError(f"Input path {in_path} does not exist.")
-            image = cv2.imread(in_path)
+            image = cv2.imread(source)
+        elif isinstance(source, np.ndarray):
+            image = source
         else:
-            image = in_path
+            raise ValueError("Input source must be either a path or a numpy array.")
         self.image = image
         mask_generator = self.mask_generator
         masks = mask_generator.generate(image, **kwargs)
         self.masks = masks
 
         if output is not None:
-            self.save_masks(output)
+            self.save_masks(output, foreground=foreground)
 
-    def extract_masks(self):
+    def extract_masks(self, foreground=True):
         if self.masks is None:
             raise ValueError("No masks found. Please run generate() first.")
 
         h, w, _ = self.image.shape
 
-        resulting_mask = np.ones((h, w), dtype=np.uint8)
+        if foreground:
+            resulting_mask = np.zeros((h, w), dtype=np.uint8)
+        else:
+            resulting_mask = np.ones((h, w), dtype=np.uint8)
         resulting_borders = np.zeros((h, w), dtype=np.uint8)
 
         masks = self.masks
@@ -171,15 +172,17 @@ class SamGeo:
         binary_masks = binary_masks * self.mask_multiplier
         self.binary_masks = binary_masks
 
-    def save_masks(self, output, **kwargs):
-        self.extract_masks()
+    def save_masks(self, output, foreground=True, **kwargs):
+        self.extract_masks(foreground=foreground)
         arr_to_image(self.binary_masks, output, **kwargs)
 
-    def show_masks(self, figsize=(20, 20), cmap="binary_r", axis="off", **kwargs):
+    def show_masks(
+        self, figsize=(20, 20), cmap="binary_r", axis="off", foreground=True, **kwargs
+    ):
         import matplotlib.pyplot as plt
 
         if self.binary_masks is None:
-            self.extract_masks()
+            self.extract_masks(foreground=foreground)
 
         plt.figure(figsize=figsize)
         plt.imshow(self.binary_masks, cmap=cmap)
@@ -190,6 +193,7 @@ class SamGeo:
         self, figsize=(20, 20), axis="off", opacity=0.35, output=None, **kwargs
     ):
         import matplotlib.pyplot as plt
+        import matplotlib.image as mpimg
 
         anns = self.masks
 
@@ -223,14 +227,22 @@ class SamGeo:
         ax.imshow(img)
 
         if "dpi" not in kwargs:
-            kwargs["dpi"] = 300
+            kwargs["dpi"] = 100
 
         if "bbox_inches" not in kwargs:
             kwargs["bbox_inches"] = "tight"
 
         plt.axis(axis)
         if output is not None:
-            plt.savefig(output, **kwargs)
+            if opacity < 1.0:
+                background = self.image.astype(np.float32) / 255.0
+                result = background + img[:, :, 0:3] * opacity
+                result = np.clip(result, 0, 1)
+            else:
+                result = img[:, :, 0:3]
+            mpimg.imsave(output, result)
+
+            self.img = img
 
         plt.show()
 
@@ -264,7 +276,9 @@ class SamGeo:
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
 
-        tiff_to_vector(tiff_path, output, simplify_tolerance=None, **kwargs)
+        tiff_to_vector(
+            tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs
+        )
 
     def tiff_to_gpkg(self, tiff_path, output, simplify_tolerance=None, **kwargs):
         """Convert a tiff file to a gpkg file.
@@ -276,7 +290,7 @@ class SamGeo:
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
 
-        tiff_to_gpkg(tiff_path, output, simplify_tolerance=None, **kwargs)
+        tiff_to_gpkg(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
 
     def tiff_to_shp(self, tiff_path, output, simplify_tolerance=None, **kwargs):
         """Convert a tiff file to a shapefile.
@@ -288,7 +302,7 @@ class SamGeo:
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
 
-        tiff_to_shp(tiff_path, output, simplify_tolerance=None, **kwargs)
+        tiff_to_shp(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
 
     def tiff_to_geojson(self, tiff_path, output, simplify_tolerance=None, **kwargs):
         """Convert a tiff file to a GeoJSON file.
@@ -300,4 +314,6 @@ class SamGeo:
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
 
-        tiff_to_geojson(tiff_path, output, simplify_tolerance=None, **kwargs)
+        tiff_to_geojson(
+            tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs
+        )

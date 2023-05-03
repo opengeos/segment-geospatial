@@ -50,6 +50,7 @@ nav:
     - Report Issues: https://github.com/opengeos/segment-geospatial/issues
     - Examples:
           - examples/satellite.ipynb
+          - examples/automatic_mask_generator.ipynb
     - API Reference:
           - common module: common.md
           - samgeo module: samgeo.md

@@ -904,7 +904,7 @@ def get_basemaps(free_only=True):
     return basemaps
 
 
-def arr_to_image(arr, output, **kwargs):
+def arr_to_image(arr, output, source=None, **kwargs):
     """Convert a numpy array to an image.
 
     Args:
@@ -916,3 +916,138 @@ def arr_to_image(arr, output, **kwargs):
 
     img = Image.fromarray(arr)
     img.save(output, **kwargs)
+
+    if output.endswith(".tif") and source is not None:
+        with rasterio.open(source) as src:
+            src_crs = src.crs
+
+        with rasterio.open(
+            output, "w", driver="GTiff", width=src.width, height=src.height, crs=src_crs
+        ) as dst:
+            pass
+
+        src.close()
+        dst.close()
+
+
+def image_set_crs(image, source, output=None):
+    """Set the CRS of an image.
+
+    Args:
+        image (str): The path to the image.
+        crs (str): The CRS to set.
+        output (str, optional): The path to the output image. Defaults to None.
+    """
+
+    if source is not None:
+        with rasterio.open(source) as src:
+            src_crs = src.crs
+
+        with rasterio.open(image) as ori:
+            width = ori.width
+            height = ori.height
+            count = ori.count
+            dtype = ori.dtypes[0]
+
+        if output is not None:
+            with rasterio.open(
+                output,
+                "w",
+                driver="GTiff",
+                width=width,
+                height=height,
+                count=count,
+                dtype=dtype,
+                crs=src_crs,
+            ) as dst:
+                pass
+        else:
+            with rasterio.open(
+                image,
+                "w",
+                driver="GTiff",
+                width=width,
+                height=height,
+                count=count,
+                dtype=dtype,
+                crs=src_crs,
+            ) as dst:
+                pass
+
+        ori.close()
+        src.close()
+        dst.close()
+
+
+def show_image(
+    source, figsize=(20, 20), cmap=None, axis="off", fig_args={}, show_args={}, **kwargs
+):
+    import matplotlib.pyplot as plt
+
+    if isinstance(source, str):
+        if source.startswith("http"):
+            source = download_file(source)
+
+        if not os.path.exists(source):
+            raise ValueError(f"Input path {source} does not exist.")
+
+        source = cv2.imread(source)
+        source = cv2.cvtColor(source, cv2.COLOR_BGR2RGB)
+
+    plt.figure(figsize=figsize, **fig_args)
+    plt.imshow(source, cmap=cmap, **show_args)
+    plt.axis(axis)
+    plt.show(**kwargs)
+
+
+def overlay_images(
+    image1,
+    image2,
+    opacity=0.5,
+    backend="TkAgg",
+    height_ratios=[10, 1],
+    show_args1={},
+    show_args2={},
+):
+    import matplotlib
+    import matplotlib.widgets as mpwidgets
+    import matplotlib.pyplot as plt
+
+    matplotlib.use(backend)
+
+    if isinstance(image1, str):
+        if image1.startswith("http"):
+            image1 = download_file(image1)
+
+        if not os.path.exists(image1):
+            raise ValueError(f"Input path {image1} does not exist.")
+
+    if isinstance(image2, str):
+        if image2.startswith("http"):
+            image2 = download_file(image2)
+
+        if not os.path.exists(image2):
+            raise ValueError(f"Input path {image2} does not exist.")
+
+    # Load the two images
+    x = plt.imread(image1)
+    y = plt.imread(image2)
+
+    # Create the plot
+    fig, (ax0, ax1) = plt.subplots(2, 1, gridspec_kw={"height_ratios": height_ratios})
+    img0 = ax0.imshow(x, **show_args1)
+    img1 = ax0.imshow(y, alpha=opacity, **show_args2)
+
+    # Define the update function
+    def update(value):
+        img1.set_alpha(value)
+        fig.canvas.draw_idle()
+
+    # Create the slider
+    slider0 = mpwidgets.Slider(
+        ax=ax1, label="opacity", valmin=0, valmax=1, valinit=opacity
+    )
+    slider0.on_changed(update)
+
+    # Display the plot
+    plt.show()
