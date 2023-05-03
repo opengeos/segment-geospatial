@@ -3,28 +3,12 @@ The source code is adapted from https://github.com/aliaksandr960/segment-anythin
 """
 
 import os
-import numpy as np
 import cv2
 import torch
+import numpy as np
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
 
 from .common import *
-
-# Available sam_kwargs:
-
-# points_per_side: Optional[int] = 32,
-# points_per_batch: int = 64,
-# pred_iou_thresh: float = 0.88,
-# stability_score_thresh: float = 0.95,
-# stability_score_offset: float = 1.0,
-# box_nms_thresh: float = 0.7,
-# crop_n_layers: int = 0,
-# crop_nms_thresh: float = 0.7,
-# crop_overlap_ratio: float = 512 / 1500,
-# crop_n_points_downscale_factor: int = 1,
-# point_grids: Optional[List[np.ndarray]] = None,
-# min_mask_region_area: int = 0,
-# output_mode: str = "binary_mask",
 
 
 class SamGeo:
@@ -45,50 +29,76 @@ class SamGeo:
         """Initialize the class.
 
         Args:
-            model_type (str, optional): The model type. It can be one of the following: vit_h, vit_l, vit_l.
-                Defaults to 'vit_h'.
+            model_type (str, optional): The model type. It can be one of the following: vit_h, vit_l, vit_b.
+                Defaults to 'vit_h'. See https://bit.ly/3VrpxUh for more details.
             checkpoint (str, optional): The path to the checkpoint. It can be one of the following:
                 sam_vit_h_4b8939.pth, sam_vit_l_0b3195.pth, sam_vit_b_01ec64.pth.
-                Defaults to "sam_vit_h_4b8939.pth".
-            automatic (bool, optional): Whether to use the automatic mask generator. Defaults to True.
+                Defaults to "sam_vit_h_4b8939.pth". See https://bit.ly/3VrpxUh for more details.
+            automatic (bool, optional): Whether to use the automatic mask generator or input prompts. Defaults to True.
+                The automatic mask generator will segment the entire image, while the input prompts will segment selected objects.
             device (str, optional): The device to use. It can be one of the following: cpu, cuda.
                 Defaults to None, which will use cuda if available.
-            erosion_kernel (tuple, optional): The erosion kernel. Defaults to (3, 3).
-            mask_multiplier (int, optional): The mask multiplier. Defaults to 255.
-            sam_kwargs (dict, optional): The arguments for the SAM model. Defaults to None.
+            erosion_kernel (tuple, optional): The erosion kernel for filtering object masks and extract borders.
+                Set to None to disable it. Defaults to (3, 3).
+            mask_multiplier (int, optional): The mask multiplier for the output mask, which is usually a binary mask [0, 1].
+                You can use this parameter to scale the mask to a larger range, for example [0, 255]. Defaults to 255.
+            sam_kwargs (dict, optional): Optional arguments for fine-tuning the SAM model. Defaults to None.
+                The available arguments are listed below. See https://bit.ly/410RV0v for more details.
+
+                points_per_side: Optional[int] = 32,
+                points_per_batch: int = 64,
+                pred_iou_thresh: float = 0.88,
+                stability_score_thresh: float = 0.95,
+                stability_score_offset: float = 1.0,
+                box_nms_thresh: float = 0.7,
+                crop_n_layers: int = 0,
+                crop_nms_thresh: float = 0.7,
+                crop_overlap_ratio: float = 512 / 1500,
+                crop_n_points_downscale_factor: int = 1,
+                point_grids: Optional[List[np.ndarray]] = None,
+                min_mask_region_area: int = 0,
+                output_mode: str = "binary_mask",
+
         """
+        # Download the checkpoint if it does not exist
         if not os.path.exists(checkpoint):
             print(f"Checkpoint {checkpoint} does not exist.")
             download_checkpoint(output=checkpoint)
 
+        # Use cuda if available
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.checkpoint = checkpoint
         self.model_type = model_type
         self.device = device
-        self.sam_kwargs = sam_kwargs
-        self.image = None
-        self.masks = None
-        self.binary_masks = None
+        self.sam_kwargs = sam_kwargs  # Optional arguments for fine-tuning the SAM model
+        self.image = None  # Store the input image as a numpy array
+        self.masks = (
+            None  # Store the masks as a list of dictionaries. Each mask is a dictionary
+        )
+        #  containing segmentation, area, bbox, predicted_iou, point_coords, stability_score, and crop_box
+        self.binary_masks = None  # Store the binary masks as a numpy array. The binary mask is the sum of all masks.
 
-        # First line of the SAM example
+        # Build the SAM model
         self.sam = sam_model_registry[self.model_type](checkpoint=self.checkpoint)
         self.sam.to(device=self.device)
-
+        # Use optional arguments for fine-tuning the SAM model
         sam_kwargs = self.sam_kwargs if self.sam_kwargs is not None else {}
 
         if automatic:
-            # Second line of the SAM example
+            # Segment the entire image using the automatic mask generator
             self.mask_generator = SamAutomaticMaskGenerator(self.sam, **sam_kwargs)
         else:
-            # Second line of the SAM example
+            # Segment selected objects using input prompts
             self.predictor = SamPredictor(self.sam, **sam_kwargs)
 
+        # Apply the erosion filter to the mask to extract borders
         self.erosion_kernel = erosion_kernel
         if self.erosion_kernel is not None:
             self.erosion_kernel = np.ones(erosion_kernel, np.uint8)
 
+        # Rescale the binary mask to a larger range, for example, from [0, 1] to [0, 255].
         self.mask_multiplier = mask_multiplier
 
     def __call__(self, image):
@@ -116,7 +126,16 @@ class SamGeo:
         resulting_mask_with_borders = resulting_mask - resulting_borders
         return resulting_mask_with_borders * self.mask_multiplier
 
-    def generate(self, source, output=None, foreground=True, batch=False, **kwargs):
+    def generate(
+        self,
+        source,
+        output=None,
+        foreground=True,
+        batch=False,
+        erosion_kernel=(3, 3),
+        mask_multiplier=255,
+        **kwargs,
+    ):
         if isinstance(source, str):
             if source.startswith("http"):
                 source = download_file(source)
@@ -127,22 +146,30 @@ class SamGeo:
             if batch:
                 return tiff_to_tiff(source, output, self, **kwargs)
 
-            self.source = source
-
             image = cv2.imread(source)
         elif isinstance(source, np.ndarray):
             image = source
         else:
             raise ValueError("Input source must be either a path or a numpy array.")
+        self.source = source
         self.image = image
         mask_generator = self.mask_generator
-        masks = mask_generator.generate(image, **kwargs)
+        masks = mask_generator.generate(image)
         self.masks = masks
 
         if output is not None:
-            self.save_masks(output, foreground=foreground)
+            self.save_masks(
+                output, foreground, erosion_kernel, mask_multiplier, **kwargs
+            )
 
-    def extract_masks(self, foreground=True):
+    def save_masks(
+        self,
+        output=None,
+        foreground=True,
+        erosion_kernel=(3, 3),
+        mask_multiplier=255,
+        **kwargs,
+    ):
         if self.masks is None:
             raise ValueError("No masks found. Please run generate() first.")
 
@@ -161,7 +188,7 @@ class SamGeo:
 
             # Apply erosion to the mask
             if self.erosion_kernel is not None:
-                mask_erode = cv2.erode(mask, self.erosion_kernel, iterations=1)
+                mask_erode = cv2.erode(mask, erosion_kernel, iterations=1)
                 mask_erode = (mask_erode > 0).astype(np.uint8)
                 edge_mask = mask - mask_erode
                 resulting_borders += edge_mask
@@ -169,12 +196,11 @@ class SamGeo:
         resulting_mask = (resulting_mask > 0).astype(np.uint8)
         resulting_borders = (resulting_borders > 0).astype(np.uint8)
         binary_masks = resulting_mask - resulting_borders
-        binary_masks = binary_masks * self.mask_multiplier
+        binary_masks = binary_masks * mask_multiplier
         self.binary_masks = binary_masks
 
-    def save_masks(self, output, foreground=True, **kwargs):
-        self.extract_masks(foreground=foreground)
-        arr_to_image(self.binary_masks, output, **kwargs)
+        if output is not None:
+            arr_to_image(self.binary_masks, output, **kwargs)
 
     def show_masks(
         self, figsize=(20, 20), cmap="binary_r", axis="off", foreground=True, **kwargs
@@ -182,7 +208,7 @@ class SamGeo:
         import matplotlib.pyplot as plt
 
         if self.binary_masks is None:
-            self.extract_masks(foreground=foreground)
+            self.save_masks(foreground=foreground, **kwargs)
 
         plt.figure(figsize=figsize)
         plt.imshow(self.binary_masks, cmap=cmap)
