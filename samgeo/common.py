@@ -180,16 +180,16 @@ def download_checkpoint(url=None, output=None, overwrite=False, **kwargs):
         str: The output file path.
     """
     checkpoints = {
-        'sam_vit_h_4b8939.pth': "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth",
-        'sam_vit_l_0b3195.pth': "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth",
-        'sam_vit_b_01ec64.pth': "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth",
+        "sam_vit_h_4b8939.pth": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth",
+        "sam_vit_l_0b3195.pth": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth",
+        "sam_vit_b_01ec64.pth": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth",
     }
 
     if isinstance(url, str) and url in checkpoints:
         url = checkpoints[url]
 
     if url is None:
-        url = checkpoints['sam_vit_h_4b8939.pth']
+        url = checkpoints["sam_vit_h_4b8939.pth"]
 
     if output is None:
         output = os.path.basename(url)
@@ -607,11 +607,11 @@ def calculate_sample_grid(raster_h, raster_w, sample_h, sample_w, bound):
 
             blocks.append(
                 {
-                    'x': x,
-                    'y': y,
-                    'height': height,
-                    'width': width,
-                    'bounds': [[bound, bottom_y_bound], [bound, rigth_x_bound]],
+                    "x": x,
+                    "y": y,
+                    "height": height,
+                    "width": width,
+                    "bounds": [[bound, bottom_y_bound], [bound, rigth_x_bound]],
                 }
             )
     return blocks
@@ -649,23 +649,25 @@ def tiff_to_tiff(
         profile = src.profile
 
         # Computer blocks
-        rh, rw = profile['height'], profile['width']
+        rh, rw = profile["height"], profile["width"]
         sh, sw = sample_size
         bound = bound
 
         resize_hw = sample_resize
 
+        # Subdivide image into tiles
         sample_grid = calculate_sample_grid(
             raster_h=rh, raster_w=rw, sample_h=sh, sample_w=sw, bound=bound
         )
         # set 1 channel uint8 output
-        profile['count'] = 1
-        profile['dtype'] = 'uint8'
+        profile["count"] = 1
+        profile["dtype"] = "uint8"
 
-        with rasterio.open(dst_fp, 'w', **profile) as dst:
+        with rasterio.open(dst_fp, "w", **profile) as dst:
             for b in tqdm(sample_grid):
+                # Read each tile from the source
                 r = read_block(src, **b)
-
+                # Extract the first 3 channels as RGB
                 uint8_rgb_in = data_to_rgb(r)
                 orig_size = uint8_rgb_in.shape[:2]
                 if resize_hw is not None:
@@ -673,20 +675,20 @@ def tiff_to_tiff(
                         uint8_rgb_in, resize_hw, interpolation=cv2.INTER_LINEAR
                     )
 
-                # Do something
+                # Run the model, call the __call__ method of SamGeo class
                 uin8_out = func(uint8_rgb_in)
 
                 if resize_hw is not None:
                     uin8_out = cv2.resize(
                         uin8_out, orig_size, interpolation=cv2.INTER_NEAREST
                     )
-                # Zero channel, because
+                # Write the output to the destination
                 write_block(dst, uin8_out, **b)
 
 
 def image_to_image(image, func, sample_size=(384, 384), sample_resize=None, bound=128):
     with tempfile.NamedTemporaryFile() as src_tmpfile:
-        s, b = cv2.imencode('.tif', image)
+        s, b = cv2.imencode(".tif", image)
         src_tmpfile.write(b.tobytes())
         src_fp = src_tmpfile.name
         with tempfile.NamedTemporaryFile() as dst_tmpfile:
@@ -900,3 +902,17 @@ def get_basemaps(free_only=True):
         basemaps[name] = url
 
     return basemaps
+
+
+def arr_to_image(arr, output, **kwargs):
+    """Convert a numpy array to an image.
+
+    Args:
+        arr (np.ndarray): The numpy array.
+        output (str): The path to the output image.
+    """
+
+    from PIL import Image
+
+    img = Image.fromarray(arr)
+    img.save(output, **kwargs)
