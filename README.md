@@ -11,17 +11,19 @@
 The **segment-geospatial** package draws its inspiration from [segment-anything-eo](https://github.com/aliaksandr960/segment-anything-eo) repository authored by [Aliaksandr Hancharenka](https://github.com/aliaksandr960). To facilitate the use of the Segment Anything Model (SAM) for geospatial data, I have developed the [segment-anything-py](https://github.com/opengeos/segment-anything) and [segment-geospatial](https://github.com/opengeos/segment-geospatial) Python packages, which are now available on PyPI and conda-forge. My primary objective is to simplify the process of leveraging SAM for geospatial data analysis by enabling users to achieve this with minimal coding effort. I have adapted the source code of segment-geospatial from the [segment-anything-eo](https://github.com/aliaksandr960/segment-anything-eo) repository, and credit for its original version goes to Aliaksandr Hancharenka.
 
 -   Free software: MIT license
--   Documentation: https://samgeo.gishub.org
+-   Documentation: <https://samgeo.gishub.org>
 
 ## Features
 
 -   Download map tiles from Tile Map Service (TMS) servers and create GeoTIFF files
 -   Segment GeoTIFF files using the Segment Anything Model (SAM)
 -   Save segmentation results as common vector formats (GeoPackage, Shapefile, GeoJSON, etc.)
+-   Visualize segmentation results on interactive maps
 
 ## Examples
 
-- [Segmenting satellite imagery](https://samgeo.gishub.org/examples/satellite)
+-   [Segmenting satellite imagery](https://samgeo.gishub.org/examples/satellite)
+-   [Automatically generating object masks](https://samgeo.gishub.org/examples/automatic_mask_generator)
 
 ## Acknowledgements
 

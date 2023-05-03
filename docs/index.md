@@ -18,10 +18,12 @@ The **segment-geospatial** package draws its inspiration from [segment-anything-
 -   Download map tiles from Tile Map Service (TMS) servers and create GeoTIFF files
 -   Segment GeoTIFF files using the Segment Anything Model (SAM)
 -   Save segmentation results as common vector formats (GeoPackage, Shapefile, GeoJSON, etc.)
+-   Visualize segmentation results on interactive maps
 
 ## Examples
 
 -   [Segmenting satellite imagery](https://samgeo.gishub.org/examples/satellite)
+-   [Automatically generating object masks](https://samgeo.gishub.org/examples/automatic_mask_generator)
 
 ## Acknowledgements
 
