@@ -5,7 +5,8 @@ The source code is adapted from https://github.com/aliaksandr960/segment-anythin
 import os
 import numpy as np
 import cv2
-from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
+from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
+from segment_anything.utils.transforms import ResizeLongestSide
 
 from .common import *
 
@@ -160,3 +161,62 @@ class SamGeo:
         """
 
         tiff_to_geojson(tiff_path, output, simplify_tolerance=None, **kwargs)
+
+
+class SamGeoPredictor(SamPredictor):
+    def __init__(
+        self,
+        sam_model,
+    ):
+        self.model = sam_model
+        self.transform = ResizeLongestSide(sam_model.image_encoder.img_size)
+
+    def set_image(self, image):
+        super(SamGeoPredictor, self).set_image(image)
+
+    def predict(
+        self,
+        src_fp=None,
+        geo_box=None,
+        point_coords=None,
+        point_labels=None,
+        box=None,
+        mask_input=None,
+        multimask_output=True,
+        return_logits=False,
+    ):
+        if geo_box and src_fp:
+            self.crs = "EPSG:4326"
+            dst_crs = get_crs(src_fp)
+            sw = transform_coords(geo_box[0], geo_box[1], self.crs, dst_crs)
+            ne = transform_coords(geo_box[2], geo_box[3], self.crs, dst_crs)
+            xs = np.array([sw[0], ne[0]])
+            ys = np.array([sw[1], ne[1]])
+            box = get_pixel_coords(src_fp, xs, ys)
+            self.geo_box = geo_box
+            self.width = box[2] - box[0]
+            self.height = box[3] - box[1]
+            self.geo_transform = set_transform(geo_box, self.width, self.height)
+
+        masks, iou_predictions, low_res_masks = super(SamGeoPredictor, self).predict(
+            point_coords, point_labels, box, mask_input, multimask_output, return_logits
+        )
+
+        return masks, iou_predictions, low_res_masks
+
+    def masks_to_geotiff(self, src_fp, dst_fp, masks):
+        profile = get_profile(src_fp)
+        write_raster(
+            dst_fp,
+            masks,
+            profile,
+            self.width,
+            self.height,
+            self.geo_transform,
+            self.crs,
+        )
+
+    def geotiff_to_geojson(self, src_fp, dst_fp, bidx=1):
+        gdf = get_features(src_fp, bidx)
+        write_features(gdf, dst_fp)
+        return gdf
