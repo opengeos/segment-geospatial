@@ -904,7 +904,9 @@ def get_basemaps(free_only=True):
     return basemaps
 
 
-def array_to_image(array, output, source=None, dtype=None, compress='deflate', **kwargs):
+def array_to_image(
+    array, output, source=None, dtype=None, compress='deflate', **kwargs
+):
     """Save a NumPy array as a GeoTIFF using the projection information from an existing GeoTIFF file.
 
     Args:
@@ -921,14 +923,12 @@ def array_to_image(array, output, source=None, dtype=None, compress='deflate', *
         array = cv2.imread(array)
         array = cv2.cvtColor(array, cv2.COLOR_BGR2RGB)
 
-
     if output.endswith(".tif") and source is not None:
         with rasterio.open(source) as src:
             crs = src.crs
             transform = src.transform
             if compress is None:
                 compress = src.compression
-            
 
         # Determine the minimum and maximum values in the array
         min_value = np.min(array)
@@ -954,22 +954,26 @@ def array_to_image(array, output, source=None, dtype=None, compress='deflate', *
 
         # Define the GeoTIFF metadata
         if array.ndim == 2:
-            metadata = {'driver': 'GTiff',
-                        'height': array.shape[0],
-                        'width': array.shape[1],
-                        'count': 1,
-                        'dtype': array.dtype,
-                        'crs': crs,
-                        'transform': transform}
+            metadata = {
+                'driver': 'GTiff',
+                'height': array.shape[0],
+                'width': array.shape[1],
+                'count': 1,
+                'dtype': array.dtype,
+                'crs': crs,
+                'transform': transform,
+            }
         elif array.ndim == 3:
-            metadata = {'driver': 'GTiff',
-                        'height': array.shape[0],
-                        'width': array.shape[1],
-                        'count': array.shape[2],
-                        'dtype': array.dtype,
-                        'crs': crs,
-                        'transform': transform}
-            
+            metadata = {
+                'driver': 'GTiff',
+                'height': array.shape[0],
+                'width': array.shape[1],
+                'count': array.shape[2],
+                'dtype': array.dtype,
+                'crs': crs,
+                'transform': transform,
+            }
+
         if compress is not None:
             metadata['compress'] = compress
         else:
@@ -981,12 +985,11 @@ def array_to_image(array, output, source=None, dtype=None, compress='deflate', *
                 dst.write(array, 1)
             elif array.ndim == 3:
                 for i in range(array.shape[2]):
-                    dst.write(array[:, :, i], i+1)
+                    dst.write(array[:, :, i], i + 1)
 
     else:
         img = Image.fromarray(array)
         img.save(output, **kwargs)
-                    
 
 
 def show_image(

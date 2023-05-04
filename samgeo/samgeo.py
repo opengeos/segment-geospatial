@@ -78,7 +78,7 @@ class SamGeo:
             None  # Store the masks as a list of dictionaries. Each mask is a dictionary
         )
         #  containing segmentation, area, bbox, predicted_iou, point_coords, stability_score, and crop_box
-        self.objects = None  # Store the mask objects as a numpy array. 
+        self.objects = None  # Store the mask objects as a numpy array.
 
         # Build the SAM model
         self.sam = sam_model_registry[self.model_type](checkpoint=self.checkpoint)
@@ -178,13 +178,12 @@ class SamGeo:
         h, w, _ = self.image.shape
         masks = self.masks
 
-        if len(masks) <255:
+        if len(masks) < 255:
             dtype = np.uint8
         elif len(masks) < 65535:
             dtype = np.uint16
         else:
             dtype = np.uint32
-
 
         if unique:
             sorted_masks = sorted(masks, key=(lambda x: x["area"]), reverse=False)
@@ -193,13 +192,11 @@ class SamGeo:
                 (
                     sorted_masks[0]["segmentation"].shape[0],
                     sorted_masks[0]["segmentation"].shape[1],
-
                 )
             )
             for index, ann in enumerate(sorted_masks):
                 m = ann["segmentation"]
                 objects[m] = index + 1
-
 
         else:
             if foreground:
@@ -223,7 +220,6 @@ class SamGeo:
             resulting_borders = (resulting_borders > 0).astype(dtype)
             objects = resulting_mask - resulting_borders
             objects = objects * mask_multiplier
-
 
         objects = objects.astype(dtype)
         self.objects = objects
