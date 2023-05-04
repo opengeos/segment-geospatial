@@ -904,79 +904,89 @@ def get_basemaps(free_only=True):
     return basemaps
 
 
-def arr_to_image(arr, output, source=None, **kwargs):
-    """Convert a numpy array to an image.
+def array_to_image(array, output, source=None, dtype=None, compress='deflate', **kwargs):
+    """Save a NumPy array as a GeoTIFF using the projection information from an existing GeoTIFF file.
 
     Args:
-        arr (np.ndarray): The numpy array.
+        array (np.ndarray): The NumPy array to be saved as a GeoTIFF.
         output (str): The path to the output image.
+        source (str, optional): The path to an existing GeoTIFF file with map projection information. Defaults to None.
+        dtype (np.dtype, optional): The data type of the output array. Defaults to None.
+        compress (str, optional): The compression method. Can be one of the following: "deflate", "lzw", "packbits", "jpeg". Defaults to "deflate".
     """
 
     from PIL import Image
 
-    img = Image.fromarray(arr)
-    img.save(output, **kwargs)
+    if isinstance(array, str) and os.path.exists(array):
+        array = cv2.imread(array)
+        array = cv2.cvtColor(array, cv2.COLOR_BGR2RGB)
+
 
     if output.endswith(".tif") and source is not None:
         with rasterio.open(source) as src:
-            src_crs = src.crs
+            crs = src.crs
+            transform = src.transform
+            if compress is None:
+                compress = src.compression
+            
 
-        with rasterio.open(
-            output, "w", driver="GTiff", width=src.width, height=src.height, crs=src_crs
-        ) as dst:
-            pass
+        # Determine the minimum and maximum values in the array
+        min_value = np.min(array)
+        max_value = np.max(array)
 
-        src.close()
-        dst.close()
+        if dtype is None:
+            # Determine the best dtype for the array
+            if min_value >= 0 and max_value <= 1:
+                dtype = np.float32
+            elif min_value >= 0 and max_value <= 255:
+                dtype = np.uint8
+            elif min_value >= -128 and max_value <= 127:
+                dtype = np.int8
+            elif min_value >= 0 and max_value <= 65535:
+                dtype = np.uint16
+            elif min_value >= -32768 and max_value <= 32767:
+                dtype = np.int16
+            else:
+                dtype = np.float64
 
+        # Convert the array to the best dtype
+        array = array.astype(dtype)
 
-def image_set_crs(image, source, output=None):
-    """Set the CRS of an image.
-
-    Args:
-        image (str): The path to the image.
-        crs (str): The CRS to set.
-        output (str, optional): The path to the output image. Defaults to None.
-    """
-
-    if source is not None:
-        with rasterio.open(source) as src:
-            src_crs = src.crs
-
-        with rasterio.open(image) as ori:
-            width = ori.width
-            height = ori.height
-            count = ori.count
-            dtype = ori.dtypes[0]
-
-        if output is not None:
-            with rasterio.open(
-                output,
-                "w",
-                driver="GTiff",
-                width=width,
-                height=height,
-                count=count,
-                dtype=dtype,
-                crs=src_crs,
-            ) as dst:
-                pass
+        # Define the GeoTIFF metadata
+        if array.ndim == 2:
+            metadata = {'driver': 'GTiff',
+                        'height': array.shape[0],
+                        'width': array.shape[1],
+                        'count': 1,
+                        'dtype': array.dtype,
+                        'crs': crs,
+                        'transform': transform}
+        elif array.ndim == 3:
+            metadata = {'driver': 'GTiff',
+                        'height': array.shape[0],
+                        'width': array.shape[1],
+                        'count': array.shape[2],
+                        'dtype': array.dtype,
+                        'crs': crs,
+                        'transform': transform}
+            
+        if compress is not None:
+            metadata['compress'] = compress
         else:
-            with rasterio.open(
-                image,
-                "w",
-                driver="GTiff",
-                width=width,
-                height=height,
-                count=count,
-                dtype=dtype,
-                crs=src_crs,
-            ) as dst:
-                pass
+            raise ValueError("Array must be 2D or 3D.")
 
-        ori.close()
-        src.close()
-        dst.close()
+        # Create a new GeoTIFF file and write the array to it
+        with rasterio.open(output, 'w', **metadata) as dst:
+            if array.ndim == 2:
+                dst.write(array, 1)
+            elif array.ndim == 3:
+                for i in range(array.shape[2]):
+                    dst.write(array[:, :, i], i+1)
+
+    else:
+        img = Image.fromarray(array)
+        img.save(output, **kwargs)
+                    
 
 
 def show_image(
