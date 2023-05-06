@@ -10,6 +10,8 @@ private/
 **/*.shp
 **/*.shx
 **/*.dbf
+**/*.jpg
+**/*.png
 
 # C extensions
 *.so
@@ -111,3 +113,5 @@ ENV/
 
 # IDE settings
 .vscode/
+docs/examples/segment.cpg
+docs/examples/segment.prj
