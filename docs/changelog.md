@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.4.0 - May 6, 2023
+
+**New Features**
+
+-   Added new methods to `SamGeo` class, including `show_masks`, `save_masks`, `show_anns`, making it much easier to save segmentation results in GeoTIFF and vector formats.
+-   Added new functions to `common` module, including `array_to_image`, `show_image`, `download_file`, `overlay_images`, `blend_images`, and `update_package`
+-   Added tow more notebooks, including [automatic_mask_generator](https://samgeo.gishub.org/examples/automatic_mask_generator/) and [satellite-predictor](https://samgeo.gishub.org/examples/satellite-predictor/)
+-   Added `SamGeoPredictor` class
+
+**Improvements**
+
+-   Improved `SamGeo.generate()` method
+-   Improved docstrings and API reference
+-   Added demos to docs
+
+**Demos**
+
+-   Automatic mask generator
+
+![](https://i.imgur.com/I1IhDgz.gif)
+
+**Contributors**
+
+@darrenwiens
+
 ## v0.3.0 - Apr 26, 2023
 
 **New Features**
