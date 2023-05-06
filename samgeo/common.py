@@ -629,9 +629,7 @@ def write_features(gdf, dst_fp):
 
 
 def write_raster(dst_fp, dst_arr, profile, width, height, transform, crs):
-    profile.update(
-        {"driver": "GTiff", "nodata": "0"}
-    )
+    profile.update({"driver": "GTiff", "nodata": "0"})
     with rasterio.open(dst_fp, "w", **profile) as dst:
         if len(dst_arr.shape) == 2:
             dst_arr = dst_arr[np.newaxis, ...]
@@ -964,7 +962,7 @@ def get_basemaps(free_only=True):
 
 
 def array_to_image(
-    array, output, source=None, dtype=None, compress='deflate', **kwargs
+    array, output, source=None, dtype=None, compress="deflate", **kwargs
 ):
     """Save a NumPy array as a GeoTIFF using the projection information from an existing GeoTIFF file.
 
@@ -1014,32 +1012,32 @@ def array_to_image(
         # Define the GeoTIFF metadata
         if array.ndim == 2:
             metadata = {
-                'driver': 'GTiff',
-                'height': array.shape[0],
-                'width': array.shape[1],
-                'count': 1,
-                'dtype': array.dtype,
-                'crs': crs,
-                'transform': transform,
+                "driver": "GTiff",
+                "height": array.shape[0],
+                "width": array.shape[1],
+                "count": 1,
+                "dtype": array.dtype,
+                "crs": crs,
+                "transform": transform,
             }
         elif array.ndim == 3:
             metadata = {
-                'driver': 'GTiff',
-                'height': array.shape[0],
-                'width': array.shape[1],
-                'count': array.shape[2],
-                'dtype': array.dtype,
-                'crs': crs,
-                'transform': transform,
+                "driver": "GTiff",
+                "height": array.shape[0],
+                "width": array.shape[1],
+                "count": array.shape[2],
+                "dtype": array.dtype,
+                "crs": crs,
+                "transform": transform,
             }
 
         if compress is not None:
-            metadata['compress'] = compress
+            metadata["compress"] = compress
         else:
             raise ValueError("Array must be 2D or 3D.")
 
         # Create a new GeoTIFF file and write the array to it
-        with rasterio.open(output, 'w', **metadata) as dst:
+        with rasterio.open(output, "w", **metadata) as dst:
             if array.ndim == 2:
                 dst.write(array, 1)
             elif array.ndim == 3:
@@ -1081,9 +1079,16 @@ def overlay_images(
     show_args1={},
     show_args2={},
 ):
+    import sys
     import matplotlib
     import matplotlib.widgets as mpwidgets
     import matplotlib.pyplot as plt
+
+    if "google.colab" in sys.modules:
+        backend = "inline"
+        print(
+            "The TkAgg backend is not supported in Google Colab. The overlay_images function will not work on Colab."
+        )
 
     matplotlib.use(backend)
 
@@ -1123,3 +1128,72 @@ def overlay_images(
 
     # Display the plot
     plt.show()
+
+
+def blend_images(
+    img1,
+    img2,
+    alpha=0.5,
+    output=False,
+    show=True,
+    figsize=(20, 20),
+    axis="off",
+    **kwargs,
+):
+    """
+    Blends two images together using the addWeighted function from the OpenCV library.
+
+    Args:
+        img1 (numpy.ndarray): The first input image on top represented as a NumPy array.
+        img2 (numpy.ndarray): The second input image at the bottom represented as a NumPy array.
+        alpha (float): The weighting factor for the first image in the blend. By default, this is set to 0.5.
+
+    Returns:
+        numpy.ndarray: The blended image as a NumPy array.
+    """
+    # Resize the images to have the same dimensions
+    import matplotlib.pyplot as plt
+
+    if isinstance(img1, str):
+        if img1.startswith("http"):
+            img1 = download_file(img1)
+
+        if not os.path.exists(img1):
+            raise ValueError(f"Input path {img1} does not exist.")
+
+        img1 = cv2.imread(img1)
+
+    if isinstance(img2, str):
+        if img2.startswith("http"):
+            img2 = download_file(img2)
+
+        if not os.path.exists(img2):
+            raise ValueError(f"Input path {img2} does not exist.")
+
+        img2 = cv2.imread(img2)
+
+    if img1.dtype == np.float32:
+        img1 = (img1 * 255).astype(np.uint8)
+
+    if img2.dtype == np.float32:
+        img2 = (img2 * 255).astype(np.uint8)
+
+    if img1.dtype != img2.dtype:
+        img2 = img2.astype(img1.dtype)
+
+    img1 = cv2.resize(img1, (img2.shape[1], img2.shape[0]))
+
+    # Blend the images using the addWeighted function
+    beta = 1 - alpha
+    blend_img = cv2.addWeighted(img1, alpha, img2, beta, 0, **kwargs)
+
+    if output:
+        array_to_image(blend_img, output, img2)
+
+    if show:
+        plt.figure(figsize=figsize)
+        plt.imshow(blend_img)
+        plt.axis(axis)
+        plt.show()
+    else:
+        return blend_img

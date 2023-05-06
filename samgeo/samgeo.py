@@ -243,7 +243,7 @@ class SamGeo:
         plt.show()
 
     def show_anns(
-        self, figsize=(20, 20), axis="off", opacity=0.35, output=None, **kwargs
+        self, figsize=(20, 20), axis="off", alpha=0.35, output=None, **kwargs
     ):
         import matplotlib.pyplot as plt
         import matplotlib.image as mpimg
@@ -275,7 +275,7 @@ class SamGeo:
         img[:, :, 3] = 0
         for ann in sorted_anns:
             m = ann["segmentation"]
-            color_mask = np.concatenate([np.random.random(3), [opacity]])
+            color_mask = np.concatenate([np.random.random(3), [alpha]])
             img[m] = color_mask
         ax.imshow(img)
 
@@ -286,22 +286,26 @@ class SamGeo:
             kwargs["bbox_inches"] = "tight"
 
         plt.axis(axis)
+
+        self.annotations = (img[:, :, 0:3] * 255).astype(np.uint8)
+
         if output is not None:
-            if opacity < 1.0:
-                background = self.image.astype(np.float32) / 255.0
-                result = background + img[:, :, 0:3] * opacity
-                result = np.clip(result, 0, 1)
-            else:
-                result = img[:, :, 0:3]
+            # if alpha < 1.0:
+            #     background = self.image.astype(np.float32) / 255.0
+            #     result = background + img[:, :, 0:3] * alpha
+            #     result = np.clip(result, 0, 1)
+            # else:
+            #     result = img[:, :, 0:3]
+            blend_images(
+                self.annotations, self.image, alpha=alpha, output=output, show=False
+            )
 
-            if output.endswith('.tif'):
-                array_to_image(result, output, self.source, **kwargs)
-            else:
-                mpimg.imsave(output, result)
+            # result = blend_images(img[:, :, 0:3], self.image, alpha=alpha, show=False)
 
-            self.img = img
-
-        plt.show()
+            # if output.endswith('.tif'):
+            #     array_to_image(result, output, self.source, **kwargs)
+            # else:
+            #     mpimg.imsave(output, result)
 
     def predict(self, in_path, out_path, prompts, image_format="RGB", **kwargs):
         """Segment the input image and save the result to the output path.
@@ -370,7 +374,6 @@ class SamGeo:
             simplify_tolerance (float, optional): The maximum allowed geometry displacement.
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
-
 
         tiff_to_geojson(
             tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs
