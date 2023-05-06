@@ -25,6 +25,12 @@ The **segment-geospatial** package draws its inspiration from [segment-anything-
 -   [Segmenting satellite imagery](https://samgeo.gishub.org/examples/satellite)
 -   [Automatically generating object masks](https://samgeo.gishub.org/examples/automatic_mask_generator)
 
+## Demos
+
+-   Automatic mask generator
+
+![](https://i.imgur.com/I1IhDgz.gif)
+
 ## Acknowledgements
 
 This package was made possible by the following open source projects. Credit goes to the developers of these projects.

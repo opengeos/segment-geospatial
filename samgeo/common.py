@@ -1089,6 +1089,7 @@ def overlay_images(
         print(
             "The TkAgg backend is not supported in Google Colab. The overlay_images function will not work on Colab."
         )
+        return
 
     matplotlib.use(backend)
 
@@ -1202,3 +1203,45 @@ def blend_images(
         plt.show()
     else:
         return blend_img
+
+
+def update_package(out_dir=None, keep=False, **kwargs):
+    """Updates the package from the GitHub repository without the need to use pip or conda.
+
+    Args:
+        out_dir (str, optional): The output directory. Defaults to None.
+        keep (bool, optional): Whether to keep the downloaded package. Defaults to False.
+        **kwargs: Additional keyword arguments to pass to the download_file() function.
+    """
+
+    import shutil
+
+    try:
+        if out_dir is None:
+            out_dir = os.getcwd()
+        url = (
+            "https://github.com/opengeos/segment-geospatial/archive/refs/heads/main.zip"
+        )
+        filename = "segment-geospatial-main.zip"
+        download_file(url, filename, **kwargs)
+
+        pkg_dir = os.path.join(out_dir, "segment-geospatial-main")
+        work_dir = os.getcwd()
+        os.chdir(pkg_dir)
+
+        if shutil.which("pip") is None:
+            cmd = "pip3 install ."
+        else:
+            cmd = "pip install ."
+
+        os.system(cmd)
+        os.chdir(work_dir)
+
+        if not keep:
+            shutil.rmtree(pkg_dir)
+            os.remove(filename)
+
+        print("Package updated successfully.")
+
+    except Exception as e:
+        raise Exception(e)
