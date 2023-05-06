@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 import shapely
 import geopandas as gpd
+from pyproj import Transformer, transform
 import rasterio
 from rasterio import features
 
@@ -578,6 +579,64 @@ def tms_to_geotiff(
             image_to_cog(output, output)
     except Exception as e:
         raise Exception(e)
+
+
+def get_profile(src_fp):
+    with rasterio.open(src_fp) as src:
+        return src.profile
+
+
+def get_crs(src_fp):
+    with rasterio.open(src_fp) as src:
+        return src.crs
+
+
+def get_features(src_fp, bidx=1):
+    with rasterio.open(src_fp) as src:
+        features = rasterio.features.dataset_features(
+            src,
+            bidx=bidx,
+            sampling=1,
+            band=True,
+            as_mask=False,
+            with_nodata=False,
+            geographic=True,
+            precision=-1,
+        )
+        gdf = gpd.GeoDataFrame.from_features(features)
+        gdf.set_crs(src.crs)
+        return gdf
+
+
+def set_transform(geo_box, width, height):
+    return rasterio.transform.from_bounds(*geo_box, width, height)
+
+
+def transform_coords(x, y, src_crs, dst_crs):
+    transformer = Transformer.from_crs(src_crs, dst_crs, always_xy=True)
+    return transformer.transform(x, y)
+
+
+def get_pixel_coords(src_fp, xs, ys):
+    with rasterio.open(src_fp) as src:
+        rows, cols = rasterio.transform.rowcol(src.transform, xs, ys)
+        box = np.array([min(cols), min(rows), max(cols), max(rows)])
+    return box
+
+
+def write_features(gdf, dst_fp):
+    gdf.to_file(dst_fp)
+
+
+def write_raster(dst_fp, dst_arr, profile, width, height, transform, crs):
+    profile.update(
+        {"driver": "GTiff", "nodata": "0"}
+    )
+    with rasterio.open(dst_fp, "w", **profile) as dst:
+        if len(dst_arr.shape) == 2:
+            dst_arr = dst_arr[np.newaxis, ...]
+        for i in range(dst_arr.shape[0]):
+            dst.write(dst_arr[i], i + 1)
 
 
 def chw_to_hwc(block):
