@@ -1136,7 +1136,7 @@ def blend_images(
     alpha=0.5,
     output=False,
     show=True,
-    figsize=(20, 20),
+    figsize=(12, 10),
     axis="off",
     **kwargs,
 ):
@@ -1147,6 +1147,11 @@ def blend_images(
         img1 (numpy.ndarray): The first input image on top represented as a NumPy array.
         img2 (numpy.ndarray): The second input image at the bottom represented as a NumPy array.
         alpha (float): The weighting factor for the first image in the blend. By default, this is set to 0.5.
+        output (str, optional): The path to the output image. Defaults to False.
+        show (bool, optional): Whether to display the blended image. Defaults to True.
+        figsize (tuple, optional): The size of the figure. Defaults to (12, 10).
+        axis (str, optional): The axis of the figure. Defaults to "off".
+        **kwargs: Additional keyword arguments to pass to the cv2.addWeighted() function.
 
     Returns:
         numpy.ndarray: The blended image as a NumPy array.

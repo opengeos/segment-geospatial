@@ -9,7 +9,6 @@ import numpy as np
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
 from segment_anything.utils.transforms import ResizeLongestSide
 
-
 from .common import *
 
 
@@ -75,12 +74,14 @@ class SamGeo:
         self.model_type = model_type
         self.device = device
         self.sam_kwargs = sam_kwargs  # Optional arguments for fine-tuning the SAM model
+        self.source = None  # Store the input image path
         self.image = None  # Store the input image as a numpy array
-        self.masks = (
-            None  # Store the masks as a list of dictionaries. Each mask is a dictionary
-        )
-        #  containing segmentation, area, bbox, predicted_iou, point_coords, stability_score, and crop_box
-        self.objects = None  # Store the mask objects as a numpy array.
+        # Store the masks as a list of dictionaries. Each mask is a dictionary
+        # containing segmentation, area, bbox, predicted_iou, point_coords, stability_score, and crop_box
+        self.masks = None
+        self.objects = None  # Store the mask objects as a numpy array
+        # Store the annotations (objects with random color) as a numpy array.
+        self.annotations = None
 
         # Build the SAM model
         self.sam = sam_model_registry[self.model_type](checkpoint=self.checkpoint)
@@ -104,9 +105,9 @@ class SamGeo:
         self.mask_multiplier = mask_multiplier
 
     def __call__(self, image):
+        # Segment each image tile
         h, w, _ = image.shape
 
-        # Third line of the SAM example
         masks = self.mask_generator.generate(image)
 
         resulting_mask = np.ones((h, w), dtype=np.uint8)
@@ -136,9 +137,26 @@ class SamGeo:
         batch=False,
         erosion_kernel=None,
         mask_multiplier=255,
-        unique=False,
+        unique=True,
         **kwargs,
     ):
+        """Generate masks for the input image.
+
+        Args:
+            source (str | np.ndarray): The path to the input image or the input image as a numpy array.
+            output (str, optional): The path to the output image. Defaults to None.
+            foreground (bool, optional): Whether to generate the foreground mask. Defaults to True.
+            batch (bool, optional): Whether to generate masks for a batch of image tiles. Defaults to False.
+            erosion_kernel (tuple, optional): The erosion kernel for filtering object masks and extract borders.
+                Such as (3, 3) or (5, 5). Set to None to disable it. Defaults to None.
+            mask_multiplier (int, optional): The mask multiplier for the output mask, which is usually a binary mask [0, 1].
+                You can use this parameter to scale the mask to a larger range, for example [0, 255]. Defaults to 255.
+                The parameter is ignored if unique is True.
+            unique (bool, optional): Whether to assign a unique value to each object. Defaults to True.
+                The unique value increases from 1 to the number of objects. The larger the number, the larger the object area.
+
+        """
+
         if isinstance(source, str):
             if source.startswith("http"):
                 source = download_file(source)
@@ -146,7 +164,7 @@ class SamGeo:
             if not os.path.exists(source):
                 raise ValueError(f"Input path {source} does not exist.")
 
-            if batch:
+            if batch:  # Subdivide the image into tiles and segment each tile
                 return tiff_to_tiff(source, output, self, **kwargs)
 
             image = cv2.imread(source)
@@ -154,13 +172,15 @@ class SamGeo:
             image = source
         else:
             raise ValueError("Input source must be either a path or a numpy array.")
-        self.source = source
-        self.image = image
-        mask_generator = self.mask_generator
-        masks = mask_generator.generate(image)
-        self.masks = masks
+
+        self.source = source  # Store the input image path
+        self.image = image  # Store the input image as a numpy array
+        mask_generator = self.mask_generator  # The automatic mask generator
+        masks = mask_generator.generate(image)  # Segment the input image
+        self.masks = masks  # Store the masks as a list of dictionaries
 
         if output is not None:
+            # Save the masks to the output path. The output is either a binary mask or a mask of objects with unique values.
             self.save_masks(
                 output, foreground, unique, erosion_kernel, mask_multiplier, **kwargs
             )
@@ -169,17 +189,31 @@ class SamGeo:
         self,
         output=None,
         foreground=True,
-        unique=False,
+        unique=True,
         erosion_kernel=None,
         mask_multiplier=255,
         **kwargs,
     ):
+        """Save the masks to the output path. The output is either a binary mask or a mask of objects with unique values.
+
+        Args:
+            output (str, optional): The path to the output image. Defaults to None, saving the masks to SamGeo.objects.
+            foreground (bool, optional): Whether to generate the foreground mask. Defaults to True.
+            unique (bool, optional): Whether to assign a unique value to each object. Defaults to True.
+            erosion_kernel (tuple, optional): The erosion kernel for filtering object masks and extract borders.
+                Such as (3, 3) or (5, 5). Set to None to disable it. Defaults to None.
+            mask_multiplier (int, optional): The mask multiplier for the output mask, which is usually a binary mask [0, 1].
+                You can use this parameter to scale the mask to a larger range, for example [0, 255]. Defaults to 255.
+
+        """
+
         if self.masks is None:
             raise ValueError("No masks found. Please run generate() first.")
 
         h, w, _ = self.image.shape
         masks = self.masks
 
+        # Set output image data type based on the number of objects
         if len(masks) < 255:
             dtype = np.uint8
         elif len(masks) < 65535:
@@ -187,21 +221,26 @@ class SamGeo:
         else:
             dtype = np.uint32
 
+        # Generate a mask of objects with unique values
         if unique:
+            # Sort the masks by area in ascending order
             sorted_masks = sorted(masks, key=(lambda x: x["area"]), reverse=False)
 
+            # Create an output image with the same size as the input image
             objects = np.zeros(
                 (
                     sorted_masks[0]["segmentation"].shape[0],
                     sorted_masks[0]["segmentation"].shape[1],
                 )
             )
+            # Assign a unique value to each object
             for index, ann in enumerate(sorted_masks):
                 m = ann["segmentation"]
                 objects[m] = index + 1
 
+        # Generate a binary mask
         else:
-            if foreground:
+            if foreground:  # Extract foreground objects only
                 resulting_mask = np.zeros((h, w), dtype=dtype)
             else:
                 resulting_mask = np.ones((h, w), dtype=dtype)
@@ -226,12 +265,21 @@ class SamGeo:
         objects = objects.astype(dtype)
         self.objects = objects
 
-        if output is not None:
+        if output is not None:  # Save the output image
             array_to_image(self.objects, output, self.source, **kwargs)
 
     def show_masks(
-        self, figsize=(20, 20), cmap="binary_r", axis="off", foreground=True, **kwargs
+        self, figsize=(12, 10), cmap="binary_r", axis="off", foreground=True, **kwargs
     ):
+        """Show the binary mask or the mask of objects with unique values.
+
+        Args:
+            figsize (tuple, optional): The figure size. Defaults to (12, 10).
+            cmap (str, optional): The colormap. Defaults to "binary_r".
+            axis (str, optional): Whether to show the axis. Defaults to "off".
+            foreground (bool, optional): Whether to show the foreground mask only. Defaults to True.
+        """
+
         import matplotlib.pyplot as plt
 
         if self.objects is None:
@@ -243,10 +291,18 @@ class SamGeo:
         plt.show()
 
     def show_anns(
-        self, figsize=(20, 20), axis="off", alpha=0.35, output=None, **kwargs
+        self, figsize=(12, 10), axis="off", alpha=0.35, output=None, **kwargs
     ):
+        """Show the annotations (objects with random color) on the input image.
+
+        Args:
+            figsize (tuple, optional): The figure size. Defaults to (12, 10).
+            axis (str, optional): Whether to show the axis. Defaults to "off".
+            alpha (float, optional): The alpha value for the annotations. Defaults to 0.35.
+            output (str, optional): The path to the output image. Defaults to None.
+        """
+
         import matplotlib.pyplot as plt
-        import matplotlib.image as mpimg
 
         anns = self.masks
 
@@ -290,22 +346,8 @@ class SamGeo:
         self.annotations = (img[:, :, 0:3] * 255).astype(np.uint8)
 
         if output is not None:
-            # if alpha < 1.0:
-            #     background = self.image.astype(np.float32) / 255.0
-            #     result = background + img[:, :, 0:3] * alpha
-            #     result = np.clip(result, 0, 1)
-            # else:
-            #     result = img[:, :, 0:3]
-            blend_images(
-                self.annotations, self.image, alpha=alpha, output=output, show=False
-            )
-
-            # result = blend_images(img[:, :, 0:3], self.image, alpha=alpha, show=False)
-
-            # if output.endswith('.tif'):
-            #     array_to_image(result, output, self.source, **kwargs)
-            # else:
-            #     mpimg.imsave(output, result)
+            array = blend_images(self.annotations, self.image, alpha=alpha, show=False)
+            array_to_image(array, output, self.source)
 
     def predict(self, in_path, out_path, prompts, image_format="RGB", **kwargs):
         """Segment the input image and save the result to the output path.
