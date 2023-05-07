@@ -701,6 +701,10 @@ def tiff_to_tiff(
     sample_size=(512, 512),
     sample_resize=None,
     bound=128,
+    foreground=True,
+    erosion_kernel=(3, 3),
+    mask_multiplier=255,
+    **kwargs,
 ):
     with rasterio.open(src_fp) as src:
         profile = src.profile
@@ -720,6 +724,9 @@ def tiff_to_tiff(
         profile["count"] = 1
         profile["dtype"] = "uint8"
 
+        if erosion_kernel is not None:
+            erosion_kernel = np.ones(erosion_kernel, np.uint8)
+
         with rasterio.open(dst_fp, "w", **profile) as dst:
             for b in tqdm(sample_grid):
                 # Read each tile from the source
@@ -733,7 +740,13 @@ def tiff_to_tiff(
                     )
 
                 # Run the model, call the __call__ method of SamGeo class
-                uin8_out = func(uint8_rgb_in)
+                uin8_out = func(
+                    uint8_rgb_in,
+                    foreground=foreground,
+                    erosion_kernel=erosion_kernel,
+                    mask_multiplier=mask_multiplier,
+                    **kwargs,
+                )
 
                 if resize_hw is not None:
                     uin8_out = cv2.resize(
