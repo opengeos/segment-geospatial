@@ -23,8 +23,6 @@ class SamGeo:
         checkpoint="sam_vit_h_4b8939.pth",
         automatic=True,
         device=None,
-        erosion_kernel=None,
-        mask_multiplier=255,
         sam_kwargs=None,
     ):
         """Initialize the class.
@@ -39,10 +37,6 @@ class SamGeo:
                 The automatic mask generator will segment the entire image, while the input prompts will segment selected objects.
             device (str, optional): The device to use. It can be one of the following: cpu, cuda.
                 Defaults to None, which will use cuda if available.
-            erosion_kernel (tuple, optional): The erosion kernel for filtering object masks and extract borders.
-                Set to None to disable it. Defaults to (3, 3).
-            mask_multiplier (int, optional): The mask multiplier for the output mask, which is usually a binary mask [0, 1].
-                You can use this parameter to scale the mask to a larger range, for example [0, 255]. Defaults to 255.
             sam_kwargs (dict, optional): Optional arguments for fine-tuning the SAM model. Defaults to None.
                 The available arguments with default values are listed below. See https://bit.ly/410RV0v for more details.
 
@@ -96,21 +90,31 @@ class SamGeo:
             # Segment selected objects using input prompts
             self.predictor = SamPredictor(self.sam, **sam_kwargs)
 
-        # Apply the erosion filter to the mask to extract borders
-        self.erosion_kernel = erosion_kernel
-        if self.erosion_kernel is not None:
-            self.erosion_kernel = np.ones(erosion_kernel, np.uint8)
+        # # Apply the erosion filter to the mask to extract borders
+        # self.erosion_kernel = erosion_kernel
+        # if self.erosion_kernel is not None:
+        #     self.erosion_kernel = np.ones(erosion_kernel, np.uint8)
 
-        # Rescale the binary mask to a larger range, for example, from [0, 1] to [0, 255].
-        self.mask_multiplier = mask_multiplier
+        # # Rescale the binary mask to a larger range, for example, from [0, 1] to [0, 255].
+        # self.mask_multiplier = mask_multiplier
 
-    def __call__(self, image):
+    def __call__(
+        self,
+        image,
+        foreground=True,
+        erosion_kernel=(3, 3),
+        mask_multiplier=255,
+        **kwargs,
+    ):
         # Segment each image tile
         h, w, _ = image.shape
 
         masks = self.mask_generator.generate(image)
 
-        resulting_mask = np.ones((h, w), dtype=np.uint8)
+        if foreground:  # Extract foreground objects only
+            resulting_mask = np.zeros((h, w), dtype=np.uint8)
+        else:
+            resulting_mask = np.ones((h, w), dtype=np.uint8)
         resulting_borders = np.zeros((h, w), dtype=np.uint8)
 
         for m in masks:
@@ -118,8 +122,8 @@ class SamGeo:
             resulting_mask += mask
 
             # Apply erosion to the mask
-            if self.erosion_kernel is not None:
-                mask_erode = cv2.erode(mask, self.erosion_kernel, iterations=1)
+            if erosion_kernel is not None:
+                mask_erode = cv2.erode(mask, erosion_kernel, iterations=1)
                 mask_erode = (mask_erode > 0).astype(np.uint8)
                 edge_mask = mask - mask_erode
                 resulting_borders += edge_mask
@@ -127,7 +131,7 @@ class SamGeo:
         resulting_mask = (resulting_mask > 0).astype(np.uint8)
         resulting_borders = (resulting_borders > 0).astype(np.uint8)
         resulting_mask_with_borders = resulting_mask - resulting_borders
-        return resulting_mask_with_borders * self.mask_multiplier
+        return resulting_mask_with_borders * mask_multiplier
 
     def generate(
         self,
@@ -165,7 +169,15 @@ class SamGeo:
                 raise ValueError(f"Input path {source} does not exist.")
 
             if batch:  # Subdivide the image into tiles and segment each tile
-                return tiff_to_tiff(source, output, self, **kwargs)
+                return tiff_to_tiff(
+                    source,
+                    output,
+                    self,
+                    foreground=foreground,
+                    erosion_kernel=erosion_kernel,
+                    mask_multiplier=mask_multiplier,
+                    **kwargs,
+                )
 
             image = cv2.imread(source)
         elif isinstance(source, np.ndarray):
