@@ -14,7 +14,7 @@ import geopandas as gpd
 from pyproj import Transformer, transform
 import rasterio
 from rasterio import features
-
+import matplotlib.pyplot as plt
 
 def check_file_path(file_path, make_dirs=True):
     """Gets the absolute file path.
@@ -1063,9 +1063,8 @@ def array_to_image(
 
 
 def show_image(
-    source, figsize=(20, 20), cmap=None, axis="off", fig_args={}, show_args={}, **kwargs
+    source, figsize=(12, 10), cmap=None, axis="off", fig_args={}, show_args={}, **kwargs
 ):
-    import matplotlib.pyplot as plt
 
     if isinstance(source, str):
         if source.startswith("http"):
@@ -1083,6 +1082,47 @@ def show_image(
     plt.show(**kwargs)
 
 
+def show_mask(mask, random_color=False):
+    ax = plt.gca()
+    if random_color:
+        color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
+    else:
+        color = np.array([30/255, 144/255, 255/255, 0.6])
+    h, w = mask.shape[-2:]
+    mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
+    ax.imshow(mask_image)
+    
+def show_points(image, coords, labels, marker_size=375, figsize=(12, 10), axis='on', title=None, mask=None, **kwargs):
+
+    if isinstance(image, str):
+        if image.startswith("http"):
+            image = download_file(image)
+
+        if not os.path.exists(image):
+            raise ValueError(f"Input path {image} does not exist.")
+
+        image = cv2.imread(image)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    plt.figure(figsize=figsize)
+    plt.imshow(image)
+    ax = plt.gca()
+    pos_points = coords[labels==1]
+    neg_points = coords[labels==0]
+    ax.scatter(pos_points[:, 0], pos_points[:, 1], color='green', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
+    ax.scatter(neg_points[:, 0], neg_points[:, 1], color='red', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)  
+    if title is not None:
+        plt.title(title)
+    plt.axis(axis) 
+    plt.show()
+    
+def show_box(image, box, ax):
+    ax= plt.gca()
+    x0, y0 = box[0], box[1]
+    w, h = box[2] - box[0], box[3] - box[1]
+    ax.add_patch(plt.Rectangle((x0, y0), w, h, edgecolor='green', facecolor=(0,0,0,0), lw=2))    
+
+
 def overlay_images(
     image1,
     image2,
@@ -1095,7 +1135,6 @@ def overlay_images(
     import sys
     import matplotlib
     import matplotlib.widgets as mpwidgets
-    import matplotlib.pyplot as plt
 
     if "google.colab" in sys.modules:
         backend = "inline"
@@ -1171,8 +1210,6 @@ def blend_images(
         numpy.ndarray: The blended image as a NumPy array.
     """
     # Resize the images to have the same dimensions
-    import matplotlib.pyplot as plt
-
     if isinstance(img1, str):
         if img1.startswith("http"):
             img1 = download_file(img1)
