@@ -361,18 +361,33 @@ class SamGeo:
             array = blend_images(self.annotations, self.image, alpha=alpha, show=False)
             array_to_image(array, output, self.source)
 
-    def predict(self, in_path, out_path, prompts, image_format="RGB", **kwargs):
-        """Segment the input image and save the result to the output path.
+    def set_image(self, image, image_format="RGB"):
+        """Set the input image as a numpy array.
 
         Args:
-            in_path (str): The path to the input image.
-            out_path (str): The path to the output image.
-            prompts (list): The prompts to use.
+            image (np.ndarray): The input image as a numpy array.
         """
+        if isinstance(image, str):
+            if image.startswith("http"):
+                image = download_file(image)
+
+            if not os.path.exists(image):
+                raise ValueError(f"Input path {image} does not exist.")
+
+            image = cv2.imread(image)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        elif isinstance(image, np.ndarray):
+            pass
+        else:
+            raise ValueError("Input image must be either a path or a numpy array.")
+
+        self.predictor.set_image(image, image_format=image_format)
+
+    def predict(self, output=None, point_coords=None, point_labels=None, box=None, mask_input=None, multimask_output=True, return_logits=False, **kwargs):
+
         predictor = self.predictor
-        predictor.set_image(in_path, image_format=image_format)
-        masks, _, _ = predictor.predict(prompts, **kwargs)
-        return masks
+        masks, iou_predictions, low_res_masks = predictor.predict(point_coords, point_labels, box, mask_input, multimask_output, return_logits)
+        return masks, iou_predictions, low_res_masks
 
     def image_to_image(self, image, **kwargs):
         return image_to_image(image, self, **kwargs)
