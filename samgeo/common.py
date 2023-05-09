@@ -675,6 +675,9 @@ def coords_to_xy(
     Returns:
         A list of pixel coordinates in the format of [[x1, y1], [x2, y2], ...]
     """
+    if isinstance(coords, np.ndarray):
+        coords = coords.tolist()
+
     xs, ys = zip(*coords)
     with rasterio.open(src_fp) as src:
         width = src.width

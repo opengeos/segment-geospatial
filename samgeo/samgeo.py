@@ -374,6 +374,8 @@ class SamGeo:
             if not os.path.exists(image):
                 raise ValueError(f"Input path {image} does not exist.")
 
+            self.image = image
+
             image = cv2.imread(image)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         elif isinstance(image, np.ndarray):
@@ -381,21 +383,29 @@ class SamGeo:
         else:
             raise ValueError("Input image must be either a path or a numpy array.")
 
+        
         self.predictor.set_image(image, image_format=image_format)
 
     def predict(
         self,
-        output=None,
         point_coords=None,
         point_labels=None,
+        point_crs=None,
         box=None,
         mask_input=None,
         multimask_output=True,
         return_logits=False,
+        output=None,
         **kwargs,
     ):
+
+        if point_crs is not None:
+            point_coords = coords_to_xy(self.image, point_coords, point_crs)
         if isinstance(point_coords, list):
             point_coords = np.array(point_coords)
+
+        if point_labels is None:
+            point_labels = [1] * len(point_coords)
 
         if isinstance(point_labels, list):
             point_labels = np.array(point_labels)
@@ -496,11 +506,6 @@ class SamGeoPredictor(SamPredictor):
             xs = np.array([sw[0], ne[0]])
             ys = np.array([sw[1], ne[1]])
             box = get_pixel_coords(src_fp, xs, ys)
-            self.sw = sw
-            self.ne = ne
-            self.xs = xs
-            self.ys = ys
-            self.box = box
             self.geo_box = geo_box
             self.width = box[2] - box[0]
             self.height = box[3] - box[1]
