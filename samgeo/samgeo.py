@@ -383,10 +383,27 @@ class SamGeo:
 
         self.predictor.set_image(image, image_format=image_format)
 
-    def predict(self, output=None, point_coords=None, point_labels=None, box=None, mask_input=None, multimask_output=True, return_logits=False, **kwargs):
+    def predict(
+        self,
+        output=None,
+        point_coords=None,
+        point_labels=None,
+        box=None,
+        mask_input=None,
+        multimask_output=True,
+        return_logits=False,
+        **kwargs,
+    ):
+        if isinstance(point_coords, list):
+            point_coords = np.array(point_coords)
+
+        if isinstance(point_labels, list):
+            point_labels = np.array(point_labels)
 
         predictor = self.predictor
-        masks, iou_predictions, low_res_masks = predictor.predict(point_coords, point_labels, box, mask_input, multimask_output, return_logits)
+        masks, iou_predictions, low_res_masks = predictor.predict(
+            point_coords, point_labels, box, mask_input, multimask_output, return_logits
+        )
         return masks, iou_predictions, low_res_masks
 
     def image_to_image(self, image, **kwargs):
@@ -479,6 +496,11 @@ class SamGeoPredictor(SamPredictor):
             xs = np.array([sw[0], ne[0]])
             ys = np.array([sw[1], ne[1]])
             box = get_pixel_coords(src_fp, xs, ys)
+            self.sw = sw
+            self.ne = ne
+            self.xs = xs
+            self.ys = ys
+            self.box = box
             self.geo_box = geo_box
             self.width = box[2] - box[0]
             self.height = box[3] - box[1]

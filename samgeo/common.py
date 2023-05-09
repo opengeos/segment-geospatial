@@ -6,15 +6,14 @@ import os
 import tempfile
 import cv2
 import numpy as np
-import rasterio
 from tqdm import tqdm
 
 import shapely
-import geopandas as gpd
-from pyproj import Transformer, transform
+import pyproj
 import rasterio
-from rasterio import features
+import geopandas as gpd
 import matplotlib.pyplot as plt
+
 
 def check_file_path(file_path, make_dirs=True):
     """Gets the absolute file path.
@@ -612,9 +611,108 @@ def set_transform(geo_box, width, height):
     return rasterio.transform.from_bounds(*geo_box, width, height)
 
 
-def transform_coords(x, y, src_crs, dst_crs):
-    transformer = Transformer.from_crs(src_crs, dst_crs, always_xy=True)
+def transform_coords(x, y, src_crs, dst_crs, **kwargs):
+    """Transform coordinates from one CRS to another.
+
+    Args:
+        x (float): The x coordinate.
+        y (float): The y coordinate.
+        src_crs (str): The source CRS, e.g., "EPSG:4326".
+        dst_crs (str): The destination CRS, e.g., "EPSG:3857".
+
+    Returns:
+        dict: The transformed coordinates in the format of (x, y)
+    """
+    transformer = pyproj.Transformer.from_crs(
+        src_crs, dst_crs, always_xy=True, **kwargs
+    )
     return transformer.transform(x, y)
+
+
+def geojson_to_coords(
+    geojson: str, src_crs: str = "epsg:4326", dst_crs: str = "epsg:4326"
+) -> list:
+    """Converts a geojson file or a dictionary of feature collection to a list of centroid coordinates.
+
+    Args:
+        geojson (str | dict): The geojson file path or a dictionary of feature collection.
+        src_crs (str, optional): The source CRS. Defaults to "epsg:4326".
+        dst_crs (str, optional): The destination CRS. Defaults to "epsg:4326".
+
+    Returns:
+        list: A list of centroid coordinates in the format of [[x1, y1], [x2, y2], ...]
+    """
+
+    import json
+
+    if isinstance(geojson, dict):
+        geojson = json.dumps(geojson)
+    gdf = gpd.read_file(geojson, driver="GeoJSON")
+    centroids = gdf.geometry.centroid
+    centroid_list = [[point.x, point.y] for point in centroids]
+    if src_crs != dst_crs:
+        centroid_list = transform_coords(
+            [x[0] for x in centroid_list],
+            [x[1] for x in centroid_list],
+            src_crs,
+            dst_crs,
+        )
+        centroid_list = [[x, y] for x, y in zip(centroid_list[0], centroid_list[1])]
+    return centroid_list
+
+
+def coords_to_xy(
+    src_fp: str, coords: list, coord_crs: str = "epsg:4326", **kwargs
+) -> list:
+    """Converts a list of coordinates to pixel coordinates, i.e., (col, row) coordinates.
+
+    Args:
+        src_fp: The source raster file path.
+        coords: A list of coordinates in the format of [[x1, y1], [x2, y2], ...]
+        coord_crs: The coordinate CRS of the input coordinates. Defaults to "epsg:4326".
+        **kwargs: Additional keyword arguments to pass to rasterio.transform.rowcol.
+
+    Returns:
+        A list of pixel coordinates in the format of [[x1, y1], [x2, y2], ...]
+    """
+    xs, ys = zip(*coords)
+    with rasterio.open(src_fp) as src:
+        width = src.width
+        height = src.height
+        if coord_crs != src.crs:
+            xs, ys = transform_coords(xs, ys, coord_crs, src.crs, **kwargs)
+        rows, cols = rasterio.transform.rowcol(src.transform, xs, ys, **kwargs)
+    result = [[col, row] for col, row in zip(cols, rows)]
+
+    result = [
+        [x, y] for x, y in result if x >= 0 and y >= 0 and x < width and y < height
+    ]
+    if len(result) == 0:
+        print("No valid pixel coordinates found.")
+    elif len(result) < len(coords):
+        print("Some coordinates are out of the image boundary.")
+
+    return result
+
+
+def geojson_to_xy(
+    src_fp: str, geojson: str, coord_crs: str = "epsg:4326", **kwargs
+) -> list:
+    """Converts a geojson file or a dictionary of feature collection to a list of pixel coordinates.
+
+    Args:
+        src_fp: The source raster file path.
+        geojson: The geojson file path or a dictionary of feature collection.
+        coord_crs: The coordinate CRS of the input coordinates. Defaults to "epsg:4326".
+        **kwargs: Additional keyword arguments to pass to rasterio.transform.rowcol.
+
+    Returns:
+        A list of pixel coordinates in the format of [[x1, y1], [x2, y2], ...]
+    """
+    with rasterio.open(src_fp) as src:
+        src_crs = src.crs
+    coords = geojson_to_coords(geojson, coord_crs, src_crs)
+    return coords_to_xy(src_fp, coords, src_crs, **kwargs)
 
 
 def get_pixel_coords(src_fp, xs, ys):
@@ -802,6 +900,8 @@ def tiff_to_image(
 
 
 def tiff_to_shapes(tiff_path, simplify_tolerance=None):
+    from rasterio import features
+
     with rasterio.open(tiff_path) as src:
         band = src.read()
 
@@ -838,6 +938,7 @@ def tiff_to_vector(tiff_path, output, simplify_tolerance=None, **kwargs):
         simplify_tolerance (float, optional): The maximum allowed geometry displacement.
             The higher this value, the smaller the number of vertices in the resulting geometry.
     """
+    from rasterio import features
 
     with rasterio.open(tiff_path) as src:
         band = src.read()
@@ -1065,7 +1166,6 @@ def array_to_image(
 def show_image(
     source, figsize=(12, 10), cmap=None, axis="off", fig_args={}, show_args={}, **kwargs
 ):
-
     if isinstance(source, str):
         if source.startswith("http"):
             source = download_file(source)
@@ -1087,13 +1187,23 @@ def show_mask(mask, random_color=False):
     if random_color:
         color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
     else:
-        color = np.array([30/255, 144/255, 255/255, 0.6])
+        color = np.array([30 / 255, 144 / 255, 255 / 255, 0.6])
     h, w = mask.shape[-2:]
     mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
     ax.imshow(mask_image)
-    
-def show_points(image, coords, labels, marker_size=375, figsize=(12, 10), axis='on', title=None, mask=None, **kwargs):
 
+
+def show_points(
+    image,
+    coords,
+    labels,
+    marker_size=375,
+    figsize=(12, 10),
+    axis="on",
+    title=None,
+    mask=None,
+    **kwargs,
+):
     if isinstance(image, str):
         if image.startswith("http"):
             image = download_file(image)
@@ -1107,20 +1217,39 @@ def show_points(image, coords, labels, marker_size=375, figsize=(12, 10), axis='
     plt.figure(figsize=figsize)
     plt.imshow(image)
     ax = plt.gca()
-    pos_points = coords[labels==1]
-    neg_points = coords[labels==0]
-    ax.scatter(pos_points[:, 0], pos_points[:, 1], color='green', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)
-    ax.scatter(neg_points[:, 0], neg_points[:, 1], color='red', marker='*', s=marker_size, edgecolor='white', linewidth=1.25)  
+    pos_points = coords[labels == 1]
+    neg_points = coords[labels == 0]
+    ax.scatter(
+        pos_points[:, 0],
+        pos_points[:, 1],
+        color="green",
+        marker="*",
+        s=marker_size,
+        edgecolor="white",
+        linewidth=1.25,
+    )
+    ax.scatter(
+        neg_points[:, 0],
+        neg_points[:, 1],
+        color="red",
+        marker="*",
+        s=marker_size,
+        edgecolor="white",
+        linewidth=1.25,
+    )
     if title is not None:
         plt.title(title)
-    plt.axis(axis) 
+    plt.axis(axis)
     plt.show()
-    
+
+
 def show_box(image, box, ax):
-    ax= plt.gca()
+    ax = plt.gca()
     x0, y0 = box[0], box[1]
     w, h = box[2] - box[0], box[3] - box[1]
-    ax.add_patch(plt.Rectangle((x0, y0), w, h, edgecolor='green', facecolor=(0,0,0,0), lw=2))    
+    ax.add_patch(
+        plt.Rectangle((x0, y0), w, h, edgecolor="green", facecolor=(0, 0, 0, 0), lw=2)
+    )
 
 
 def overlay_images(
