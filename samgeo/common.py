@@ -629,6 +629,40 @@ def transform_coords(x, y, src_crs, dst_crs, **kwargs):
     return transformer.transform(x, y)
 
 
+def vector_to_geojson(filename, output=None, **kwargs):
+    """Converts a vector file to a geojson file.
+
+    Args:
+        filename (str): The vector file path.
+        output (str, optional): The output geojson file path. Defaults to None.
+
+    Returns:
+        dict: The geojson dictionary.
+    """
+    gdf = gpd.read_file(filename, **kwargs)
+    if output is None:
+        return gdf.__geo_interface__
+    else:
+        gdf.to_file(output, driver="GeoJSON")
+
+
+def get_vector_crs(filename, **kwargs):
+    """Gets the CRS of a vector file.
+
+    Args:
+        filename (str): The vector file path.
+
+    Returns:
+        str: The CRS of the vector file.
+    """
+    gdf = gpd.read_file(filename, **kwargs)
+    epsg = gdf.crs.to_epsg()
+    if epsg is None:
+        return gdf.crs
+    else:
+        return f"EPSG:{epsg}"
+
+
 def geojson_to_coords(
     geojson: str, src_crs: str = "epsg:4326", dst_crs: str = "epsg:4326"
 ) -> list:
@@ -644,6 +678,9 @@ def geojson_to_coords(
     """
 
     import json
+    import warnings
+
+    warnings.filterwarnings("ignore")
 
     if isinstance(geojson, dict):
         geojson = json.dumps(geojson)
@@ -932,8 +969,8 @@ def draw_tile(source, lat0, lon0, lat1, lon1, zoom, filename, **kwargs):
     return image
 
 
-def tiff_to_vector(tiff_path, output, simplify_tolerance=None, **kwargs):
-    """Convert a tiff file to a gpkg file.
+def raster_to_vector(tiff_path, output, simplify_tolerance=None, **kwargs):
+    """Vectorize a raster dataset.
 
     Args:
         tiff_path (str): The path to the tiff file.
@@ -963,7 +1000,7 @@ def tiff_to_vector(tiff_path, output, simplify_tolerance=None, **kwargs):
     gdf.to_file(output, **kwargs)
 
 
-def tiff_to_gpkg(tiff_path, output, simplify_tolerance=None, **kwargs):
+def raster_to_gpkg(tiff_path, output, simplify_tolerance=None, **kwargs):
     """Convert a tiff file to a gpkg file.
 
     Args:
@@ -976,10 +1013,10 @@ def tiff_to_gpkg(tiff_path, output, simplify_tolerance=None, **kwargs):
     if not output.endswith(".gpkg"):
         output += ".gpkg"
 
-    tiff_to_vector(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
+    raster_to_vector(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
 
 
-def tiff_to_shp(tiff_path, output, simplify_tolerance=None, **kwargs):
+def raster_to_shp(tiff_path, output, simplify_tolerance=None, **kwargs):
     """Convert a tiff file to a shapefile.
 
     Args:
@@ -992,10 +1029,10 @@ def tiff_to_shp(tiff_path, output, simplify_tolerance=None, **kwargs):
     if not output.endswith(".shp"):
         output += ".shp"
 
-    tiff_to_vector(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
+    raster_to_vector(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
 
 
-def tiff_to_geojson(tiff_path, output, simplify_tolerance=None, **kwargs):
+def raster_to_geojson(tiff_path, output, simplify_tolerance=None, **kwargs):
     """Convert a tiff file to a GeoJSON file.
 
     Args:
@@ -1008,7 +1045,7 @@ def tiff_to_geojson(tiff_path, output, simplify_tolerance=None, **kwargs):
     if not output.endswith(".geojson"):
         output += ".geojson"
 
-    tiff_to_vector(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
+    raster_to_vector(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
 
 
 def get_xyz_dict(free_only=True):

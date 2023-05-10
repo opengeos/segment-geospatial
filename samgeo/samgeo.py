@@ -63,6 +63,8 @@ class SamGeo:
         # Use cuda if available
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
+            if device == "cuda":
+                torch.cuda.empty_cache()
 
         self.checkpoint = checkpoint
         self.model_type = model_type
@@ -76,6 +78,11 @@ class SamGeo:
         self.objects = None  # Store the mask objects as a numpy array
         # Store the annotations (objects with random color) as a numpy array.
         self.annotations = None
+
+        # Store the predicted masks, iou_predictions, and low_res_masks
+        self.prediction = None
+        self.scores = None
+        self.logits = None
 
         # Build the SAM model
         self.sam = sam_model_registry[self.model_type](checkpoint=self.checkpoint)
@@ -383,8 +390,34 @@ class SamGeo:
         else:
             raise ValueError("Input image must be either a path or a numpy array.")
 
-        
         self.predictor.set_image(image, image_format=image_format)
+
+    def save_prediction(
+        self, output, index=None, vector=None, simplify_tolerance=None, **kwargs
+    ):
+        """Save the predicted mask to the output path.
+
+        Args:
+            output (str): The path to the output image.
+            index (int, optional): The index of the mask to save. Defaults to None,
+                which will save the mask with the highest score.
+            vector (str, optional): The path to the output vector file. Defaults to None.
+            simplify_tolerance (float, optional): The maximum allowed geometry displacement.
+                The higher this value, the smaller the number of vertices in the resulting geometry.
+
+        """
+        if self.scores is None:
+            raise ValueError("No predictions found. Please run predict() first.")
+
+        if index is None:
+            index = self.scores.argmax(axis=0)
+
+        array = self.masks[index]
+        self.prediction = array
+        array_to_image(array, output, self.image, dtype=np.int32, **kwargs)
+
+        if vector is not None:
+            raster_to_vector(output, vector, simplify_tolerance=simplify_tolerance)
 
     def predict(
         self,
@@ -396,25 +429,68 @@ class SamGeo:
         multimask_output=True,
         return_logits=False,
         output=None,
+        index=None,
         **kwargs,
     ):
+        """Predict masks for the given input prompts, using the currently set image.
+
+        Args:
+            point_coords (str | dict | list | np.ndarray, optional): A Nx2 array of point prompts to the
+                model. Each point is in (X,Y) in pixels. It can be a path to a vector file, a GeoJSON
+                dictionary, a list of coordinates [lon, lat], or a numpy array. Defaults to None.
+            point_labels (list | int | np.ndarray, optional): A length N array of labels for the
+                point prompts. 1 indicates a foreground point and 0 indicates a background point.
+            point_crs (str, optional): The coordinate reference system (CRS) of the point prompts.
+            box (list | np.ndarray, optional): A length 4 array given a box prompt to the
+                model, in XYXY format.
+            mask_input (np.ndarray, optional): A low resolution mask input to the model, typically
+                coming from a previous prediction iteration. Has form 1xHxW, where for SAM, H=W=256.
+                multimask_output (bool, optional): If true, the model will return three masks.
+                For ambiguous input prompts (such as a single click), this will often
+                produce better masks than a single prediction. If only a single
+                mask is needed, the model's predicted quality score can be used
+                to select the best mask. For non-ambiguous prompts, such as multiple
+                input prompts, multimask_output=False can give better results.
+            return_logits (bool, optional): If true, returns un-thresholded masks logits
+                instead of a binary mask.
+            output (str, optional): The path to the output image. Defaults to None.
+            index (index, optional): The index of the mask to save. Defaults to None,
+                which will save the mask with the highest score.
+
+        """
+
+        if isinstance(point_coords, str):
+            point_coords = vector_to_geojson(point_coords)
+
+        if isinstance(point_coords, dict):
+            point_coords = geojson_to_coords(point_coords)
 
         if point_crs is not None:
             point_coords = coords_to_xy(self.image, point_coords, point_crs)
+
         if isinstance(point_coords, list):
             point_coords = np.array(point_coords)
 
         if point_labels is None:
             point_labels = [1] * len(point_coords)
+        elif isinstance(point_labels, int):
+            point_labels = [point_labels] * len(point_coords)
 
         if isinstance(point_labels, list):
             point_labels = np.array(point_labels)
 
         predictor = self.predictor
-        masks, iou_predictions, low_res_masks = predictor.predict(
+        masks, scores, logits = predictor.predict(
             point_coords, point_labels, box, mask_input, multimask_output, return_logits
         )
-        return masks, iou_predictions, low_res_masks
+        self.masks = masks
+        self.scores = scores
+        self.logits = logits
+
+        if output is not None:
+            self.save_prediction(output, index=index, **kwargs)
+
+        return masks, scores, logits
 
     def image_to_image(self, image, **kwargs):
         return image_to_image(image, self, **kwargs)
@@ -433,7 +509,7 @@ class SamGeo:
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
 
-        tiff_to_vector(
+        raster_to_vector(
             tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs
         )
 
@@ -447,7 +523,9 @@ class SamGeo:
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
 
-        tiff_to_gpkg(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
+        raster_to_gpkg(
+            tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs
+        )
 
     def tiff_to_shp(self, tiff_path, output, simplify_tolerance=None, **kwargs):
         """Convert a tiff file to a shapefile.
@@ -459,7 +537,9 @@ class SamGeo:
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
 
-        tiff_to_shp(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
+        raster_to_shp(
+            tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs
+        )
 
     def tiff_to_geojson(self, tiff_path, output, simplify_tolerance=None, **kwargs):
         """Convert a tiff file to a GeoJSON file.
@@ -471,7 +551,7 @@ class SamGeo:
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
 
-        tiff_to_geojson(
+        raster_to_geojson(
             tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs
         )
 
