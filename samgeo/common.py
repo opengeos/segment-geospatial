@@ -969,18 +969,18 @@ def draw_tile(source, lat0, lon0, lat1, lon1, zoom, filename, **kwargs):
     return image
 
 
-def raster_to_vector(tiff_path, output, simplify_tolerance=None, **kwargs):
+def raster_to_vector(source, output, simplify_tolerance=None, **kwargs):
     """Vectorize a raster dataset.
 
     Args:
-        tiff_path (str): The path to the tiff file.
+        source (str): The path to the tiff file.
         output (str): The path to the vector file.
         simplify_tolerance (float, optional): The maximum allowed geometry displacement.
             The higher this value, the smaller the number of vertices in the resulting geometry.
     """
     from rasterio import features
 
-    with rasterio.open(tiff_path) as src:
+    with rasterio.open(source) as src:
         band = src.read()
 
         mask = band != 0
@@ -1466,8 +1466,7 @@ def update_package(out_dir=None, keep=False, **kwargs):
         raise Exception(e)
 
 
-def sam_map_gui(sam, **kwargs):
-
+def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, **kwargs):
     try:
         import leafmap
         import ipyleaflet
@@ -1478,14 +1477,16 @@ def sam_map_gui(sam, **kwargs):
             "The sam_map function requires the leafmap package. Please install it first."
         )
 
-    m = leafmap.Map(**kwargs)
+    m = leafmap.Map(repeat_mode=repeat_mode, **kwargs)
+    m.add_basemap(basemap, show=False)
+    m.add_raster(sam.image, layer_name="Image")
 
-    widget_width = "250px"
+    widget_width = "100px"
     padding = "0px 0px 0px 5px"  # upper, right, bottom, left
     style = {"description_width": "initial"}
 
     toolbar_button = widgets.ToggleButton(
-        value=False,
+        value=True,
         tooltip="Toolbar",
         icon="gear",
         layout=widgets.Layout(width="28px", height="28px", padding="0px 0px 0px 4px"),
@@ -1499,28 +1500,47 @@ def sam_map_gui(sam, **kwargs):
         layout=widgets.Layout(height="28px", width="28px", padding="0px 0px 0px 4px"),
     )
 
-
-    buttons = widgets.ToggleButtons(
-        value=None,
-        options=["Apply", "Reset", "Close"],
-        tooltips=["Apply", "Reset", "Close"],
-        button_style="primary",
+    segment_button = widgets.ToggleButton(
+        description="Segment", value=False, button_style="primary"
     )
-    buttons.style.button_width = "80px"
+    reset_button = widgets.ToggleButton(
+        description="Reset", value=False, button_style="primary"
+    )
+    segment_button.layout.width = widget_width
+    reset_button.layout.width = widget_width
+
+    buttons = widgets.VBox([segment_button, reset_button])
+
+    opacity_slider = widgets.FloatSlider(
+        min=0,
+        max=1,
+        value=0.5,
+        readout=False,
+        continuous_update=True,
+        layout=widgets.Layout(width="95px"),
+        style=style,
+    )
+
+    def opacity_changed(change):
+        if change["new"]:
+            mask_layer = m.find_layer("Masks")
+            if mask_layer is not None:
+                mask_layer.interact(opacity=opacity_slider.value)
+
+    opacity_slider.observe(opacity_changed, "value")
 
     output = widgets.Output(layout=widgets.Layout(width=widget_width, padding=padding))
-
 
     toolbar_header = widgets.HBox()
     toolbar_header.children = [close_button, toolbar_button]
     toolbar_footer = widgets.VBox()
     toolbar_footer.children = [
         buttons,
+        opacity_slider,
         output,
     ]
     toolbar_widget = widgets.VBox()
     toolbar_widget.children = [toolbar_header, toolbar_footer]
-
 
     toolbar_event = ipyevents.Event(
         source=toolbar_widget, watched_events=["mouseenter", "mouseleave"]
@@ -1556,6 +1576,37 @@ def sam_map_gui(sam, **kwargs):
 
     close_button.observe(close_btn_click, "value")
 
+    def segment_button_click(change):
+        if change["new"]:
+            reset_button.value = False
+            with output:
+                output.clear_output()
+                print("Segmenting...")
+                try:
+                    if m.user_rois is not None:
+                        filename = f"masks_{random_string()}.tif"
+                        sam.predict(point_coords=m.user_rois,  point_crs='EPSG:4326', output=filename)
+                        if m.find_layer("Masks") is not None:
+                            m.remove_layer(m.find_layer("Masks"))
+                        m.add_raster(filename, nodata=0, cmap='Blues', opacity=opacity_slider.value, layer_name="Masks", zoom_to_layer=False)
+                    output.clear_output()
+                    segment_button.value = False
+                except Exception as e:
+                    print(e)
+
+    segment_button.observe(segment_button_click, "value")
+
+    def reset_button_click(change):
+        if change["new"]:
+            segment_button.value = False
+            reset_button.value = False
+            opacity_slider.value = 0.5
+            output.clear_output()
+            m.remove_layer(m.find_layer("Masks"))
+            m.clear_drawings()
+
+    reset_button.observe(reset_button_click, "value")
+
     toolbar_control = ipyleaflet.WidgetControl(
         widget=toolbar_widget, position="topright"
     )
@@ -1563,3 +1614,20 @@ def sam_map_gui(sam, **kwargs):
     m.toolbar_control = toolbar_control
 
     return m
+
+
+def random_string(string_length=6):
+    """Generates a random string of fixed length.
+
+    Args:
+        string_length (int, optional): Fixed length. Defaults to 3.
+
+    Returns:
+        str: A random string
+    """
+    import random
+    import string
+
+    # random.seed(1001)
+    letters = string.ascii_lowercase
+    return "".join(random.choice(letters) for i in range(string_length))
