@@ -494,6 +494,13 @@ class SamGeo:
             point_labels = [point_labels] * len(point_coords)
 
         if isinstance(point_labels, list):
+            if len(point_labels) != len(point_coords):
+                if len(point_labels) == 1:
+                    point_labels = point_labels * len(point_coords)
+                else:
+                    raise ValueError(
+                        "The length of point_labels must be equal to the length of point_coords."
+                    )
             point_labels = np.array(point_labels)
 
         predictor = self.predictor

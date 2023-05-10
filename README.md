@@ -24,12 +24,23 @@ The **segment-geospatial** package draws its inspiration from [segment-anything-
 
 -   [Segmenting satellite imagery](https://samgeo.gishub.org/examples/satellite)
 -   [Automatically generating object masks](https://samgeo.gishub.org/examples/automatic_mask_generator)
+-   [Segmenting satellite imagery with input prompts](https://samgeo.gishub.org/examples/input_prompts)
 
 ## Demos
 
 -   Automatic mask generator
 
 ![](https://i.imgur.com/I1IhDgz.gif)
+
+-   Interactive segmentation with input prompts
+
+![](https://i.imgur.com/GV7Rzxt.gif)
+
+## Tutorials
+
+Video tutorials are available on my [YouTube Channel](https://youtube.com/@giswqs).
+
+[![Alt text](https://img.youtube.com/vi/YHA_-QMB8_U/0.jpg)](https://www.youtube.com/playlist?list=PLAxJ4-o7ZoPcrg5RnZjkB_KY6tv96WO2h)
 
 ## Acknowledgements
 

@@ -591,8 +591,9 @@ def get_crs(src_fp):
 
 
 def get_features(src_fp, bidx=1):
+    from rasterio import features
     with rasterio.open(src_fp) as src:
-        features = rasterio.features.dataset_features(
+        features = features.dataset_features(
             src,
             bidx=bidx,
             sampling=1,
@@ -1591,6 +1592,7 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, **kwargs):
                         m.add_raster(filename, nodata=0, cmap='Blues', opacity=opacity_slider.value, layer_name="Masks", zoom_to_layer=False)
                     output.clear_output()
                     segment_button.value = False
+                    sam.prediction_fp = filename
                 except Exception as e:
                     print(e)
 
@@ -1604,6 +1606,7 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, **kwargs):
             output.clear_output()
             m.remove_layer(m.find_layer("Masks"))
             m.clear_drawings()
+            os.remove(sam.prediction_fp)
 
     reset_button.observe(reset_button_click, "value")
 
