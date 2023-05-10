@@ -7,14 +7,13 @@ import cv2
 import torch
 import numpy as np
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
-from segment_anything.utils.transforms import ResizeLongestSide
 
 from .common import *
 
 
 class SamGeo:
     """The main class for segmenting geospatial data with the Segment Anything Model (SAM). See
-    https://github.com/facebookresearch/segment-anything
+    https://github.com/facebookresearch/segment-anything for details.
     """
 
     def __init__(
@@ -30,7 +29,7 @@ class SamGeo:
         Args:
             model_type (str, optional): The model type. It can be one of the following: vit_h, vit_l, vit_b.
                 Defaults to 'vit_h'. See https://bit.ly/3VrpxUh for more details.
-            checkpoint (str, optional): The path to the checkpoint. It can be one of the following:
+            checkpoint (str, optional): The path to the model checkpoint. It can be one of the following:
                 sam_vit_h_4b8939.pth, sam_vit_l_0b3195.pth, sam_vit_b_01ec64.pth.
                 Defaults to "sam_vit_h_4b8939.pth". See https://bit.ly/3VrpxUh for more details.
             automatic (bool, optional): Whether to use the automatic mask generator or input prompts. Defaults to True.
@@ -97,14 +96,6 @@ class SamGeo:
             # Segment selected objects using input prompts
             self.predictor = SamPredictor(self.sam, **sam_kwargs)
 
-        # # Apply the erosion filter to the mask to extract borders
-        # self.erosion_kernel = erosion_kernel
-        # if self.erosion_kernel is not None:
-        #     self.erosion_kernel = np.ones(erosion_kernel, np.uint8)
-
-        # # Rescale the binary mask to a larger range, for example, from [0, 1] to [0, 255].
-        # self.mask_multiplier = mask_multiplier
-
     def __call__(
         self,
         image,
@@ -113,7 +104,16 @@ class SamGeo:
         mask_multiplier=255,
         **kwargs,
     ):
-        # Segment each image tile
+        """Generate masks for the input tile. This function originates from the segment-anything-eo repository.
+            See https://bit.ly/41pwiHw
+
+        Args:
+            image (np.ndarray): The input image as a numpy array.
+            foreground (bool, optional): Whether to generate the foreground mask. Defaults to True.
+            erosion_kernel (tuple, optional): The erosion kernel for filtering object masks and extract borders. Defaults to (3, 3).
+            mask_multiplier (int, optional): The mask multiplier for the output mask, which is usually a binary mask [0, 1].
+                You can use this parameter to scale the mask to a larger range, for example [0, 255]. Defaults to 255.
+        """
         h, w, _ = image.shape
 
         masks = self.mask_generator.generate(image)
@@ -297,6 +297,7 @@ class SamGeo:
             cmap (str, optional): The colormap. Defaults to "binary_r".
             axis (str, optional): Whether to show the axis. Defaults to "off".
             foreground (bool, optional): Whether to show the foreground mask only. Defaults to True.
+            **kwargs: Other arguments for save_masks().
         """
 
         import matplotlib.pyplot as plt
@@ -373,6 +374,7 @@ class SamGeo:
 
         Args:
             image (np.ndarray): The input image as a numpy array.
+            image_format (str, optional): The image format, can be RGB or BGR. Defaults to "RGB".
         """
         if isinstance(image, str):
             if image.startswith("http"):
@@ -393,7 +395,14 @@ class SamGeo:
         self.predictor.set_image(image, image_format=image_format)
 
     def save_prediction(
-        self, output, index=None, vector=None, simplify_tolerance=None, **kwargs
+        self,
+        output,
+        index=None,
+        mask_multiplier=255,
+        dtype=np.float32,
+        vector=None,
+        simplify_tolerance=None,
+        **kwargs,
     ):
         """Save the predicted mask to the output path.
 
@@ -401,7 +410,9 @@ class SamGeo:
             output (str): The path to the output image.
             index (int, optional): The index of the mask to save. Defaults to None,
                 which will save the mask with the highest score.
+            mask_multiplier (int, optional): The mask multiplier for the output mask, which is usually a binary mask [0, 1].
             vector (str, optional): The path to the output vector file. Defaults to None.
+            dtype (np.dtype, optional): The data type of the output image. Defaults to np.float32.
             simplify_tolerance (float, optional): The maximum allowed geometry displacement.
                 The higher this value, the smaller the number of vertices in the resulting geometry.
 
@@ -412,9 +423,9 @@ class SamGeo:
         if index is None:
             index = self.scores.argmax(axis=0)
 
-        array = self.masks[index]
+        array = self.masks[index] * mask_multiplier
         self.prediction = array
-        array_to_image(array, output, self.image, dtype=np.int32, **kwargs)
+        array_to_image(array, output, self.image, dtype=dtype, **kwargs)
 
         if vector is not None:
             raster_to_vector(output, vector, simplify_tolerance=simplify_tolerance)
@@ -423,13 +434,16 @@ class SamGeo:
         self,
         point_coords=None,
         point_labels=None,
-        point_crs=None,
         box=None,
+        point_crs=None,
         mask_input=None,
         multimask_output=True,
         return_logits=False,
         output=None,
         index=None,
+        mask_multiplier=255,
+        dtype=np.float32,
+        return_results=False,
         **kwargs,
     ):
         """Predict masks for the given input prompts, using the currently set image.
@@ -456,6 +470,9 @@ class SamGeo:
             output (str, optional): The path to the output image. Defaults to None.
             index (index, optional): The index of the mask to save. Defaults to None,
                 which will save the mask with the highest score.
+            mask_multiplier (int, optional): The mask multiplier for the output mask, which is usually a binary mask [0, 1].
+            dtype (np.dtype, optional): The data type of the output image. Defaults to np.float32.
+            return_results (bool, optional): Whether to return the predicted masks, scores, and logits. Defaults to False.
 
         """
 
@@ -488,9 +505,14 @@ class SamGeo:
         self.logits = logits
 
         if output is not None:
-            self.save_prediction(output, index=index, **kwargs)
+            self.save_prediction(output, index, mask_multiplier, dtype, **kwargs)
 
-        return masks, scores, logits
+        if return_results:
+            return masks, scores, logits
+
+    def show_map(self, **kwargs):
+
+        return sam_map_gui(self, **kwargs)
 
     def image_to_image(self, image, **kwargs):
         return image_to_image(image, self, **kwargs)
@@ -561,6 +583,8 @@ class SamGeoPredictor(SamPredictor):
         self,
         sam_model,
     ):
+        from segment_anything.utils.transforms import ResizeLongestSide
+
         self.model = sam_model
         self.transform = ResizeLongestSide(sam_model.image_encoder.img_size)
 
