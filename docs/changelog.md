@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.5.0 - May 10, 2023
+
+**New Features**
+
+-   Added support for input prompts (#30)
+
+**Improvements**
+
+-   Fixed the batch processing bug (#29)
+
+**Demos**
+
+![](https://i.imgur.com/GV7Rzxt.gif)
+
 ## v0.4.0 - May 6, 2023
 
 **New Features**
