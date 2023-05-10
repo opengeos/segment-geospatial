@@ -6,14 +6,13 @@ import os
 import tempfile
 import cv2
 import numpy as np
-import rasterio
 from tqdm import tqdm
 
 import shapely
-import geopandas as gpd
-from pyproj import Transformer, transform
+import pyproj
 import rasterio
-from rasterio import features
+import geopandas as gpd
+import matplotlib.pyplot as plt
 
 
 def check_file_path(file_path, make_dirs=True):
@@ -592,8 +591,9 @@ def get_crs(src_fp):
 
 
 def get_features(src_fp, bidx=1):
+    from rasterio import features
     with rasterio.open(src_fp) as src:
-        features = rasterio.features.dataset_features(
+        features = features.dataset_features(
             src,
             bidx=bidx,
             sampling=1,
@@ -612,9 +612,148 @@ def set_transform(geo_box, width, height):
     return rasterio.transform.from_bounds(*geo_box, width, height)
 
 
-def transform_coords(x, y, src_crs, dst_crs):
-    transformer = Transformer.from_crs(src_crs, dst_crs, always_xy=True)
+def transform_coords(x, y, src_crs, dst_crs, **kwargs):
+    """Transform coordinates from one CRS to another.
+
+    Args:
+        x (float): The x coordinate.
+        y (float): The y coordinate.
+        src_crs (str): The source CRS, e.g., "EPSG:4326".
+        dst_crs (str): The destination CRS, e.g., "EPSG:3857".
+
+    Returns:
+        dict: The transformed coordinates in the format of (x, y)
+    """
+    transformer = pyproj.Transformer.from_crs(
+        src_crs, dst_crs, always_xy=True, **kwargs
+    )
     return transformer.transform(x, y)
+
+
+def vector_to_geojson(filename, output=None, **kwargs):
+    """Converts a vector file to a geojson file.
+
+    Args:
+        filename (str): The vector file path.
+        output (str, optional): The output geojson file path. Defaults to None.
+
+    Returns:
+        dict: The geojson dictionary.
+    """
+    gdf = gpd.read_file(filename, **kwargs)
+    if output is None:
+        return gdf.__geo_interface__
+    else:
+        gdf.to_file(output, driver="GeoJSON")
+
+
+def get_vector_crs(filename, **kwargs):
+    """Gets the CRS of a vector file.
+
+    Args:
+        filename (str): The vector file path.
+
+    Returns:
+        str: The CRS of the vector file.
+    """
+    gdf = gpd.read_file(filename, **kwargs)
+    epsg = gdf.crs.to_epsg()
+    if epsg is None:
+        return gdf.crs
+    else:
+        return f"EPSG:{epsg}"
+
+
+def geojson_to_coords(
+    geojson: str, src_crs: str = "epsg:4326", dst_crs: str = "epsg:4326"
+) -> list:
+    """Converts a geojson file or a dictionary of feature collection to a list of centroid coordinates.
+
+    Args:
+        geojson (str | dict): The geojson file path or a dictionary of feature collection.
+        src_crs (str, optional): The source CRS. Defaults to "epsg:4326".
+        dst_crs (str, optional): The destination CRS. Defaults to "epsg:4326".
+
+    Returns:
+        list: A list of centroid coordinates in the format of [[x1, y1], [x2, y2], ...]
+    """
+
+    import json
+    import warnings
+
+    warnings.filterwarnings("ignore")
+
+    if isinstance(geojson, dict):
+        geojson = json.dumps(geojson)
+    gdf = gpd.read_file(geojson, driver="GeoJSON")
+    centroids = gdf.geometry.centroid
+    centroid_list = [[point.x, point.y] for point in centroids]
+    if src_crs != dst_crs:
+        centroid_list = transform_coords(
+            [x[0] for x in centroid_list],
+            [x[1] for x in centroid_list],
+            src_crs,
+            dst_crs,
+        )
+        centroid_list = [[x, y] for x, y in zip(centroid_list[0], centroid_list[1])]
+    return centroid_list
+
+
+def coords_to_xy(
+    src_fp: str, coords: list, coord_crs: str = "epsg:4326", **kwargs
+) -> list:
+    """Converts a list of coordinates to pixel coordinates, i.e., (col, row) coordinates.
+
+    Args:
+        src_fp: The source raster file path.
+        coords: A list of coordinates in the format of [[x1, y1], [x2, y2], ...]
+        coord_crs: The coordinate CRS of the input coordinates. Defaults to "epsg:4326".
+        **kwargs: Additional keyword arguments to pass to rasterio.transform.rowcol.
+
+    Returns:
+        A list of pixel coordinates in the format of [[x1, y1], [x2, y2], ...]
+    """
+    if isinstance(coords, np.ndarray):
+        coords = coords.tolist()
+
+    xs, ys = zip(*coords)
+    with rasterio.open(src_fp) as src:
+        width = src.width
+        height = src.height
+        if coord_crs != src.crs:
+            xs, ys = transform_coords(xs, ys, coord_crs, src.crs, **kwargs)
+        rows, cols = rasterio.transform.rowcol(src.transform, xs, ys, **kwargs)
+    result = [[col, row] for col, row in zip(cols, rows)]
+
+    result = [
+        [x, y] for x, y in result if x >= 0 and y >= 0 and x < width and y < height
+    ]
+    if len(result) == 0:
+        print("No valid pixel coordinates found.")
+    elif len(result) < len(coords):
+        print("Some coordinates are out of the image boundary.")
+
+    return result
+
+
+def geojson_to_xy(
+    src_fp: str, geojson: str, coord_crs: str = "epsg:4326", **kwargs
+) -> list:
+    """Converts a geojson file or a dictionary of feature collection to a list of pixel coordinates.
+
+    Args:
+        src_fp: The source raster file path.
+        geojson: The geojson file path or a dictionary of feature collection.
+        coord_crs: The coordinate CRS of the input coordinates. Defaults to "epsg:4326".
+        **kwargs: Additional keyword arguments to pass to rasterio.transform.rowcol.
+
+    Returns:
+        A list of pixel coordinates in the format of [[x1, y1], [x2, y2], ...]
+    """
+    with rasterio.open(src_fp) as src:
+        src_crs = src.crs
+    coords = geojson_to_coords(geojson, coord_crs, src_crs)
+    return coords_to_xy(src_fp, coords, src_crs, **kwargs)
 
 
 def get_pixel_coords(src_fp, xs, ys):
@@ -802,6 +941,8 @@ def tiff_to_image(
 
 
 def tiff_to_shapes(tiff_path, simplify_tolerance=None):
+    from rasterio import features
+
     with rasterio.open(tiff_path) as src:
         band = src.read()
 
@@ -829,17 +970,18 @@ def draw_tile(source, lat0, lon0, lat1, lon1, zoom, filename, **kwargs):
     return image
 
 
-def tiff_to_vector(tiff_path, output, simplify_tolerance=None, **kwargs):
-    """Convert a tiff file to a gpkg file.
+def raster_to_vector(source, output, simplify_tolerance=None, **kwargs):
+    """Vectorize a raster dataset.
 
     Args:
-        tiff_path (str): The path to the tiff file.
+        source (str): The path to the tiff file.
         output (str): The path to the vector file.
         simplify_tolerance (float, optional): The maximum allowed geometry displacement.
             The higher this value, the smaller the number of vertices in the resulting geometry.
     """
+    from rasterio import features
 
-    with rasterio.open(tiff_path) as src:
+    with rasterio.open(source) as src:
         band = src.read()
 
         mask = band != 0
@@ -859,7 +1001,7 @@ def tiff_to_vector(tiff_path, output, simplify_tolerance=None, **kwargs):
     gdf.to_file(output, **kwargs)
 
 
-def tiff_to_gpkg(tiff_path, output, simplify_tolerance=None, **kwargs):
+def raster_to_gpkg(tiff_path, output, simplify_tolerance=None, **kwargs):
     """Convert a tiff file to a gpkg file.
 
     Args:
@@ -872,10 +1014,10 @@ def tiff_to_gpkg(tiff_path, output, simplify_tolerance=None, **kwargs):
     if not output.endswith(".gpkg"):
         output += ".gpkg"
 
-    tiff_to_vector(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
+    raster_to_vector(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
 
 
-def tiff_to_shp(tiff_path, output, simplify_tolerance=None, **kwargs):
+def raster_to_shp(tiff_path, output, simplify_tolerance=None, **kwargs):
     """Convert a tiff file to a shapefile.
 
     Args:
@@ -888,10 +1030,10 @@ def tiff_to_shp(tiff_path, output, simplify_tolerance=None, **kwargs):
     if not output.endswith(".shp"):
         output += ".shp"
 
-    tiff_to_vector(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
+    raster_to_vector(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
 
 
-def tiff_to_geojson(tiff_path, output, simplify_tolerance=None, **kwargs):
+def raster_to_geojson(tiff_path, output, simplify_tolerance=None, **kwargs):
     """Convert a tiff file to a GeoJSON file.
 
     Args:
@@ -904,7 +1046,7 @@ def tiff_to_geojson(tiff_path, output, simplify_tolerance=None, **kwargs):
     if not output.endswith(".geojson"):
         output += ".geojson"
 
-    tiff_to_vector(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
+    raster_to_vector(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
 
 
 def get_xyz_dict(free_only=True):
@@ -1063,10 +1205,8 @@ def array_to_image(
 
 
 def show_image(
-    source, figsize=(20, 20), cmap=None, axis="off", fig_args={}, show_args={}, **kwargs
+    source, figsize=(12, 10), cmap=None, axis="off", fig_args={}, show_args={}, **kwargs
 ):
-    import matplotlib.pyplot as plt
-
     if isinstance(source, str):
         if source.startswith("http"):
             source = download_file(source)
@@ -1083,6 +1223,76 @@ def show_image(
     plt.show(**kwargs)
 
 
+def show_mask(mask, random_color=False):
+    ax = plt.gca()
+    if random_color:
+        color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
+    else:
+        color = np.array([30 / 255, 144 / 255, 255 / 255, 0.6])
+    h, w = mask.shape[-2:]
+    mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
+    ax.imshow(mask_image)
+
+
+def show_points(
+    image,
+    coords,
+    labels,
+    marker_size=375,
+    figsize=(12, 10),
+    axis="on",
+    title=None,
+    mask=None,
+    **kwargs,
+):
+    if isinstance(image, str):
+        if image.startswith("http"):
+            image = download_file(image)
+
+        if not os.path.exists(image):
+            raise ValueError(f"Input path {image} does not exist.")
+
+        image = cv2.imread(image)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    plt.figure(figsize=figsize)
+    plt.imshow(image)
+    ax = plt.gca()
+    pos_points = coords[labels == 1]
+    neg_points = coords[labels == 0]
+    ax.scatter(
+        pos_points[:, 0],
+        pos_points[:, 1],
+        color="green",
+        marker="*",
+        s=marker_size,
+        edgecolor="white",
+        linewidth=1.25,
+    )
+    ax.scatter(
+        neg_points[:, 0],
+        neg_points[:, 1],
+        color="red",
+        marker="*",
+        s=marker_size,
+        edgecolor="white",
+        linewidth=1.25,
+    )
+    if title is not None:
+        plt.title(title)
+    plt.axis(axis)
+    plt.show()
+
+
+def show_box(image, box, ax):
+    ax = plt.gca()
+    x0, y0 = box[0], box[1]
+    w, h = box[2] - box[0], box[3] - box[1]
+    ax.add_patch(
+        plt.Rectangle((x0, y0), w, h, edgecolor="green", facecolor=(0, 0, 0, 0), lw=2)
+    )
+
+
 def overlay_images(
     image1,
     image2,
@@ -1095,7 +1305,6 @@ def overlay_images(
     import sys
     import matplotlib
     import matplotlib.widgets as mpwidgets
-    import matplotlib.pyplot as plt
 
     if "google.colab" in sys.modules:
         backend = "inline"
@@ -1171,8 +1380,6 @@ def blend_images(
         numpy.ndarray: The blended image as a NumPy array.
     """
     # Resize the images to have the same dimensions
-    import matplotlib.pyplot as plt
-
     if isinstance(img1, str):
         if img1.startswith("http"):
             img1 = download_file(img1)
@@ -1258,3 +1465,172 @@ def update_package(out_dir=None, keep=False, **kwargs):
 
     except Exception as e:
         raise Exception(e)
+
+
+def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, **kwargs):
+    try:
+        import leafmap
+        import ipyleaflet
+        import ipyevents
+        import ipywidgets as widgets
+    except ImportError:
+        raise ImportError(
+            "The sam_map function requires the leafmap package. Please install it first."
+        )
+
+    m = leafmap.Map(repeat_mode=repeat_mode, **kwargs)
+    m.add_basemap(basemap, show=False)
+    m.add_raster(sam.image, layer_name="Image")
+
+    widget_width = "100px"
+    padding = "0px 0px 0px 5px"  # upper, right, bottom, left
+    style = {"description_width": "initial"}
+
+    toolbar_button = widgets.ToggleButton(
+        value=True,
+        tooltip="Toolbar",
+        icon="gear",
+        layout=widgets.Layout(width="28px", height="28px", padding="0px 0px 0px 4px"),
+    )
+
+    close_button = widgets.ToggleButton(
+        value=False,
+        tooltip="Close the tool",
+        icon="times",
+        button_style="primary",
+        layout=widgets.Layout(height="28px", width="28px", padding="0px 0px 0px 4px"),
+    )
+
+    segment_button = widgets.ToggleButton(
+        description="Segment", value=False, button_style="primary"
+    )
+    reset_button = widgets.ToggleButton(
+        description="Reset", value=False, button_style="primary"
+    )
+    segment_button.layout.width = widget_width
+    reset_button.layout.width = widget_width
+
+    buttons = widgets.VBox([segment_button, reset_button])
+
+    opacity_slider = widgets.FloatSlider(
+        min=0,
+        max=1,
+        value=0.5,
+        readout=False,
+        continuous_update=True,
+        layout=widgets.Layout(width="95px"),
+        style=style,
+    )
+
+    def opacity_changed(change):
+        if change["new"]:
+            mask_layer = m.find_layer("Masks")
+            if mask_layer is not None:
+                mask_layer.interact(opacity=opacity_slider.value)
+
+    opacity_slider.observe(opacity_changed, "value")
+
+    output = widgets.Output(layout=widgets.Layout(width=widget_width, padding=padding))
+
+    toolbar_header = widgets.HBox()
+    toolbar_header.children = [close_button, toolbar_button]
+    toolbar_footer = widgets.VBox()
+    toolbar_footer.children = [
+        buttons,
+        opacity_slider,
+        output,
+    ]
+    toolbar_widget = widgets.VBox()
+    toolbar_widget.children = [toolbar_header, toolbar_footer]
+
+    toolbar_event = ipyevents.Event(
+        source=toolbar_widget, watched_events=["mouseenter", "mouseleave"]
+    )
+
+    def handle_toolbar_event(event):
+        if event["type"] == "mouseenter":
+            toolbar_widget.children = [toolbar_header, toolbar_footer]
+        elif event["type"] == "mouseleave":
+            if not toolbar_button.value:
+                toolbar_widget.children = [toolbar_button]
+                toolbar_button.value = False
+                close_button.value = False
+
+    toolbar_event.on_dom_event(handle_toolbar_event)
+
+    def toolbar_btn_click(change):
+        if change["new"]:
+            close_button.value = False
+            toolbar_widget.children = [toolbar_header, toolbar_footer]
+        else:
+            if not close_button.value:
+                toolbar_widget.children = [toolbar_button]
+
+    toolbar_button.observe(toolbar_btn_click, "value")
+
+    def close_btn_click(change):
+        if change["new"]:
+            toolbar_button.value = False
+            if m.toolbar_control in m.controls:
+                m.remove_control(m.toolbar_control)
+            toolbar_widget.close()
+
+    close_button.observe(close_btn_click, "value")
+
+    def segment_button_click(change):
+        if change["new"]:
+            reset_button.value = False
+            with output:
+                output.clear_output()
+                print("Segmenting...")
+                try:
+                    if m.user_rois is not None:
+                        filename = f"masks_{random_string()}.tif"
+                        sam.predict(point_coords=m.user_rois,  point_crs='EPSG:4326', output=filename)
+                        if m.find_layer("Masks") is not None:
+                            m.remove_layer(m.find_layer("Masks"))
+                        m.add_raster(filename, nodata=0, cmap='Blues', opacity=opacity_slider.value, layer_name="Masks", zoom_to_layer=False)
+                    output.clear_output()
+                    segment_button.value = False
+                    sam.prediction_fp = filename
+                except Exception as e:
+                    print(e)
+
+    segment_button.observe(segment_button_click, "value")
+
+    def reset_button_click(change):
+        if change["new"]:
+            segment_button.value = False
+            reset_button.value = False
+            opacity_slider.value = 0.5
+            output.clear_output()
+            m.remove_layer(m.find_layer("Masks"))
+            m.clear_drawings()
+            os.remove(sam.prediction_fp)
+
+    reset_button.observe(reset_button_click, "value")
+
+    toolbar_control = ipyleaflet.WidgetControl(
+        widget=toolbar_widget, position="topright"
+    )
+    m.add_control(toolbar_control)
+    m.toolbar_control = toolbar_control
+
+    return m
+
+
+def random_string(string_length=6):
+    """Generates a random string of fixed length.
+
+    Args:
+        string_length (int, optional): Fixed length. Defaults to 3.
+
+    Returns:
+        str: A random string
+    """
+    import random
+    import string
+
+    # random.seed(1001)
+    letters = string.ascii_lowercase
+    return "".join(random.choice(letters) for i in range(string_length))

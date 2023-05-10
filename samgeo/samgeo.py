@@ -7,14 +7,13 @@ import cv2
 import torch
 import numpy as np
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
-from segment_anything.utils.transforms import ResizeLongestSide
 
 from .common import *
 
 
 class SamGeo:
     """The main class for segmenting geospatial data with the Segment Anything Model (SAM). See
-    https://github.com/facebookresearch/segment-anything
+    https://github.com/facebookresearch/segment-anything for details.
     """
 
     def __init__(
@@ -30,7 +29,7 @@ class SamGeo:
         Args:
             model_type (str, optional): The model type. It can be one of the following: vit_h, vit_l, vit_b.
                 Defaults to 'vit_h'. See https://bit.ly/3VrpxUh for more details.
-            checkpoint (str, optional): The path to the checkpoint. It can be one of the following:
+            checkpoint (str, optional): The path to the model checkpoint. It can be one of the following:
                 sam_vit_h_4b8939.pth, sam_vit_l_0b3195.pth, sam_vit_b_01ec64.pth.
                 Defaults to "sam_vit_h_4b8939.pth". See https://bit.ly/3VrpxUh for more details.
             automatic (bool, optional): Whether to use the automatic mask generator or input prompts. Defaults to True.
@@ -63,6 +62,8 @@ class SamGeo:
         # Use cuda if available
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
+            if device == "cuda":
+                torch.cuda.empty_cache()
 
         self.checkpoint = checkpoint
         self.model_type = model_type
@@ -77,6 +78,11 @@ class SamGeo:
         # Store the annotations (objects with random color) as a numpy array.
         self.annotations = None
 
+        # Store the predicted masks, iou_predictions, and low_res_masks
+        self.prediction = None
+        self.scores = None
+        self.logits = None
+
         # Build the SAM model
         self.sam = sam_model_registry[self.model_type](checkpoint=self.checkpoint)
         self.sam.to(device=self.device)
@@ -90,14 +96,6 @@ class SamGeo:
             # Segment selected objects using input prompts
             self.predictor = SamPredictor(self.sam, **sam_kwargs)
 
-        # # Apply the erosion filter to the mask to extract borders
-        # self.erosion_kernel = erosion_kernel
-        # if self.erosion_kernel is not None:
-        #     self.erosion_kernel = np.ones(erosion_kernel, np.uint8)
-
-        # # Rescale the binary mask to a larger range, for example, from [0, 1] to [0, 255].
-        # self.mask_multiplier = mask_multiplier
-
     def __call__(
         self,
         image,
@@ -106,7 +104,16 @@ class SamGeo:
         mask_multiplier=255,
         **kwargs,
     ):
-        # Segment each image tile
+        """Generate masks for the input tile. This function originates from the segment-anything-eo repository.
+            See https://bit.ly/41pwiHw
+
+        Args:
+            image (np.ndarray): The input image as a numpy array.
+            foreground (bool, optional): Whether to generate the foreground mask. Defaults to True.
+            erosion_kernel (tuple, optional): The erosion kernel for filtering object masks and extract borders. Defaults to (3, 3).
+            mask_multiplier (int, optional): The mask multiplier for the output mask, which is usually a binary mask [0, 1].
+                You can use this parameter to scale the mask to a larger range, for example [0, 255]. Defaults to 255.
+        """
         h, w, _ = image.shape
 
         masks = self.mask_generator.generate(image)
@@ -290,6 +297,7 @@ class SamGeo:
             cmap (str, optional): The colormap. Defaults to "binary_r".
             axis (str, optional): Whether to show the axis. Defaults to "off".
             foreground (bool, optional): Whether to show the foreground mask only. Defaults to True.
+            **kwargs: Other arguments for save_masks().
         """
 
         import matplotlib.pyplot as plt
@@ -361,18 +369,157 @@ class SamGeo:
             array = blend_images(self.annotations, self.image, alpha=alpha, show=False)
             array_to_image(array, output, self.source)
 
-    def predict(self, in_path, out_path, prompts, image_format="RGB", **kwargs):
-        """Segment the input image and save the result to the output path.
+    def set_image(self, image, image_format="RGB"):
+        """Set the input image as a numpy array.
 
         Args:
-            in_path (str): The path to the input image.
-            out_path (str): The path to the output image.
-            prompts (list): The prompts to use.
+            image (np.ndarray): The input image as a numpy array.
+            image_format (str, optional): The image format, can be RGB or BGR. Defaults to "RGB".
         """
+        if isinstance(image, str):
+            if image.startswith("http"):
+                image = download_file(image)
+
+            if not os.path.exists(image):
+                raise ValueError(f"Input path {image} does not exist.")
+
+            self.image = image
+
+            image = cv2.imread(image)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        elif isinstance(image, np.ndarray):
+            pass
+        else:
+            raise ValueError("Input image must be either a path or a numpy array.")
+
+        self.predictor.set_image(image, image_format=image_format)
+
+    def save_prediction(
+        self,
+        output,
+        index=None,
+        mask_multiplier=255,
+        dtype=np.float32,
+        vector=None,
+        simplify_tolerance=None,
+        **kwargs,
+    ):
+        """Save the predicted mask to the output path.
+
+        Args:
+            output (str): The path to the output image.
+            index (int, optional): The index of the mask to save. Defaults to None,
+                which will save the mask with the highest score.
+            mask_multiplier (int, optional): The mask multiplier for the output mask, which is usually a binary mask [0, 1].
+            vector (str, optional): The path to the output vector file. Defaults to None.
+            dtype (np.dtype, optional): The data type of the output image. Defaults to np.float32.
+            simplify_tolerance (float, optional): The maximum allowed geometry displacement.
+                The higher this value, the smaller the number of vertices in the resulting geometry.
+
+        """
+        if self.scores is None:
+            raise ValueError("No predictions found. Please run predict() first.")
+
+        if index is None:
+            index = self.scores.argmax(axis=0)
+
+        array = self.masks[index] * mask_multiplier
+        self.prediction = array
+        array_to_image(array, output, self.image, dtype=dtype, **kwargs)
+
+        if vector is not None:
+            raster_to_vector(output, vector, simplify_tolerance=simplify_tolerance)
+
+    def predict(
+        self,
+        point_coords=None,
+        point_labels=None,
+        box=None,
+        point_crs=None,
+        mask_input=None,
+        multimask_output=True,
+        return_logits=False,
+        output=None,
+        index=None,
+        mask_multiplier=255,
+        dtype=np.float32,
+        return_results=False,
+        **kwargs,
+    ):
+        """Predict masks for the given input prompts, using the currently set image.
+
+        Args:
+            point_coords (str | dict | list | np.ndarray, optional): A Nx2 array of point prompts to the
+                model. Each point is in (X,Y) in pixels. It can be a path to a vector file, a GeoJSON
+                dictionary, a list of coordinates [lon, lat], or a numpy array. Defaults to None.
+            point_labels (list | int | np.ndarray, optional): A length N array of labels for the
+                point prompts. 1 indicates a foreground point and 0 indicates a background point.
+            point_crs (str, optional): The coordinate reference system (CRS) of the point prompts.
+            box (list | np.ndarray, optional): A length 4 array given a box prompt to the
+                model, in XYXY format.
+            mask_input (np.ndarray, optional): A low resolution mask input to the model, typically
+                coming from a previous prediction iteration. Has form 1xHxW, where for SAM, H=W=256.
+                multimask_output (bool, optional): If true, the model will return three masks.
+                For ambiguous input prompts (such as a single click), this will often
+                produce better masks than a single prediction. If only a single
+                mask is needed, the model's predicted quality score can be used
+                to select the best mask. For non-ambiguous prompts, such as multiple
+                input prompts, multimask_output=False can give better results.
+            return_logits (bool, optional): If true, returns un-thresholded masks logits
+                instead of a binary mask.
+            output (str, optional): The path to the output image. Defaults to None.
+            index (index, optional): The index of the mask to save. Defaults to None,
+                which will save the mask with the highest score.
+            mask_multiplier (int, optional): The mask multiplier for the output mask, which is usually a binary mask [0, 1].
+            dtype (np.dtype, optional): The data type of the output image. Defaults to np.float32.
+            return_results (bool, optional): Whether to return the predicted masks, scores, and logits. Defaults to False.
+
+        """
+
+        if isinstance(point_coords, str):
+            point_coords = vector_to_geojson(point_coords)
+
+        if isinstance(point_coords, dict):
+            point_coords = geojson_to_coords(point_coords)
+
+        if point_crs is not None:
+            point_coords = coords_to_xy(self.image, point_coords, point_crs)
+
+        if isinstance(point_coords, list):
+            point_coords = np.array(point_coords)
+
+        if point_labels is None:
+            point_labels = [1] * len(point_coords)
+        elif isinstance(point_labels, int):
+            point_labels = [point_labels] * len(point_coords)
+
+        if isinstance(point_labels, list):
+            if len(point_labels) != len(point_coords):
+                if len(point_labels) == 1:
+                    point_labels = point_labels * len(point_coords)
+                else:
+                    raise ValueError(
+                        "The length of point_labels must be equal to the length of point_coords."
+                    )
+            point_labels = np.array(point_labels)
+
         predictor = self.predictor
-        predictor.set_image(in_path, image_format=image_format)
-        masks, _, _ = predictor.predict(prompts, **kwargs)
-        return masks
+        masks, scores, logits = predictor.predict(
+            point_coords, point_labels, box, mask_input, multimask_output, return_logits
+        )
+        self.masks = masks
+        self.scores = scores
+        self.logits = logits
+
+        if output is not None:
+            self.save_prediction(output, index, mask_multiplier, dtype, **kwargs)
+
+        if return_results:
+            return masks, scores, logits
+
+    def show_map(self, **kwargs):
+
+        return sam_map_gui(self, **kwargs)
 
     def image_to_image(self, image, **kwargs):
         return image_to_image(image, self, **kwargs)
@@ -391,7 +538,7 @@ class SamGeo:
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
 
-        tiff_to_vector(
+        raster_to_vector(
             tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs
         )
 
@@ -405,7 +552,9 @@ class SamGeo:
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
 
-        tiff_to_gpkg(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
+        raster_to_gpkg(
+            tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs
+        )
 
     def tiff_to_shp(self, tiff_path, output, simplify_tolerance=None, **kwargs):
         """Convert a tiff file to a shapefile.
@@ -417,7 +566,9 @@ class SamGeo:
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
 
-        tiff_to_shp(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
+        raster_to_shp(
+            tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs
+        )
 
     def tiff_to_geojson(self, tiff_path, output, simplify_tolerance=None, **kwargs):
         """Convert a tiff file to a GeoJSON file.
@@ -429,7 +580,7 @@ class SamGeo:
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
 
-        tiff_to_geojson(
+        raster_to_geojson(
             tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs
         )
 
@@ -439,6 +590,8 @@ class SamGeoPredictor(SamPredictor):
         self,
         sam_model,
     ):
+        from segment_anything.utils.transforms import ResizeLongestSide
+
         self.model = sam_model
         self.transform = ResizeLongestSide(sam_model.image_encoder.img_size)
 
