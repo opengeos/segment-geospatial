@@ -592,6 +592,7 @@ def get_crs(src_fp):
 
 def get_features(src_fp, bidx=1):
     from rasterio import features
+
     with rasterio.open(src_fp) as src:
         features = features.dataset_features(
             src,
@@ -730,6 +731,91 @@ def coords_to_xy(
     ]
     if len(result) == 0:
         print("No valid pixel coordinates found.")
+    elif len(result) < len(coords):
+        print("Some coordinates are out of the image boundary.")
+
+    return result
+
+
+def bbox_to_xy(
+    src_fp: str, coords: list, coord_crs: str = "epsg:4326", **kwargs
+) -> list:
+    """Converts a list of coordinates to pixel coordinates, i.e., (col, row) coordinates.
+
+    Args:
+        src_fp (str): The source raster file path.
+        coords (list): A list of coordinates in the format of [[minx, miny, maxx, maxy], [minx, miny, maxx, maxy], ...]
+        coord_crs (str, optional): The coordinate CRS of the input coordinates. Defaults to "epsg:4326".
+
+    Returns:
+        list: A list of pixel coordinates in the format of [[minx, miny, maxx, maxy], ...]
+    """    
+
+    if isinstance(coords, str):
+        gdf = gpd.read_file(coords)
+        coords = gdf.geometry.bounds.values.tolist()
+        if gdf.crs is not None:
+            coord_crs = f"epsg:{gdf.crs.to_epsg()}"
+    elif isinstance(coords, np.ndarray):
+        coords = coords.tolist()
+    if isinstance(coords, dict):
+        import json
+
+        geojson = json.dumps(coords)
+        gdf = gpd.read_file(geojson, driver="GeoJSON")
+        coords = gdf.geometry.bounds.values.tolist()
+
+    elif not isinstance(coords, list):
+        raise ValueError("coords must be a list of coordinates.")
+
+    if not isinstance(coords[0], list):
+        coords = [coords]
+
+    new_coords = []
+
+    with rasterio.open(src_fp) as src:
+        width = src.width
+        height = src.height
+
+        for coord in coords:
+            minx, miny, maxx, maxy = coord
+
+            if coord_crs != src.crs:
+                minx, miny = transform_coords(minx, miny, coord_crs, src.crs, **kwargs)
+                maxx, maxy = transform_coords(maxx, maxy, coord_crs, src.crs, **kwargs)
+
+                rows1, cols1 = rasterio.transform.rowcol(
+                    src.transform, minx, miny, **kwargs
+                )
+                rows2, cols2 = rasterio.transform.rowcol(
+                    src.transform, maxx, maxy, **kwargs
+                )
+
+                new_coords.append([cols1, rows1, cols2, rows2])
+
+            else:
+                new_coords.append([minx, miny, maxx, maxy])
+
+    result = []
+
+    for coord in new_coords:
+        minx, miny, maxx, maxy = coord
+
+        if (
+            minx >= 0
+            and miny >= 0
+            and maxx >= 0
+            and maxy >= 0
+            and minx < width
+            and miny < height
+            and maxx < width
+            and maxy < height
+        ):
+            result.append(coord)
+
+    if len(result) == 0:
+        print("No valid pixel coordinates found.")
+        return None
     elif len(result) < len(coords):
         print("Some coordinates are out of the image boundary.")
 
@@ -1586,10 +1672,21 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, **kwargs):
                 try:
                     if m.user_rois is not None:
                         filename = f"masks_{random_string()}.tif"
-                        sam.predict(point_coords=m.user_rois,  point_crs='EPSG:4326', output=filename)
+                        sam.predict(
+                            point_coords=m.user_rois,
+                            point_crs="EPSG:4326",
+                            output=filename,
+                        )
                         if m.find_layer("Masks") is not None:
                             m.remove_layer(m.find_layer("Masks"))
-                        m.add_raster(filename, nodata=0, cmap='Blues', opacity=opacity_slider.value, layer_name="Masks", zoom_to_layer=False)
+                        m.add_raster(
+                            filename,
+                            nodata=0,
+                            cmap="Blues",
+                            opacity=opacity_slider.value,
+                            layer_name="Masks",
+                            zoom_to_layer=False,
+                        )
                     output.clear_output()
                     segment_button.value = False
                     sam.prediction_fp = filename

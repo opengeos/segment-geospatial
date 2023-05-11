@@ -518,7 +518,6 @@ class SamGeo:
             return masks, scores, logits
 
     def show_map(self, **kwargs):
-
         return sam_map_gui(self, **kwargs)
 
     def image_to_image(self, image, **kwargs):
