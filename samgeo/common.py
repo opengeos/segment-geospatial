@@ -525,7 +525,9 @@ def tms_to_geotiff(
             for k, (fut, corner_xy) in enumerate(zip(futures, corners), 1):
                 bigim = paste_tile(bigim, base_size, fut.result(), corner_xy, bbox)
                 if not quiet:
-                    print("Downloaded image %d/%d" % (k, totalnum))
+                    print(
+                        f"Downloaded image {str(k).zfill(len(str(totalnum)))}/{totalnum}"
+                    )
 
         if not quiet:
             print("Saving GeoTIFF. Please wait...")
@@ -749,7 +751,7 @@ def bbox_to_xy(
 
     Returns:
         list: A list of pixel coordinates in the format of [[minx, miny, maxx, maxy], ...]
-    """    
+    """
 
     if isinstance(coords, str):
         gdf = gpd.read_file(coords)
@@ -816,6 +818,8 @@ def bbox_to_xy(
     if len(result) == 0:
         print("No valid pixel coordinates found.")
         return None
+    elif len(result) == 1:
+        return result[0]
     elif len(result) < len(coords):
         print("Some coordinates are out of the image boundary.")
 

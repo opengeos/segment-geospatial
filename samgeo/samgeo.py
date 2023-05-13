@@ -503,6 +503,9 @@ class SamGeo:
                     )
             point_labels = np.array(point_labels)
 
+        if isinstance(box, list) and point_crs is not None:
+            box = np.array(bbox_to_xy(self.image, box, point_crs))
+
         predictor = self.predictor
         masks, scores, logits = predictor.predict(
             point_coords, point_labels, box, mask_input, multimask_output, return_logits
