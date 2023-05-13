@@ -30,7 +30,7 @@ sam = SamGeo(
     sam_kwargs=None,
 )
 
-mask = 'segment.tiff'
+mask = 'segment.tif'
 sam.generate(image, mask)
 
 vector = 'segment.gpkg'
