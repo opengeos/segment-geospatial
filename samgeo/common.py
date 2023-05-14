@@ -1569,18 +1569,30 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, **kwargs):
         )
 
     m = leafmap.Map(repeat_mode=repeat_mode, **kwargs)
+    m.default_style = {"cursor": "crosshair"}
     m.add_basemap(basemap, show=False)
     m.add_raster(sam.image, layer_name="Image")
 
-    widget_width = "100px"
-    padding = "0px 0px 0px 5px"  # upper, right, bottom, left
+    m.fg_markers = []
+    m.bg_markers = []
+
+    fg_layer = ipyleaflet.LayerGroup(layers=m.fg_markers, name="Foreground")
+    bg_layer = ipyleaflet.LayerGroup(layers=m.bg_markers, name="Background")
+    m.add(fg_layer)
+    m.add(bg_layer)
+    m.fg_layer = fg_layer
+    m.bg_layer = bg_layer
+
+    widget_width = "280px"
+    button_width = "90px"
+    padding = "0px 0px 0px 4px"  # upper, right, bottom, left
     style = {"description_width": "initial"}
 
     toolbar_button = widgets.ToggleButton(
         value=True,
         tooltip="Toolbar",
         icon="gear",
-        layout=widgets.Layout(width="28px", height="28px", padding="0px 0px 0px 4px"),
+        layout=widgets.Layout(width="28px", height="28px", padding=padding),
     )
 
     close_button = widgets.ToggleButton(
@@ -1588,28 +1600,70 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, **kwargs):
         tooltip="Close the tool",
         icon="times",
         button_style="primary",
-        layout=widgets.Layout(height="28px", width="28px", padding="0px 0px 0px 4px"),
+        layout=widgets.Layout(height="28px", width="28px", padding=padding),
+    )
+
+    radio_buttons = widgets.RadioButtons(
+        options=["Foreground", "Background"],
+        description="Class Type:",
+        disabled=False,
+        style=style,
+        layout=widgets.Layout(width=widget_width, padding=padding),
+    )
+
+    fg_count = widgets.IntText(
+        value=0,
+        description="Foreground #:",
+        disabled=True,
+        style=style,
+        layout=widgets.Layout(width="135px", padding=padding),
+    )
+    bg_count = widgets.IntText(
+        value=0,
+        description="Background #:",
+        disabled=True,
+        style=style,
+        layout=widgets.Layout(width="135px", padding=padding),
     )
 
     segment_button = widgets.ToggleButton(
-        description="Segment", value=False, button_style="primary"
+        description="Segment",
+        value=False,
+        button_style="primary",
+        layout=widgets.Layout(padding=padding),
     )
+
+    save_button = widgets.ToggleButton(
+        description="Save", value=False, button_style="primary"
+    )
+
     reset_button = widgets.ToggleButton(
         description="Reset", value=False, button_style="primary"
     )
-    segment_button.layout.width = widget_width
-    reset_button.layout.width = widget_width
-
-    buttons = widgets.VBox([segment_button, reset_button])
+    segment_button.layout.width = button_width
+    save_button.layout.width = button_width
+    reset_button.layout.width = button_width
 
     opacity_slider = widgets.FloatSlider(
+        description="Mask opacity:",
         min=0,
         max=1,
         value=0.5,
-        readout=False,
+        readout=True,
         continuous_update=True,
-        layout=widgets.Layout(width="95px"),
+        layout=widgets.Layout(width=widget_width, padding=padding),
         style=style,
+    )
+    buttons = widgets.VBox(
+        [
+            radio_buttons,
+            widgets.HBox([fg_count, bg_count]),
+            opacity_slider,
+            widgets.HBox(
+                [segment_button, save_button, reset_button],
+                layout=widgets.Layout(padding="0px 4px 0px 4px"),
+            ),
+        ]
     )
 
     def opacity_changed(change):
@@ -1620,14 +1674,17 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, **kwargs):
 
     opacity_slider.observe(opacity_changed, "value")
 
-    output = widgets.Output(layout=widgets.Layout(width=widget_width, padding=padding))
+    output = widgets.Output(
+        layout=widgets.Layout(
+            width=widget_width, padding=padding, max_width=widget_width
+        )
+    )
 
     toolbar_header = widgets.HBox()
     toolbar_header.children = [close_button, toolbar_button]
     toolbar_footer = widgets.VBox()
     toolbar_footer.children = [
         buttons,
-        opacity_slider,
         output,
     ]
     toolbar_widget = widgets.VBox()
@@ -1667,17 +1724,67 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, **kwargs):
 
     close_button.observe(close_btn_click, "value")
 
+    def handle_map_interaction(**kwargs):
+        try:
+            if kwargs.get("type") == "click":
+                latlon = kwargs.get("coordinates")
+                if radio_buttons.value == "Foreground":
+                    marker = ipyleaflet.Marker(
+                        location=latlon,
+                        icon=ipyleaflet.AwesomeIcon(
+                            name="plus-circle",
+                            marker_color="green",
+                            icon_color="darkred",
+                        ),
+                    )
+                    fg_layer.add(marker)
+                    m.fg_markers.append(marker)
+                    fg_count.value = len(m.fg_markers)
+                elif radio_buttons.value == "Background":
+                    marker = ipyleaflet.Marker(
+                        location=latlon,
+                        icon=ipyleaflet.AwesomeIcon(
+                            name="minus-circle",
+                            marker_color="red",
+                            icon_color="darkred",
+                        ),
+                    )
+                    bg_layer.add(marker)
+                    m.bg_markers.append(marker)
+                    bg_count.value = len(m.bg_markers)
+
+        except (TypeError, KeyError) as e:
+            print(f"Error handling map interaction: {e}")
+
+    m.on_interaction(handle_map_interaction)
+
     def segment_button_click(change):
         if change["new"]:
             reset_button.value = False
             with output:
                 output.clear_output()
-                print("Segmenting...")
-                try:
-                    if m.user_rois is not None:
+                if len(m.fg_markers) == 0:
+                    print("Please add some foreground markers.")
+                    segment_button.value = False
+                    return
+
+                else:
+                    try:
+                        fg_points = [
+                            [marker.location[1], marker.location[0]]
+                            for marker in m.fg_markers
+                        ]
+                        bg_points = [
+                            [marker.location[1], marker.location[0]]
+                            for marker in m.bg_markers
+                        ]
+                        point_coords = fg_points + bg_points
+                        point_labels = [1] * len(fg_points) + [0] * len(bg_points)
+
                         filename = f"masks_{random_string()}.tif"
                         sam.predict(
-                            point_coords=m.user_rois,
+                            point_coords=point_coords,
+                            point_labels=point_labels,
                             point_crs="EPSG:4326",
                             output=filename,
                         )
@@ -1691,13 +1798,22 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, **kwargs):
                             layer_name="Masks",
                             zoom_to_layer=False,
                         )
-                    output.clear_output()
-                    segment_button.value = False
-                    sam.prediction_fp = filename
-                except Exception as e:
-                    print(e)
+                        output.clear_output()
+                        segment_button.value = False
+                        sam.prediction_fp = filename
+                    except Exception as e:
+                        segment_button.value = False
+                        print(e)
 
     segment_button.observe(segment_button_click, "value")
+
+    def save_button_click(change):
+        if change["new"]:
+            with output:
+                print("Saving...")
+            save_button.value = False
+
+    save_button.observe(save_button_click, "value")
 
     def reset_button_click(change):
         if change["new"]:
@@ -1705,9 +1821,20 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, **kwargs):
             reset_button.value = False
             opacity_slider.value = 0.5
             output.clear_output()
-            m.remove_layer(m.find_layer("Masks"))
-            m.clear_drawings()
-            os.remove(sam.prediction_fp)
+            try:
+                m.remove_layer(m.find_layer("Masks"))
+                m.clear_drawings()
+                if hasattr(m, "fg_markers"):
+                    m.user_rois = None
+                    m.fg_markers = []
+                    m.bg_markers = []
+                    m.fg_layer.clear_layers()
+                    m.bg_layer.clear_layers()
+                    fg_count.value = 0
+                    bg_count.value = 0
+                os.remove(sam.prediction_fp)
+            except:
+                pass
 
     reset_button.observe(reset_button_click, "value")
 
