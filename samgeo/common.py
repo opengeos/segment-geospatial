@@ -1557,16 +1557,31 @@ def update_package(out_dir=None, keep=False, **kwargs):
         raise Exception(e)
 
 
-def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, **kwargs):
+def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwargs):
+    """Display the SAM Map GUI.
+
+    Args:
+        sam (SamGeo):
+        basemap (str, optional): The basemap to use. Defaults to "SATELLITE".
+        repeat_mode (bool, optional): Whether to use the repeat mode for the draw control. Defaults to True.
+        out_dir (str, optional): The output directory. Defaults to None.
+
+    """
     try:
+        import shutil
+        import tempfile
         import leafmap
         import ipyleaflet
         import ipyevents
         import ipywidgets as widgets
+        from ipyfilechooser import FileChooser
     except ImportError:
         raise ImportError(
             "The sam_map function requires the leafmap package. Please install it first."
         )
+
+    if out_dir is None:
+        out_dir = tempfile.gettempdir()
 
     m = leafmap.Map(repeat_mode=repeat_mode, **kwargs)
     m.default_style = {"cursor": "crosshair"}
@@ -1782,6 +1797,7 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, **kwargs):
                         point_labels = [1] * len(fg_points) + [0] * len(bg_points)
 
                         filename = f"masks_{random_string()}.tif"
+                        filename = os.path.join(out_dir, filename)
                         sam.predict(
                             point_coords=point_coords,
                             point_labels=point_labels,
@@ -1790,6 +1806,12 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, **kwargs):
                         )
                         if m.find_layer("Masks") is not None:
                             m.remove_layer(m.find_layer("Masks"))
+
+                        if hasattr(sam, "prediction_fp") and os.path.exists(
+                            sam.prediction_fp
+                        ):
+                            os.remove(sam.prediction_fp)
+
                         m.add_raster(
                             filename,
                             nodata=0,
@@ -1807,11 +1829,57 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, **kwargs):
 
     segment_button.observe(segment_button_click, "value")
 
+    def filechooser_callback(chooser):
+        with output:
+            if chooser.selected is not None:
+                try:
+                    filename = chooser.selected
+                    shutil.copy(sam.prediction_fp, filename)
+                    vector = filename.replace(".tif", ".gpkg")
+                    raster_to_gpkg(filename, vector)
+
+                    fg_points = [
+                        [marker.location[1], marker.location[0]]
+                        for marker in m.fg_markers
+                    ]
+                    bg_points = [
+                        [marker.location[1], marker.location[0]]
+                        for marker in m.bg_markers
+                    ]
+
+                    coords_to_geojson(
+                        fg_points, filename.replace(".tif", "_fg_markers.geojson")
+                    )
+                    coords_to_geojson(
+                        bg_points, filename.replace(".tif", "_bg_markers.geojson")
+                    )
+
+                except Exception as e:
+                    print(e)
+
+            if m.file_control in m.controls:
+                m.remove_control(m.file_control)
+                delattr(m, "file_control")
+
     def save_button_click(change):
         if change["new"]:
-            with output:
-                print("Saving...")
             save_button.value = False
+            with output:
+                sandbox_path = os.environ.get("SANDBOX_PATH")
+                filechooser = FileChooser(
+                    path=os.getcwd(),
+                    filename="masks.tif",
+                    sandbox_path=sandbox_path,
+                    layout=widgets.Layout(width="454px"),
+                )
+                filechooser.use_dir_icons = True
+                filechooser.filter_pattern = ["*.tif"]
+                filechooser.register_callback(filechooser_callback)
+                file_control = ipyleaflet.WidgetControl(
+                    widget=filechooser, position="topright"
+                )
+                m.add_control(file_control)
+                m.file_control = file_control
 
     save_button.observe(save_button_click, "value")
 
@@ -1862,3 +1930,40 @@ def random_string(string_length=6):
     # random.seed(1001)
     letters = string.ascii_lowercase
     return "".join(random.choice(letters) for i in range(string_length))
+
+
+def coords_to_geojson(coords, output=None):
+    """Convert a list of coordinates (lon, lat) to a GeoJSON string or file.
+
+    Args:
+        coords (list): A list of coordinates (lon, lat).
+        output (str, optional): The output file path. Defaults to None.
+
+    Returns:
+        dict: A GeoJSON dictionary.
+    """
+
+    import json
+
+    if len(coords) == 0:
+        return
+    # Create a GeoJSON FeatureCollection object
+    feature_collection = {"type": "FeatureCollection", "features": []}
+
+    # Iterate through the coordinates list and create a GeoJSON Feature object for each coordinate
+    for coord in coords:
+        feature = {
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": coord},
+            "properties": {},
+        }
+        feature_collection["features"].append(feature)
+
+    # Convert the FeatureCollection object to a JSON string
+    geojson_str = json.dumps(feature_collection)
+
+    if output is not None:
+        with open(output, "w") as f:
+            f.write(geojson_str)
+    else:
+        return geojson_str
