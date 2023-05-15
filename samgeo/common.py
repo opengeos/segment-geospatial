@@ -1618,6 +1618,22 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
         layout=widgets.Layout(height="28px", width="28px", padding=padding),
     )
 
+    plus_button = widgets.ToggleButton(
+        value=False,
+        tooltip="Load foreground points",
+        icon="plus-circle",
+        button_style="primary",
+        layout=widgets.Layout(height="28px", width="28px", padding=padding),
+    )
+
+    minus_button = widgets.ToggleButton(
+        value=False,
+        tooltip="Load background points",
+        icon="minus-circle",
+        button_style="primary",
+        layout=widgets.Layout(height="28px", width="28px", padding=padding),
+    )
+
     radio_buttons = widgets.RadioButtons(
         options=["Foreground", "Background"],
         description="Class Type:",
@@ -1696,7 +1712,7 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
     )
 
     toolbar_header = widgets.HBox()
-    toolbar_header.children = [close_button, toolbar_button]
+    toolbar_header.children = [close_button, plus_button, minus_button, toolbar_button]
     toolbar_footer = widgets.VBox()
     toolbar_footer.children = [
         buttons,
