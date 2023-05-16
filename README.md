@@ -34,13 +34,21 @@ The **segment-geospatial** package draws its inspiration from [segment-anything-
 
 -   Interactive segmentation with input prompts
 
-![](https://i.imgur.com/GV7Rzxt.gif)
+![](https://i.imgur.com/2Nyg9uW.gif)
+
+-   Input prompts from existing files
+
+![](https://i.imgur.com/Cb4ZaKY.gif)
 
 ## Tutorials
 
 Video tutorials are available on my [YouTube Channel](https://youtube.com/@giswqs).
 
 [![Alt text](https://img.youtube.com/vi/YHA_-QMB8_U/0.jpg)](https://www.youtube.com/playlist?list=PLAxJ4-o7ZoPcrg5RnZjkB_KY6tv96WO2h)
+
+## Computing Resources
+
+The Segment Anything Model is computationally intensive, and a powerful GPU is recommended to process large datasets. It is recommended to have a GPU with at least 8 GB of GPU memory. You can utilize the free GPU resources provided by Google Colab. Alternatively, you can apply for [AWS Cloud Credit for Research](https://aws.amazon.com/government-education/research-and-technical-computing/cloud-credit-for-research), which offers cloud credits to support academic research. If you are in the Greater China region, apply for the AWS Cloud Credit [here](https://aws.amazon.com/cn/events/educate_cloud/research-credits).
 
 ## Acknowledgements
 

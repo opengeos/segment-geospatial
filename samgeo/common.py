@@ -1790,11 +1790,12 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
             m.add_control(marker_control)
             m.marker_control = marker_control
         else:
-            if m.marker_control in m.controls:
+            if hasattr(m, "marker_control") and m.marker_control in m.controls:
                 m.remove_control(m.marker_control)
                 m.marker_control.close()
 
     plus_button.observe(marker_button_click, "value")
+    minus_button.observe(marker_button_click, "value")
 
     def handle_toolbar_event(event):
         if event["type"] == "mouseenter":
@@ -1948,13 +1949,13 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
                 except Exception as e:
                     print(e)
 
-            if m.file_control in m.controls:
-                m.remove_control(m.file_control)
-                delattr(m, "file_control")
+                if hasattr(m, "save_control") and m.save_control in m.controls:
+                    m.remove_control(m.save_control)
+                    delattr(m, "save_control")
+                save_button.value = False
 
     def save_button_click(change):
         if change["new"]:
-            save_button.value = False
             with output:
                 sandbox_path = os.environ.get("SANDBOX_PATH")
                 filechooser = FileChooser(
@@ -1966,15 +1967,15 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
                 filechooser.use_dir_icons = True
                 filechooser.filter_pattern = ["*.tif"]
                 filechooser.register_callback(filechooser_callback)
-                file_control = ipyleaflet.WidgetControl(
+                save_control = ipyleaflet.WidgetControl(
                     widget=filechooser, position="topright"
                 )
-                m.add_control(file_control)
-                m.file_control = file_control
+                m.add_control(save_control)
+                m.save_control = save_control
         else:
-            if m.file_control in m.controls:
-                m.remove_control(m.file_control)
-                delattr(m, "file_control")
+            if hasattr(m, "save_control") and m.save_control in m.controls:
+                m.remove_control(m.save_control)
+                delattr(m, "save_control")
 
     save_button.observe(save_button_click, "value")
 
