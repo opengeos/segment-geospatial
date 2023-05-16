@@ -520,8 +520,10 @@ class SamGeo:
         if return_results:
             return masks, scores, logits
 
-    def show_map(self, **kwargs):
-        return sam_map_gui(self, **kwargs)
+    def show_map(self, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwargs):
+        return sam_map_gui(
+            self, basemap=basemap, repeat_mode=repeat_mode, out_dir=out_dir, **kwargs
+        )
 
     def image_to_image(self, image, **kwargs):
         return image_to_image(image, self, **kwargs)
