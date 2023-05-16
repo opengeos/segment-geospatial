@@ -1586,7 +1586,12 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
     m = leafmap.Map(repeat_mode=repeat_mode, **kwargs)
     m.default_style = {"cursor": "crosshair"}
     m.add_basemap(basemap, show=False)
-    m.add_raster(sam.image, layer_name="Image")
+
+    # Skip the image layer if localtileserver is not available
+    try:
+        m.add_raster(sam.image, layer_name="Image")
+    except:
+        pass
 
     m.fg_markers = []
     m.bg_markers = []
@@ -1725,6 +1730,72 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
         source=toolbar_widget, watched_events=["mouseenter", "mouseleave"]
     )
 
+    def marker_callback(chooser):
+        with output:
+            if chooser.selected is not None:
+                try:
+                    gdf = gpd.read_file(chooser.selected)
+                    centroids = gdf.centroid
+                    coords = [[point.x, point.y] for point in centroids]
+                    for coord in coords:
+                        if plus_button.value:
+                            marker = ipyleaflet.Marker(
+                                location=[coord[1], coord[0]],
+                                icon=ipyleaflet.AwesomeIcon(
+                                    name="plus-circle",
+                                    marker_color="green",
+                                    icon_color="darkred",
+                                ),
+                            )
+                            m.fg_layer.add(marker)
+                            m.fg_markers.append(marker)
+                            fg_count.value = len(m.fg_markers)
+                        elif minus_button.value:
+                            marker = ipyleaflet.Marker(
+                                location=[coord[1], coord[0]],
+                                icon=ipyleaflet.AwesomeIcon(
+                                    name="minus-circle",
+                                    marker_color="red",
+                                    icon_color="darkred",
+                                ),
+                            )
+                            m.bg_layer.add(marker)
+                            m.bg_markers.append(marker)
+                            bg_count.value = len(m.bg_markers)
+
+                except Exception as e:
+                    print(e)
+
+            if m.marker_control in m.controls:
+                m.remove_control(m.marker_control)
+                delattr(m, "marker_control")
+
+            plus_button.value = False
+            minus_button.value = False
+
+    def marker_button_click(change):
+        if change["new"]:
+            sandbox_path = os.environ.get("SANDBOX_PATH")
+            filechooser = FileChooser(
+                path=os.getcwd(),
+                sandbox_path=sandbox_path,
+                layout=widgets.Layout(width="454px"),
+            )
+            filechooser.use_dir_icons = True
+            filechooser.filter_pattern = ["*.shp", "*.geojson", "*.gpkg"]
+            filechooser.register_callback(marker_callback)
+            marker_control = ipyleaflet.WidgetControl(
+                widget=filechooser, position="topright"
+            )
+            m.add_control(marker_control)
+            m.marker_control = marker_control
+        else:
+            if m.marker_control in m.controls:
+                m.remove_control(m.marker_control)
+                m.marker_control.close()
+
+    plus_button.observe(marker_button_click, "value")
+
     def handle_toolbar_event(event):
         if event["type"] == "mouseenter":
             toolbar_widget.children = [toolbar_header, toolbar_footer]
@@ -1828,14 +1899,18 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
                         ):
                             os.remove(sam.prediction_fp)
 
-                        m.add_raster(
-                            filename,
-                            nodata=0,
-                            cmap="Blues",
-                            opacity=opacity_slider.value,
-                            layer_name="Masks",
-                            zoom_to_layer=False,
-                        )
+                        # Skip the image layer if localtileserver is not available
+                        try:
+                            m.add_raster(
+                                filename,
+                                nodata=0,
+                                cmap="Blues",
+                                opacity=opacity_slider.value,
+                                layer_name="Masks",
+                                zoom_to_layer=False,
+                            )
+                        except:
+                            pass
                         output.clear_output()
                         segment_button.value = False
                         sam.prediction_fp = filename
@@ -1896,6 +1971,10 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
                 )
                 m.add_control(file_control)
                 m.file_control = file_control
+        else:
+            if m.file_control in m.controls:
+                m.remove_control(m.file_control)
+                delattr(m, "file_control")
 
     save_button.observe(save_button_click, "value")
 
