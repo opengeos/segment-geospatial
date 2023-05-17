@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.6.0 - May 16, 2023
+
+**New Features**
+
+-   Added interactive GUI for creating foreground and background markers (#44)
+-   Added support for custom projection bbox (#39)
+
+**Improvements**
+
+-   Fixed Colab Marker AwesomeIcon bug (#50)
+-   Added info about using SAM with Desktop GIS (#48)
+-   Use proper extension in the usage documentation (#43)
+
+**Demos**
+
+-   Interactive segmentation with input prompts
+
+![](https://i.imgur.com/2Nyg9uW.gif)
+
+-   Input prompts from existing files
+
+![](https://i.imgur.com/Cb4ZaKY.gif)
+
 ## v0.5.0 - May 10, 2023
 
 **New Features**

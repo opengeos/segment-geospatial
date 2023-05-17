@@ -17,7 +17,10 @@ The **segment-geospatial** package draws its inspiration from [segment-anything-
 
 -   Download map tiles from Tile Map Service (TMS) servers and create GeoTIFF files
 -   Segment GeoTIFF files using the Segment Anything Model (SAM)
+-   Create foreground and background markers interactively
+-   Load existing markers from vector datasets
 -   Save segmentation results as common vector formats (GeoPackage, Shapefile, GeoJSON, etc.)
+-   Save input prompts as GeoJSON files
 -   Visualize segmentation results on interactive maps
 
 ## Examples
