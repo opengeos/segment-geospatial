@@ -31,3 +31,11 @@ To install the development version from GitHub using [Git](https://git-scm.com/)
 ```bash
 pip install git+https://github.com/opengeos/segment-geospatial
 ```
+
+## Use docker
+
+You can also use [docker](https://hub.docker.com/r/giswqs/segment-geospatial/) to run segment-geospatial:
+
+```bash
+docker run -it -p 8888:8888 giswqs/segment-geospatial:latest
+```
