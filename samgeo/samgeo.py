@@ -176,6 +176,9 @@ class SamGeo:
                 raise ValueError(f"Input path {source} does not exist.")
 
             if batch:  # Subdivide the image into tiles and segment each tile
+                self.batch = True
+                self.source = source
+                self.masks = output
                 return tiff_to_tiff(
                     source,
                     output,
@@ -197,6 +200,7 @@ class SamGeo:
         mask_generator = self.mask_generator  # The automatic mask generator
         masks = mask_generator.generate(image)  # Segment the input image
         self.masks = masks  # Store the masks as a list of dictionaries
+        self.batch = False
 
         if output is not None:
             # Save the masks to the output path. The output is either a binary mask or a mask of objects with unique values.
@@ -302,8 +306,12 @@ class SamGeo:
 
         import matplotlib.pyplot as plt
 
-        if self.objects is None:
-            self.save_masks(foreground=foreground, **kwargs)
+        if self.batch:
+            self.objects = cv2.imread(self.masks)
+        else:
+
+            if self.objects is None:
+                self.save_masks(foreground=foreground, **kwargs)
 
         plt.figure(figsize=figsize)
         plt.imshow(self.objects, cmap=cmap)
