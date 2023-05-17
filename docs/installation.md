@@ -39,3 +39,56 @@ You can also use [docker](https://hub.docker.com/r/giswqs/segment-geospatial/) t
 ```bash
 docker run -it -p 8888:8888 giswqs/segment-geospatial:latest
 ```
+
+To enable GUI, run the following command to run a short benchmark on your GPU:
+
+```bash
+docker run --rm -it --gpus=all nvcr.io/nvidia/k8s/cuda-sample:nbody nbody -gpu -benchmark
+```
+
+The output should be similar to the following:
+
+```text
+Run "nbody -benchmark [-numbodies=<numBodies>]" to measure performance.
+        -fullscreen       (run n-body simulation in fullscreen mode)
+        -fp64             (use double precision floating point values for simulation)
+        -hostmem          (stores simulation data in host memory)
+        -benchmark        (run benchmark to measure performance)
+        -numbodies=<N>    (number of bodies (>= 1) to run in simulation)
+        -device=<d>       (where d=0,1,2.... for the CUDA device to use)
+        -numdevices=<i>   (where i=(number of CUDA devices > 0) to use for simulation)
+        -compare          (compares simulation results running once on the default GPU and once on the CPU)
+        -cpu              (run n-body simulation on the CPU)
+        -tipsy=<file.bin> (load a tipsy model file for simulation)
+
+NOTE: The CUDA Samples are not meant for performance measurements. Results may vary when GPU Boost is enabled.
+
+> Windowed mode
+> Simulation data stored in video memory
+> Single precision floating point simulation
+> 1 Devices used for simulation
+GPU Device 0: "Turing" with compute capability 7.5
+
+> Compute 7.5 CUDA device: [Quadro RTX 5000]
+49152 bodies, total time for 10 iterations: 69.386 ms
+= 348.185 billion interactions per second
+= 6963.703 single-precision GFLOP/s at 20 flops per interaction
+```
+
+If you encounter the following error:
+
+```text
+nvidia-container-cli: initialization error: load library failed: libnvidia-ml.so.1: cannot open shared object file: no such file or directory: unknown.
+```
+
+Try adding `sudo` to the command:
+
+```bash
+sudo docker run --rm -it --gpus=all nvcr.io/nvidia/k8s/cuda-sample:nbody nbody -gpu -benchmark
+```
+
+Once everything is working, you can run the following command to start a Jupyter Notebook server:
+
+```bash
+docker run -it -p 8888:8888 --gpus=all giswqs/segment-geospatial:latest
+```
