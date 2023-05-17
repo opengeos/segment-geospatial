@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.1 - May 16, 2023
+
+**New Features**
+
+-   Added Dockerfile (#51)
+
 ## v0.6.0 - May 16, 2023
 
 **New Features**
