@@ -40,7 +40,7 @@ You can also use [docker](https://hub.docker.com/r/giswqs/segment-geospatial/) t
 docker run -it -p 8888:8888 giswqs/segment-geospatial:latest
 ```
 
-To enable GUI, run the following command to run a short benchmark on your GPU:
+To enable GPU for segment-geospatial, run the following command to run a short benchmark on your GPU:
 
 ```bash
 docker run --rm -it --gpus=all nvcr.io/nvidia/k8s/cuda-sample:nbody nbody -gpu -benchmark
