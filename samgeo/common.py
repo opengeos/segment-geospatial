@@ -15,6 +15,16 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 
 
+def is_colab():
+    """Tests if the code is being executed within Google Colab."""
+    import sys
+
+    if "google.colab" in sys.modules:
+        return True
+    else:
+        return False
+
+
 def check_file_path(file_path, make_dirs=True):
     """Gets the absolute file path.
 
@@ -1739,26 +1749,42 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
                     coords = [[point.x, point.y] for point in centroids]
                     for coord in coords:
                         if plus_button.value:
-                            marker = ipyleaflet.Marker(
-                                location=[coord[1], coord[0]],
-                                icon=ipyleaflet.AwesomeIcon(
-                                    name="plus-circle",
-                                    marker_color="green",
-                                    icon_color="darkred",
-                                ),
-                            )
+                            if is_colab():  # Colab does not support AwesomeIcon
+                                marker = ipyleaflet.CircleMarker(
+                                    location=(coord[1], coord[0]),
+                                    radius=2,
+                                    color="green",
+                                    fill_color="green",
+                                )
+                            else:
+                                marker = ipyleaflet.Marker(
+                                    location=[coord[1], coord[0]],
+                                    icon=ipyleaflet.AwesomeIcon(
+                                        name="plus-circle",
+                                        marker_color="green",
+                                        icon_color="darkred",
+                                    ),
+                                )
                             m.fg_layer.add(marker)
                             m.fg_markers.append(marker)
                             fg_count.value = len(m.fg_markers)
                         elif minus_button.value:
-                            marker = ipyleaflet.Marker(
-                                location=[coord[1], coord[0]],
-                                icon=ipyleaflet.AwesomeIcon(
-                                    name="minus-circle",
-                                    marker_color="red",
-                                    icon_color="darkred",
-                                ),
-                            )
+                            if is_colab():
+                                marker = ipyleaflet.CircleMarker(
+                                    location=(coord[1], coord[0]),
+                                    radius=2,
+                                    color="red",
+                                    fill_color="red",
+                                )
+                            else:
+                                marker = ipyleaflet.Marker(
+                                    location=[coord[1], coord[0]],
+                                    icon=ipyleaflet.AwesomeIcon(
+                                        name="minus-circle",
+                                        marker_color="red",
+                                        icon_color="darkred",
+                                    ),
+                                )
                             m.bg_layer.add(marker)
                             m.bg_markers.append(marker)
                             bg_count.value = len(m.bg_markers)
@@ -1832,26 +1858,42 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
             if kwargs.get("type") == "click":
                 latlon = kwargs.get("coordinates")
                 if radio_buttons.value == "Foreground":
-                    marker = ipyleaflet.Marker(
-                        location=latlon,
-                        icon=ipyleaflet.AwesomeIcon(
-                            name="plus-circle",
-                            marker_color="green",
-                            icon_color="darkred",
-                        ),
-                    )
+                    if is_colab():
+                        marker = ipyleaflet.CircleMarker(
+                            location=tuple(latlon),
+                            radius=2,
+                            color="green",
+                            fill_color="green",
+                        )
+                    else:
+                        marker = ipyleaflet.Marker(
+                            location=latlon,
+                            icon=ipyleaflet.AwesomeIcon(
+                                name="plus-circle",
+                                marker_color="green",
+                                icon_color="darkred",
+                            ),
+                        )
                     fg_layer.add(marker)
                     m.fg_markers.append(marker)
                     fg_count.value = len(m.fg_markers)
                 elif radio_buttons.value == "Background":
-                    marker = ipyleaflet.Marker(
-                        location=latlon,
-                        icon=ipyleaflet.AwesomeIcon(
-                            name="minus-circle",
-                            marker_color="red",
-                            icon_color="darkred",
-                        ),
-                    )
+                    if is_colab():
+                        marker = ipyleaflet.CircleMarker(
+                            location=tuple(latlon),
+                            radius=2,
+                            color="red",
+                            fill_color="red",
+                        )
+                    else:
+                        marker = ipyleaflet.Marker(
+                            location=latlon,
+                            icon=ipyleaflet.AwesomeIcon(
+                                name="minus-circle",
+                                marker_color="red",
+                                icon_color="darkred",
+                            ),
+                        )
                     bg_layer.add(marker)
                     m.bg_markers.append(marker)
                     bg_count.value = len(m.bg_markers)
