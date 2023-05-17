@@ -3,6 +3,7 @@ LABEL maintainer="Qiusheng Wu"
 LABEL repo="https://github.com/opengeos/segment-geospatial"
 
 RUN mamba install -c conda-forge leafmap localtileserver segment-geospatial -y && \
+    pip install -U segment-geospatial && \
     fix-permissions "${CONDA_DIR}" && \
     fix-permissions "/home/${NB_USER}"
 
