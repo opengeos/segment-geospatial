@@ -5,7 +5,9 @@
 [![image](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/opengeos/segment-geospatial/blob/main/docs/examples/satellite.ipynb)
 [![image](https://img.shields.io/pypi/v/segment-geospatial.svg)](https://pypi.python.org/pypi/segment-geospatial)
 [![image](https://img.shields.io/conda/vn/conda-forge/segment-geospatial.svg)](https://anaconda.org/conda-forge/segment-geospatial)
-[![Docker Pulls](https://badgen.net/docker/pulls/giswqs/segment-geospatial?icon=docker&label=pulls)](https://hub.docker.com/r/giswqs/segment-geospatial/)
+[![Docker Pulls](https://badgen.net/docker/pulls/giswqs/segment-geospatial?icon=docker&label=pulls)](https://hub.docker.com/r/giswqs/segment-geospatial)
+[![PyPI Downloads](https://static.pepy.tech/badge/segment-geospatial)](https://pepy.tech/project/segment-geospatial)
+[![Conda Downloads](https://anaconda.org/conda-forge/segment-geospatial/badges/downloads.svg)](https://anaconda.org/conda-forge/segment-geospatial)
 
 **A Python package for segmenting geospatial data with the Segment Anything Model (SAM)**
 
