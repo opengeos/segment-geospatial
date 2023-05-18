@@ -319,7 +319,7 @@ class SamGeo:
         plt.show()
 
     def show_anns(
-        self, figsize=(12, 10), axis="off", alpha=0.35, output=None, **kwargs
+        self, figsize=(12, 10), axis="off", alpha=0.35, output=None, blend=True, **kwargs
     ):
         """Show the annotations (objects with random color) on the input image.
 
@@ -328,6 +328,7 @@ class SamGeo:
             axis (str, optional): Whether to show the axis. Defaults to "off".
             alpha (float, optional): The alpha value for the annotations. Defaults to 0.35.
             output (str, optional): The path to the output image. Defaults to None.
+            blend (bool, optional): Whether to show the input image. Defaults to True.
         """
 
         import matplotlib.pyplot as plt
@@ -374,7 +375,10 @@ class SamGeo:
         self.annotations = (img[:, :, 0:3] * 255).astype(np.uint8)
 
         if output is not None:
-            array = blend_images(self.annotations, self.image, alpha=alpha, show=False)
+            if blend:
+                array = blend_images(self.annotations, self.image, alpha=alpha, show=False)
+            else:
+                array = self.annotations
             array_to_image(array, output, self.source)
 
     def set_image(self, image, image_format="RGB"):
