@@ -9,7 +9,7 @@ from samgeo import samgeo
 
 
 class TestCommon(unittest.TestCase):
-    """Tests for `samgeo` package."""
+    """Tests for the common.py module."""
 
     def setUp(self):
         """Set up test fixtures, if any."""
