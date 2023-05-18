@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.2 - May 17, 2023
+
+**Improvements**
+
+-   Added jupyter-server-proxy to Dockerfile for supporting add_raster (#57)
+
 ## v0.6.1 - May 16, 2023
 
 **New Features**
