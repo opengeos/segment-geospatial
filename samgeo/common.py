@@ -653,6 +653,10 @@ def vector_to_geojson(filename, output=None, **kwargs):
     Returns:
         dict: The geojson dictionary.
     """
+
+    if not filename.startswith("http"):
+        filename = download_file(filename)
+
     gdf = gpd.read_file(filename, **kwargs)
     if output is None:
         return gdf.__geo_interface__
