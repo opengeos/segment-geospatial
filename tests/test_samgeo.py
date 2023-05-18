@@ -16,7 +16,7 @@ class TestSamgeo(unittest.TestCase):
         bbox = [-122.1497, 37.6311, -122.1203, 37.6458]
         image = "satellite.tif"
         samgeo.tms_to_geotiff(
-            output=image, bbox=bbox, zoom=17, source="Satellite", overwrite=True
+            output=image, bbox=bbox, zoom=15, source="Satellite", overwrite=True
         )
         self.source = image
 
