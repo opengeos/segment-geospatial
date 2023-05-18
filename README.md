@@ -31,6 +31,7 @@ The **segment-geospatial** package draws its inspiration from [segment-anything-
 -   [Segmenting satellite imagery](https://samgeo.gishub.org/examples/satellite)
 -   [Automatically generating object masks](https://samgeo.gishub.org/examples/automatic_mask_generator)
 -   [Segmenting satellite imagery with input prompts](https://samgeo.gishub.org/examples/input_prompts)
+-   [Using segment-geospatial with ArcGIS Pro](https://samgeo.gishub.org/examples/input_prompts)
 
 ## Demos
 
