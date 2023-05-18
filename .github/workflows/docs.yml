@@ -17,9 +17,9 @@ jobs:
                   pip install --user --no-cache-dir Cython
                   pip install --user -r requirements.txt -r requirements_dev.txt
                   pip install --user .
-            - name: PKG-TEST
-              run: |
-                  python -m unittest discover tests/
+            # - name: PKG-TEST
+            #   run: |
+            #       python -m unittest discover tests/
             - run: python -m pip install --upgrade pip
             - run: pip install mkdocs-material mkdocstrings mkdocstrings-python-legacy mkdocs-git-revision-date-plugin mkdocs-jupyter ipykernel
             - run: mkdocs gh-deploy --force

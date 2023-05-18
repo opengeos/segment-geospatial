@@ -12,6 +12,7 @@ private/
 **/*.dbf
 **/*.jpg
 **/*.png
+**/*.csv
 
 # C extensions
 *.so

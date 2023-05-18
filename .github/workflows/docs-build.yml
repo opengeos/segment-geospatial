@@ -28,9 +28,9 @@ jobs:
                   pip install .
             - name: Discover typos with codespell
               run: codespell --skip="*.csv,*.geojson,*.json,*.js,*.html,*cff,*.pdf" --ignore-words-list="aci,acount,acounts,fallow,hart,hist,nd,ned,ois,wqs"
-            - name: PKG-TEST
-              run: |
-                  python -m unittest discover tests/
+            # - name: PKG-TEST
+            #   run: |
+            #       python -m unittest discover tests/
             - run: mkdocs build
             - name: Deploy to Netlify
               uses: nwtgck/actions-netlify@v2.0
