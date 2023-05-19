@@ -1400,12 +1400,24 @@ def show_box(image, box, ax):
 def overlay_images(
     image1,
     image2,
-    opacity=0.5,
+    alpha=0.5,
     backend="TkAgg",
     height_ratios=[10, 1],
     show_args1={},
     show_args2={},
 ):
+    """Overlays two images using a slider to control the opacity of the top image.
+
+    Args:
+        image1 (str | np.ndarray): The first input image at the bottom represented as a NumPy array or the path to the image.
+        image2 (_type_): The second input image on top represented as a NumPy array or the path to the image.
+        alpha (float, optional): The alpha value of the top image. Defaults to 0.5.
+        backend (str, optional): The backend of the matplotlib plot. Defaults to "TkAgg".
+        height_ratios (list, optional): The height ratios of the two subplots. Defaults to [10, 1].
+        show_args1 (dict, optional): The keyword arguments to pass to the imshow() function for the first image. Defaults to {}.
+        show_args2 (dict, optional): The keyword arguments to pass to the imshow() function for the second image. Defaults to {}.
+
+    """
     import sys
     import matplotlib
     import matplotlib.widgets as mpwidgets
@@ -1440,7 +1452,7 @@ def overlay_images(
     # Create the plot
     fig, (ax0, ax1) = plt.subplots(2, 1, gridspec_kw={"height_ratios": height_ratios})
     img0 = ax0.imshow(x, **show_args1)
-    img1 = ax0.imshow(y, alpha=opacity, **show_args2)
+    img1 = ax0.imshow(y, alpha=alpha, **show_args2)
 
     # Define the update function
     def update(value):
@@ -1448,9 +1460,7 @@ def overlay_images(
         fig.canvas.draw_idle()
 
     # Create the slider
-    slider0 = mpwidgets.Slider(
-        ax=ax1, label="opacity", valmin=0, valmax=1, valinit=opacity
-    )
+    slider0 = mpwidgets.Slider(ax=ax1, label="alpha", valmin=0, valmax=1, valinit=alpha)
     slider0.on_changed(update)
 
     # Display the plot
@@ -2109,3 +2119,69 @@ def coords_to_geojson(coords, output=None):
             f.write(geojson_str)
     else:
         return geojson_str
+
+
+def show_canvas(image, fg_color=(0, 255, 0), bg_color=(0, 0, 255), radius=5):
+    """Show a canvas to collect foreground and background points.
+
+    Args:
+        image (str | np.ndarray): The input image.
+        fg_color (tuple, optional): The color for the foreground points. Defaults to (0, 255, 0).
+        bg_color (tuple, optional): The color for the background points. Defaults to (0, 0, 255).
+        radius (int, optional): The radius of the points. Defaults to 5.
+
+    Returns:
+        tuple: A tuple of two lists of foreground and background points.
+    """
+    if isinstance(image, str):
+        if image.startswith("http"):
+            image = download_file(image)
+
+        image = cv2.imread(image)
+    elif isinstance(image, np.ndarray):
+        pass
+    else:
+        raise ValueError("Input image must be a URL or a NumPy array.")
+
+    # Create an empty list to store the mouse click coordinates
+    left_clicks = []
+    right_clicks = []
+
+    # Create a mouse callback function
+    def get_mouse_coordinates(event, x, y, flags, param):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            # Append the coordinates to the mouse_clicks list
+            left_clicks.append((x, y))
+
+            # Draw a green circle at the mouse click coordinates
+            cv2.circle(image, (x, y), radius, fg_color, -1)
+
+            # Show the updated image with the circle
+            cv2.imshow("Image", image)
+
+        elif event == cv2.EVENT_RBUTTONDOWN:
+            # Append the coordinates to the mouse_clicks list
+            right_clicks.append((x, y))
+
+            # Draw a red circle at the mouse click coordinates
+            cv2.circle(image, (x, y), radius, bg_color, -1)
+
+            # Show the updated image with the circle
+            cv2.imshow("Image", image)
+
+    # Create a window to display the image
+    cv2.namedWindow("Image")
+
+    # Set the mouse callback function for the window
+    cv2.setMouseCallback("Image", get_mouse_coordinates)
+
+    # Display the image in the window
+    cv2.imshow("Image", image)
+
+    # Wait for a key press to exit
+    cv2.waitKey(0)
+
+    # Destroy the window
+    cv2.destroyAllWindows()
+
+    return left_clicks, right_clicks

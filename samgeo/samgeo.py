@@ -309,7 +309,6 @@ class SamGeo:
         if self.batch:
             self.objects = cv2.imread(self.masks)
         else:
-
             if self.objects is None:
                 self.save_masks(foreground=foreground, **kwargs)
 
@@ -319,7 +318,13 @@ class SamGeo:
         plt.show()
 
     def show_anns(
-        self, figsize=(12, 10), axis="off", alpha=0.35, output=None, blend=True, **kwargs
+        self,
+        figsize=(12, 10),
+        axis="off",
+        alpha=0.35,
+        output=None,
+        blend=True,
+        **kwargs,
     ):
         """Show the annotations (objects with random color) on the input image.
 
@@ -376,7 +381,9 @@ class SamGeo:
 
         if output is not None:
             if blend:
-                array = blend_images(self.annotations, self.image, alpha=alpha, show=False)
+                array = blend_images(
+                    self.annotations, self.image, alpha=alpha, show=False
+                )
             else:
                 array = self.annotations
             array_to_image(array, output, self.source)
@@ -494,6 +501,12 @@ class SamGeo:
         if isinstance(point_coords, dict):
             point_coords = geojson_to_coords(point_coords)
 
+        if hasattr(self, "point_coords"):
+            point_coords = self.point_coords
+
+        if hasattr(self, "point_labels"):
+            point_labels = self.point_labels
+
         if point_crs is not None:
             point_coords = coords_to_xy(self.image, point_coords, point_crs)
 
@@ -533,9 +546,44 @@ class SamGeo:
             return masks, scores, logits
 
     def show_map(self, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwargs):
+        """Show the interactive map.
+
+        Args:
+            basemap (str, optional): The basemap. It can be one of the following: SATELLITE, ROADMAP, TERRAIN, HYBRID.
+            repeat_mode (bool, optional): Whether to use the repeat mode for draw control. Defaults to True.
+            out_dir (str, optional): The path to the output directory. Defaults to None.
+
+        Returns:
+            leafmap.Map: The map object.
+        """
         return sam_map_gui(
             self, basemap=basemap, repeat_mode=repeat_mode, out_dir=out_dir, **kwargs
         )
+
+    def show_canvas(self, fg_color=(0, 255, 0), bg_color=(0, 0, 255), radius=5):
+        """Show a canvas to collect foreground and background points.
+
+        Args:
+            image (str | np.ndarray): The input image.
+            fg_color (tuple, optional): The color for the foreground points. Defaults to (0, 255, 0).
+            bg_color (tuple, optional): The color for the background points. Defaults to (0, 0, 255).
+            radius (int, optional): The radius of the points. Defaults to 5.
+
+        Returns:
+            tuple: A tuple of two lists of foreground and background points.
+        """
+
+        if self.image is None:
+            raise ValueError("Please run set_image() first.")
+
+        image = self.image
+        fg_points, bg_points = show_canvas(image, fg_color, bg_color, radius)
+        self.fg_points = fg_points
+        self.bg_points = bg_points
+        point_coords = fg_points + bg_points
+        point_labels = [1] * len(fg_points) + [0] * len(bg_points)
+        self.point_coords = point_coords
+        self.point_labels = point_labels
 
     def image_to_image(self, image, **kwargs):
         return image_to_image(image, self, **kwargs)
