@@ -585,6 +585,11 @@ class SamGeo:
         self.point_coords = point_coords
         self.point_labels = point_labels
 
+    def clear_cuda_cache(self):
+        """Clear the CUDA cache."""
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
     def image_to_image(self, image, **kwargs):
         return image_to_image(image, self, **kwargs)
 

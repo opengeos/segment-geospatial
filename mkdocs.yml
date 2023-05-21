@@ -50,7 +50,6 @@ nav:
     - Report Issues: https://github.com/opengeos/segment-geospatial/issues
     - Examples:
           - examples/satellite.ipynb
-          - examples/satellite-predictor.ipynb
           - examples/automatic_mask_generator.ipynb
           - examples/input_prompts.ipynb
           - examples/arcgis.ipynb
