@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.7.0 - May 20, 2023
+
+**New Features**
+
+-   Added unittest (#58)
+-   Added JOSS paper draft (#61)
+-   Added ArcGIS notebook example (#63)
+-   Added text prompting segmentation (#65)
+-   Added support for segmenting non-georeferenced imagery (#66)
+
+**Improvements**
+
+-   Added blend option for show_anns method (#59)
+-   Updated ArcGIS installation instructions (#68, #70)
+
+**Contributors**
+
+@p-vdp @LucasOsco
+
 ## v0.6.2 - May 17, 2023
 
 **Improvements**
