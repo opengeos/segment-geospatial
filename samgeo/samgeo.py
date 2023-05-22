@@ -55,9 +55,16 @@ class SamGeo:
 
         """
         # Download the checkpoint if it does not exist
+        CACHE_PATH = os.environ.get(
+            "TORCH_HOME", os.path.expanduser("~/.cache/checkpoints")
+        )
         if not os.path.exists(checkpoint):
-            print(f"Checkpoint {checkpoint} does not exist.")
-            download_checkpoint(output=checkpoint)
+            basename = os.path.basename(checkpoint)
+            checkpoint = os.path.join(CACHE_PATH, basename)
+            if not os.path.exists(checkpoint):
+                print(f"Checkpoint {checkpoint} does not exist.")
+                download_checkpoint(output=checkpoint)
+        self.checkpoint = checkpoint
 
         # Use cuda if available
         if device is None:

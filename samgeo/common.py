@@ -2185,3 +2185,34 @@ def show_canvas(image, fg_color=(0, 255, 0), bg_color=(0, 0, 255), radius=5):
     cv2.destroyAllWindows()
 
     return left_clicks, right_clicks
+
+
+def install_package(package):
+    """Install a Python package.
+
+    Args:
+        package (str | list): The package name or a GitHub URL or a list of package names or GitHub URLs.
+    """
+    import subprocess
+
+    if isinstance(package, str):
+        packages = [package]
+
+    for package in packages:
+        if package.startswith("https://github.com"):
+            package = f"git+{package}"
+
+        # Execute pip install command and show output in real-time
+        command = f"pip install {package}"
+        process = subprocess.Popen(command.split(), stdout=subprocess.PIPE)
+
+        # Print output in real-time
+        while True:
+            output = process.stdout.readline()
+            if output == b"" and process.poll() is not None:
+                break
+            if output:
+                print(output.decode("utf-8").strip())
+
+        # Wait for process to complete
+        process.wait()
