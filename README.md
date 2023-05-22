@@ -51,7 +51,13 @@ The **segment-geospatial** package draws its inspiration from [segment-anything-
 
 Video tutorials are available on my [YouTube Channel](https://youtube.com/@giswqs).
 
+-   Automatic mask generation
+
 [![Alt text](https://img.youtube.com/vi/YHA_-QMB8_U/0.jpg)](https://www.youtube.com/playlist?list=PLAxJ4-o7ZoPcrg5RnZjkB_KY6tv96WO2h)
+
+-   Using SAM with ArcGIS Pro
+
+[![Alt text](https://img.youtube.com/vi/VvyInoQ6N8Q/0.jpg)](https://www.youtube.com/playlist?list=PLAxJ4-o7ZoPcrg5RnZjkB_KY6tv96WO2h)
 
 ## Using SAM with Desktop GIS
 
