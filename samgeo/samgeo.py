@@ -56,7 +56,7 @@ class SamGeo:
         """
         # Download the checkpoint if it does not exist
         CACHE_PATH = os.environ.get(
-            "TORCH_HOME", os.path.expanduser("~/.cache/checkpoints")
+            "TORCH_HOME", os.path.expanduser("~/.cache/torch/hub/checkpoints")
         )
         if not os.path.exists(checkpoint):
             basename = os.path.basename(checkpoint)

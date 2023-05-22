@@ -36,7 +36,9 @@ SAM_MODELS = {
     "vit_b": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth",
 }
 
-CACHE_PATH = os.environ.get("TORCH_HOME", os.path.expanduser("~/.cache/checkpoints"))
+CACHE_PATH = os.environ.get(
+    "TORCH_HOME", os.path.expanduser("~/.cache/torch/hub/checkpoints")
+)
 
 
 def load_model_hf(repo_id, filename, ckpt_config_filename, device="cpu"):
