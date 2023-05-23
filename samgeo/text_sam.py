@@ -1,3 +1,8 @@
+"""The LangSAM model for segmenting objects from satellite images using text prompts. 
+The source code is adapted from the https://github.com/luca-medeiros/lang-segment-anything repository.
+Credits to Luca Medeiros for the original implementation.
+"""
+
 import os
 import warnings
 import argparse
@@ -27,22 +32,38 @@ try:
     from huggingface_hub import hf_hub_download
 except ImportError:
     print("Installing GroundingDINO...")
-    install_package("https://github.com/IDEA-Research/GroundingDINO")
+    install_package("groundingdino-py")
     print("Please restart the kernel and run the notebook again.")
 
-
+# Mode checkpoints
 SAM_MODELS = {
     "vit_h": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth",
     "vit_l": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth",
     "vit_b": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth",
 }
 
+# Cache path
 CACHE_PATH = os.environ.get(
     "TORCH_HOME", os.path.expanduser("~/.cache/torch/hub/checkpoints")
 )
 
 
-def load_model_hf(repo_id, filename, ckpt_config_filename, device="cpu"):
+def load_model_hf(
+    repo_id: str, filename: str, ckpt_config_filename: str, device: str = "cpu"
+) -> torch.nn.Module:
+    """
+    Loads a model from HuggingFace Model Hub.
+
+    Args:
+        repo_id (str): Repository ID on HuggingFace Model Hub.
+        filename (str): Name of the model file in the repository.
+        ckpt_config_filename (str): Name of the config file for the model in the repository.
+        device (str): Device to load the model onto. Default is 'cpu'.
+
+    Returns:
+        torch.nn.Module: The loaded model.
+    """
+
     cache_config_file = hf_hub_download(repo_id=repo_id, filename=ckpt_config_filename)
     args = SLConfig.fromfile(cache_config_file)
     model = build_model(args)
@@ -54,7 +75,16 @@ def load_model_hf(repo_id, filename, ckpt_config_filename, device="cpu"):
     return model
 
 
-def transform_image(image) -> torch.Tensor:
+def transform_image(image: Image) -> torch.Tensor:
+    """
+    Transforms an image using standard transformations for image-based models.
+
+    Args:
+        image (Image): The PIL Image to be transformed.
+
+    Returns:
+        torch.Tensor: The transformed image as a tensor.
+    """
     transform = T.Compose(
         [
             T.RandomResize([800], max_size=1333),
@@ -68,8 +98,17 @@ def transform_image(image) -> torch.Tensor:
 
 # Class definition for LangSAM
 class LangSAM:
-    def __init__(self, model_type="vit_h"):
+    """
+    A Language-based Segment-Anything Model (LangSAM) class which combines GroundingDINO and SAM.
+    """
 
+    def __init__(self, model_type="vit_h"):
+        """Initialize the LangSAM instance.
+
+        Args:
+            model_type (str, optional): The model type. It can be one of the following: vit_h, vit_l, vit_b.
+                Defaults to 'vit_h'. See https://bit.ly/3VrpxUh for more details.
+        """
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.build_groundingdino()
@@ -84,6 +123,12 @@ class LangSAM:
         self.prediction = None
 
     def build_sam(self, model_type):
+        """Build the SAM model.
+
+        Args:
+            model_type (str, optional): The model type. It can be one of the following: vit_h, vit_l, vit_b.
+                Defaults to 'vit_h'. See https://bit.ly/3VrpxUh for more details.
+        """
         checkpoint_url = SAM_MODELS[model_type]
         sam = sam_model_registry[model_type]()
         state_dict = torch.hub.load_state_dict_from_url(checkpoint_url)
@@ -92,6 +137,7 @@ class LangSAM:
         self.sam = SamPredictor(sam)
 
     def build_groundingdino(self):
+        """Build the GroundingDINO model."""
         ckpt_repo_id = "ShilongLiu/GroundingDINO"
         ckpt_filename = "groundingdino_swinb_cogcoor.pth"
         ckpt_config_filename = "GroundingDINO_SwinB.cfg.py"
@@ -100,6 +146,19 @@ class LangSAM:
         )
 
     def predict_dino(self, image, text_prompt, box_threshold, text_threshold):
+        """
+        Run the GroundingDINO model prediction.
+
+        Args:
+            image (Image): Input PIL Image.
+            text_prompt (str): Text prompt for the model.
+            box_threshold (float): Box threshold for the prediction.
+            text_threshold (float): Text threshold for the prediction.
+
+        Returns:
+            tuple: Tuple containing boxes, logits, and phrases.
+        """
+
         image_trans = transform_image(image)
         boxes, logits, phrases = predict(
             model=self.groundingdino,
@@ -115,6 +174,16 @@ class LangSAM:
         return boxes, logits, phrases
 
     def predict_sam(self, image, boxes):
+        """
+        Run the SAM model prediction.
+
+        Args:
+            image (Image): Input PIL Image.
+            boxes (torch.Tensor): Tensor of bounding boxes.
+
+        Returns:
+            Masks tensor.
+        """
         image_array = np.asarray(image)
         self.sam.set_image(image_array)
         transformed_boxes = self.sam.transform.apply_boxes_torch(
@@ -141,6 +210,23 @@ class LangSAM:
         return_results=False,
         **kwargs,
     ):
+        """
+        Run both GroundingDINO and SAM model prediction.
+
+        Parameters:
+            image (Image): Input PIL Image.
+            text_prompt (str): Text prompt for the model.
+            box_threshold (float): Box threshold for the prediction.
+            text_threshold (float): Text threshold for the prediction.
+            output (str, optional): Output path for the prediction. Defaults to None.
+            mask_multiplier (int, optional): Mask multiplier for the prediction. Defaults to 255.
+            dtype (np.dtype, optional): Data type for the prediction. Defaults to np.uint8.
+            save_args (dict, optional): Save arguments for the prediction. Defaults to {}.
+            return_results (bool, optional): Whether to return the results. Defaults to False.
+
+        Returns:
+            tuple: Tuple containing masks, boxes, phrases, and logits.
+        """
 
         if isinstance(image, str):
             if image.startswith("http"):
@@ -153,10 +239,14 @@ class LangSAM:
 
             # Load the georeferenced image
             with rasterio.open(image) as src:
-                image_np = src.read().transpose((1, 2, 0))  # Convert rasterio image to numpy array
+                image_np = src.read().transpose(
+                    (1, 2, 0)
+                )  # Convert rasterio image to numpy array
                 transform = src.transform  # Save georeferencing information
                 crs = src.crs  # Save the Coordinate Reference System
-                image_pil = Image.fromarray(image_np[:, :, :3])  # Convert numpy array to PIL image, excluding the alpha channel
+                image_pil = Image.fromarray(
+                    image_np[:, :, :3]
+                )  # Convert numpy array to PIL image, excluding the alpha channel
         else:
             image_pil = image
 
@@ -171,21 +261,28 @@ class LangSAM:
             masks = masks.squeeze(1)
 
         if boxes.nelement() == 0:  # No "object" instances found
-            print('No objects found in the image.')
+            print("No objects found in the image.")
             return
         else:
             # Create an empty image to store the mask overlays
-            mask_overlay = np.zeros_like(image_np[..., 0], dtype=dtype)  # Adjusted for single channel
+            mask_overlay = np.zeros_like(
+                image_np[..., 0], dtype=dtype
+            )  # Adjusted for single channel
 
             for i, (box, mask) in enumerate(zip(boxes, masks)):
                 # Convert tensor to numpy array if necessary and ensure it contains integers
                 if isinstance(mask, torch.Tensor):
-                    mask = mask.cpu().numpy().astype(dtype)  # If mask is on GPU, use .cpu() before .numpy()
-                mask_overlay += ((mask > 0) * (i + 1)).astype(dtype)  # Assign a unique value for each mask
+                    mask = (
+                        mask.cpu().numpy().astype(dtype)
+                    )  # If mask is on GPU, use .cpu() before .numpy()
+                mask_overlay += ((mask > 0) * (i + 1)).astype(
+                    dtype
+                )  # Assign a unique value for each mask
 
             # Normalize mask_overlay to be in [0, 255]
-            mask_overlay = (mask_overlay > 0) * mask_multiplier  # Binary mask in [0, 255]
-
+            mask_overlay = (
+                mask_overlay > 0
+            ) * mask_multiplier  # Binary mask in [0, 255]
 
         if output is not None:
             array_to_image(mask_overlay, output, self.source, dtype=dtype, **save_args)
@@ -203,10 +300,10 @@ class LangSAM:
         self,
         figsize=(12, 10),
         axis="off",
-        cmap='viridis', 
+        cmap="viridis",
         alpha=0.4,
         add_boxes=True,
-        box_color='r',
+        box_color="r",
         box_linewidth=1,
         title=None,
         output=None,
@@ -218,9 +315,15 @@ class LangSAM:
         Args:
             figsize (tuple, optional): The figure size. Defaults to (12, 10).
             axis (str, optional): Whether to show the axis. Defaults to "off".
-            alpha (float, optional): The alpha value for the annotations. Defaults to 0.35.
+            cmap (str, optional): The colormap for the annotations. Defaults to "viridis".
+            alpha (float, optional): The alpha value for the annotations. Defaults to 0.4.
+            add_boxes (bool, optional): Whether to show the bounding boxes. Defaults to True.
+            box_color (str, optional): The color for the bounding boxes. Defaults to "r".
+            box_linewidth (int, optional): The line width for the bounding boxes. Defaults to 1.
+            title (str, optional): The title for the image. Defaults to None.
             output (str, optional): The path to the output image. Defaults to None.
             blend (bool, optional): Whether to show the input image. Defaults to True.
+            kwargs (dict, optional): Additional arguments for matplotlib.pyplot.savefig().
         """
 
         import warnings
@@ -235,18 +338,24 @@ class LangSAM:
             print("Please run predict() first.")
             return
         elif len(anns) == 0:
-            print('No objects found in the image.')
+            print("No objects found in the image.")
             return
 
         plt.figure(figsize=figsize)
         plt.imshow(self.image)
 
         if add_boxes:
-
             for box in self.boxes:
                 # Draw bounding box
                 box = box.cpu().numpy()  # Convert the tensor to a numpy array
-                rect = patches.Rectangle((box[0], box[1]), box[2] - box[0], box[3] - box[1], linewidth=box_linewidth, edgecolor=box_color, facecolor='none')
+                rect = patches.Rectangle(
+                    (box[0], box[1]),
+                    box[2] - box[0],
+                    box[3] - box[1],
+                    linewidth=box_linewidth,
+                    edgecolor=box_color,
+                    facecolor="none",
+                )
                 plt.gca().add_patch(rect)
 
         if "dpi" not in kwargs:
@@ -263,12 +372,9 @@ class LangSAM:
 
         if output is not None:
             if blend:
-                array = blend_images(
-                    self.prediction, self.image, alpha=alpha, show=False, **kwargs
-                )
+                plt.savefig(output, **kwargs)
             else:
-                array = self.prediction
-            array_to_image(array, output, self.source)
+                array_to_image(self.prediction, output, self.source)
 
 
 def main():
