@@ -1,11 +1,9 @@
 import os
+import warnings
 import argparse
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
 from PIL import Image
-from rasterio.plot import show
-from matplotlib.patches import Rectangle
 from segment_anything import sam_model_registry
 from segment_anything import SamPredictor
 from .common import *
@@ -15,6 +13,8 @@ try:
 except ImportError:
     print("Installing rasterio...")
     install_package("rasterio")
+
+warnings.filterwarnings("ignore")
 
 
 try:
@@ -69,6 +69,8 @@ def transform_image(image) -> torch.Tensor:
 # Class definition for LangSAM
 class LangSAM:
     def __init__(self, model_type="vit_h"):
+
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.build_groundingdino()
         self.build_sam(model_type)
@@ -136,8 +138,10 @@ class LangSAM:
         mask_multiplier=255,
         dtype=np.uint8,
         save_args={},
+        return_results=False,
         **kwargs,
     ):
+
         if isinstance(image, str):
             if image.startswith("http"):
                 image = download_file(image)
@@ -147,44 +151,41 @@ class LangSAM:
 
             self.source = image
 
-            image = cv2.imread(image)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            self.image = image
-        elif isinstance(image, np.ndarray):
-            self.image = image
+            # Load the georeferenced image
+            with rasterio.open(image) as src:
+                image_np = src.read().transpose((1, 2, 0))  # Convert rasterio image to numpy array
+                transform = src.transform  # Save georeferencing information
+                crs = src.crs  # Save the Coordinate Reference System
+                image_pil = Image.fromarray(image_np[:, :, :3])  # Convert numpy array to PIL image, excluding the alpha channel
         else:
-            raise ValueError("Input image must be either a path or a numpy array.")
+            image_pil = image
+
+        self.image = image_pil
 
         boxes, logits, phrases = self.predict_dino(
-            image, text_prompt, box_threshold, text_threshold
+            image_pil, text_prompt, box_threshold, text_threshold
         )
         masks = torch.tensor([])
         if len(boxes) > 0:
-            masks = self.predict_sam(image, boxes)
+            masks = self.predict_sam(image_pil, boxes)
             masks = masks.squeeze(1)
 
         if boxes.nelement() == 0:  # No "object" instances found
             print('No objects found in the image.')
+            return
         else:
             # Create an empty image to store the mask overlays
-            mask_overlay = np.zeros_like(
-                image[..., 0], dtype=dtype
-            )  # Adjusted for single channel
+            mask_overlay = np.zeros_like(image_np[..., 0], dtype=dtype)  # Adjusted for single channel
 
             for i, (box, mask) in enumerate(zip(boxes, masks)):
                 # Convert tensor to numpy array if necessary and ensure it contains integers
                 if isinstance(mask, torch.Tensor):
-                    mask = (
-                        mask.cpu().numpy().astype(dtype)
-                    )  # If mask is on GPU, use .cpu() before .numpy()
-                mask_overlay += ((mask > 0) * (i + 1)).astype(
-                    dtype
-                )  # Assign a unique value for each mask
+                    mask = mask.cpu().numpy().astype(dtype)  # If mask is on GPU, use .cpu() before .numpy()
+                mask_overlay += ((mask > 0) * (i + 1)).astype(dtype)  # Assign a unique value for each mask
 
             # Normalize mask_overlay to be in [0, 255]
-            mask_overlay = (
-                mask_overlay > 0
-            ) * mask_multiplier  # Binary mask in [0, 255]
+            mask_overlay = (mask_overlay > 0) * mask_multiplier  # Binary mask in [0, 255]
+
 
         if output is not None:
             array_to_image(mask_overlay, output, self.source, dtype=dtype, **save_args)
@@ -195,7 +196,79 @@ class LangSAM:
         self.logits = logits
         self.prediction = mask_overlay
 
-        return masks, boxes, phrases, logits
+        if return_results:
+            return masks, boxes, phrases, logits
+
+    def show_anns(
+        self,
+        figsize=(12, 10),
+        axis="off",
+        cmap='viridis', 
+        alpha=0.4,
+        add_boxes=True,
+        box_color='r',
+        box_linewidth=1,
+        title=None,
+        output=None,
+        blend=True,
+        **kwargs,
+    ):
+        """Show the annotations (objects with random color) on the input image.
+
+        Args:
+            figsize (tuple, optional): The figure size. Defaults to (12, 10).
+            axis (str, optional): Whether to show the axis. Defaults to "off".
+            alpha (float, optional): The alpha value for the annotations. Defaults to 0.35.
+            output (str, optional): The path to the output image. Defaults to None.
+            blend (bool, optional): Whether to show the input image. Defaults to True.
+        """
+
+        import warnings
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as patches
+
+        warnings.filterwarnings("ignore")
+
+        anns = self.prediction
+
+        if anns is None:
+            print("Please run predict() first.")
+            return
+        elif len(anns) == 0:
+            print('No objects found in the image.')
+            return
+
+        plt.figure(figsize=figsize)
+        plt.imshow(self.image)
+
+        if add_boxes:
+
+            for box in self.boxes:
+                # Draw bounding box
+                box = box.cpu().numpy()  # Convert the tensor to a numpy array
+                rect = patches.Rectangle((box[0], box[1]), box[2] - box[0], box[3] - box[1], linewidth=box_linewidth, edgecolor=box_color, facecolor='none')
+                plt.gca().add_patch(rect)
+
+        if "dpi" not in kwargs:
+            kwargs["dpi"] = 100
+
+        if "bbox_inches" not in kwargs:
+            kwargs["bbox_inches"] = "tight"
+
+        plt.imshow(anns, cmap=cmap, alpha=alpha)
+
+        if title is not None:
+            plt.title(title)
+        plt.axis(axis)
+
+        if output is not None:
+            if blend:
+                array = blend_images(
+                    self.prediction, self.image, alpha=alpha, show=False, **kwargs
+                )
+            else:
+                array = self.prediction
+            array_to_image(array, output, self.source)
 
 
 def main():
