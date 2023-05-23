@@ -20,9 +20,10 @@ The **segment-geospatial** package draws its inspiration from [segment-anything-
 
 -   Download map tiles from Tile Map Service (TMS) servers and create GeoTIFF files
 -   Segment GeoTIFF files using the Segment Anything Model (SAM)
+-   Segment remote sensing imagery with text prompts
 -   Create foreground and background markers interactively
 -   Load existing markers from vector datasets
--   Save segmentation results as common vector formats (GeoPackage, Shapefile, GeoJSON, etc.)
+-   Save segmentation results as common vector formats (GeoPackage, Shapefile, GeoJSON)
 -   Save input prompts as GeoJSON files
 -   Visualize segmentation results on interactive maps
 
@@ -31,7 +32,8 @@ The **segment-geospatial** package draws its inspiration from [segment-anything-
 -   [Segmenting satellite imagery](https://samgeo.gishub.org/examples/satellite)
 -   [Automatically generating object masks](https://samgeo.gishub.org/examples/automatic_mask_generator)
 -   [Segmenting satellite imagery with input prompts](https://samgeo.gishub.org/examples/input_prompts)
--   [Using segment-geospatial with ArcGIS Pro](https://samgeo.gishub.org/examples/input_prompts)
+-   [Segmenting imagery with text prompts](https://samgeo.gishub.org/examples/text_prompts)
+-   [Using segment-geospatial with ArcGIS Pro](https://samgeo.gishub.org/examples/arcgis)
 
 ## Demos
 
@@ -75,3 +77,5 @@ This package was made possible by the following open source projects. Credit goe
 -   [segment-anything](https://github.com/facebookresearch/segment-anything)
 -   [segment-anything-eo](https://github.com/aliaksandr960/segment-anything-eo)
 -   [tms2geotiff](https://github.com/gumblex/tms2geotiff)
+-   [GroundingDINO](https://github.com/IDEA-Research/GroundingDINO)
+-   [lang-segment-anything](https://github.com/luca-medeiros/lang-segment-anything)

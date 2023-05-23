@@ -52,6 +52,7 @@ nav:
           - examples/satellite.ipynb
           - examples/automatic_mask_generator.ipynb
           - examples/input_prompts.ipynb
+          - examples/text_prompts.ipynb
           - examples/arcgis.ipynb
     - API Reference:
           - common module: common.md
