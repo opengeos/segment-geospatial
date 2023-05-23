@@ -28,6 +28,7 @@ try:
 except ImportError:
     print("Installing GroundingDINO...")
     install_package("https://github.com/IDEA-Research/GroundingDINO")
+    print("Please restart the kernel and run the notebook again.")
 
 
 SAM_MODELS = {
@@ -72,6 +73,14 @@ class LangSAM:
         self.build_groundingdino()
         self.build_sam(model_type)
 
+        self.source = None
+        self.image = None
+        self.masks = None
+        self.boxes = None
+        self.phrases = None
+        self.logits = None
+        self.prediction = None
+
     def build_sam(self, model_type):
         checkpoint_url = SAM_MODELS[model_type]
         sam = sam_model_registry[model_type]()
@@ -88,8 +97,8 @@ class LangSAM:
             ckpt_repo_id, ckpt_filename, ckpt_config_filename, self.device
         )
 
-    def predict_dino(self, image_pil, text_prompt, box_threshold, text_threshold):
-        image_trans = transform_image(image_pil)
+    def predict_dino(self, image, text_prompt, box_threshold, text_threshold):
+        image_trans = transform_image(image)
         boxes, logits, phrases = predict(
             model=self.groundingdino,
             image=image_trans,
@@ -98,13 +107,13 @@ class LangSAM:
             text_threshold=text_threshold,
             device=self.device,
         )
-        W, H = image_pil.size
+        W, H = image.size
         boxes = box_ops.box_cxcywh_to_xyxy(boxes) * torch.Tensor([W, H, W, H])
 
         return boxes, logits, phrases
 
-    def predict_sam(self, image_pil, boxes):
-        image_array = np.asarray(image_pil)
+    def predict_sam(self, image, boxes):
+        image_array = np.asarray(image)
         self.sam.set_image(image_array)
         transformed_boxes = self.sam.transform.apply_boxes_torch(
             boxes, image_array.shape[:2]
@@ -117,14 +126,75 @@ class LangSAM:
         )
         return masks.cpu()
 
-    def predict(self, image_pil, text_prompt, box_threshold, text_threshold):
+    def predict(
+        self,
+        image,
+        text_prompt,
+        box_threshold,
+        text_threshold,
+        output=None,
+        mask_multiplier=255,
+        dtype=np.uint8,
+        save_args={},
+        **kwargs,
+    ):
+        if isinstance(image, str):
+            if image.startswith("http"):
+                image = download_file(image)
+
+            if not os.path.exists(image):
+                raise ValueError(f"Input path {image} does not exist.")
+
+            self.source = image
+
+            image = cv2.imread(image)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            self.image = image
+        elif isinstance(image, np.ndarray):
+            self.image = image
+        else:
+            raise ValueError("Input image must be either a path or a numpy array.")
+
         boxes, logits, phrases = self.predict_dino(
-            image_pil, text_prompt, box_threshold, text_threshold
+            image, text_prompt, box_threshold, text_threshold
         )
         masks = torch.tensor([])
         if len(boxes) > 0:
-            masks = self.predict_sam(image_pil, boxes)
+            masks = self.predict_sam(image, boxes)
             masks = masks.squeeze(1)
+
+        if boxes.nelement() == 0:  # No "object" instances found
+            print('No objects found in the image.')
+        else:
+            # Create an empty image to store the mask overlays
+            mask_overlay = np.zeros_like(
+                image[..., 0], dtype=dtype
+            )  # Adjusted for single channel
+
+            for i, (box, mask) in enumerate(zip(boxes, masks)):
+                # Convert tensor to numpy array if necessary and ensure it contains integers
+                if isinstance(mask, torch.Tensor):
+                    mask = (
+                        mask.cpu().numpy().astype(dtype)
+                    )  # If mask is on GPU, use .cpu() before .numpy()
+                mask_overlay += ((mask > 0) * (i + 1)).astype(
+                    dtype
+                )  # Assign a unique value for each mask
+
+            # Normalize mask_overlay to be in [0, 255]
+            mask_overlay = (
+                mask_overlay > 0
+            ) * mask_multiplier  # Binary mask in [0, 255]
+
+        if output is not None:
+            array_to_image(mask_overlay, output, self.source, dtype=dtype, **save_args)
+
+        self.masks = masks
+        self.boxes = boxes
+        self.phrases = phrases
+        self.logits = logits
+        self.prediction = mask_overlay
+
         return masks, boxes, phrases, logits
 
 
