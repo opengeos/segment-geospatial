@@ -21,7 +21,7 @@ It is recommended to create a fresh conda environment for **segment-geospatial**
 
 ```bash
 conda install -n base mamba -c conda-forge
-mamba create -n geo segment-geospatial python -c conda-forge
+mamba create -n geo segment-geospatial python=3.9 -c conda-forge
 ```
 
 ## Install from GitHub
