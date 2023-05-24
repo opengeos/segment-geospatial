@@ -1919,7 +1919,7 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
 
     def segment_button_click(change):
         if change["new"]:
-            reset_button.value = False
+            segment_button.value = False
             with output:
                 output.clear_output()
                 if len(m.fg_markers) == 0:
@@ -2216,3 +2216,311 @@ def install_package(package):
 
         # Wait for process to complete
         process.wait()
+
+
+def text_sam_gui(sam, basemap="SATELLITE", out_dir=None, **kwargs):
+    """Display the SAM Map GUI.
+
+    Args:
+        sam (SamGeo):
+        basemap (str, optional): The basemap to use. Defaults to "SATELLITE".
+        out_dir (str, optional): The output directory. Defaults to None.
+
+    """
+    try:
+        import shutil
+        import tempfile
+        import leafmap
+        import ipyleaflet
+        import ipyevents
+        import ipywidgets as widgets
+        import leafmap.colormaps as cm
+        from ipyfilechooser import FileChooser
+    except ImportError:
+        raise ImportError(
+            "The sam_map function requires the leafmap package. Please install it first."
+        )
+
+    if out_dir is None:
+        out_dir = tempfile.gettempdir()
+
+    m = leafmap.Map(**kwargs)
+    m.default_style = {"cursor": "crosshair"}
+    m.add_basemap(basemap, show=False)
+
+    # Skip the image layer if localtileserver is not available
+    try:
+        m.add_raster(sam.source, layer_name="Image")
+    except:
+        pass
+
+    widget_width = "280px"
+    button_width = "90px"
+    padding = "0px 4px 0px 4px"  # upper, right, bottom, left
+    style = {"description_width": "initial"}
+
+    toolbar_button = widgets.ToggleButton(
+        value=True,
+        tooltip="Toolbar",
+        icon="gear",
+        layout=widgets.Layout(width="28px", height="28px", padding="0px 0px 0px 4px"),
+    )
+
+    close_button = widgets.ToggleButton(
+        value=False,
+        tooltip="Close the tool",
+        icon="times",
+        button_style="primary",
+        layout=widgets.Layout(height="28px", width="28px", padding="0px 0px 0px 4px"),
+    )
+
+    text_prompt = widgets.Text(
+        description="Text prompt:",
+        style=style,
+        layout=widgets.Layout(width=widget_width, padding=padding),
+    )
+
+    box_slider = widgets.FloatSlider(
+        description="Box threshold:",
+        min=0,
+        max=1,
+        value=0.5,
+        step=0.01,
+        readout=True,
+        continuous_update=True,
+        layout=widgets.Layout(width=widget_width, padding=padding),
+        style=style,
+    )
+
+    text_slider = widgets.FloatSlider(
+        description="Text threshold:",
+        min=0,
+        max=1,
+        step=0.01,
+        value=0.5,
+        readout=True,
+        continuous_update=True,
+        layout=widgets.Layout(width=widget_width, padding=padding),
+        style=style,
+    )
+
+    cmap_dropdown = widgets.Dropdown(
+        description="Palette:",
+        options=cm.list_colormaps(),
+        value="viridis",
+        style=style,
+        layout=widgets.Layout(width=widget_width, padding=padding),
+    )
+
+    opacity_slider = widgets.FloatSlider(
+        description="Opacity:",
+        min=0,
+        max=1,
+        value=0.5,
+        readout=True,
+        continuous_update=True,
+        layout=widgets.Layout(width=widget_width, padding=padding),
+        style=style,
+    )
+
+    def opacity_changed(change):
+        if change["new"]:
+            if hasattr(m, "layer_name"):
+                mask_layer = m.find_layer(m.layer_name)
+                if mask_layer is not None:
+                    mask_layer.interact(opacity=opacity_slider.value)
+
+    opacity_slider.observe(opacity_changed, "value")
+
+    segment_button = widgets.ToggleButton(
+        description="Segment",
+        value=False,
+        button_style="primary",
+        layout=widgets.Layout(padding=padding),
+    )
+
+    save_button = widgets.ToggleButton(
+        description="Save", value=False, button_style="primary"
+    )
+
+    reset_button = widgets.ToggleButton(
+        description="Reset", value=False, button_style="primary"
+    )
+    segment_button.layout.width = button_width
+    save_button.layout.width = button_width
+    reset_button.layout.width = button_width
+
+    output = widgets.Output(
+        layout=widgets.Layout(
+            width=widget_width, padding=padding, max_width=widget_width
+        )
+    )
+
+    toolbar_header = widgets.HBox()
+    toolbar_header.children = [close_button, toolbar_button]
+    toolbar_footer = widgets.VBox()
+    toolbar_footer.children = [
+        text_prompt,
+        box_slider,
+        text_slider,
+        cmap_dropdown,
+        opacity_slider,
+        widgets.HBox(
+            [segment_button, save_button, reset_button],
+            layout=widgets.Layout(padding="0px 4px 0px 4px"),
+        ),
+        output,
+    ]
+    toolbar_widget = widgets.VBox()
+    toolbar_widget.children = [toolbar_header, toolbar_footer]
+
+    toolbar_event = ipyevents.Event(
+        source=toolbar_widget, watched_events=["mouseenter", "mouseleave"]
+    )
+
+    def handle_toolbar_event(event):
+        if event["type"] == "mouseenter":
+            toolbar_widget.children = [toolbar_header, toolbar_footer]
+        elif event["type"] == "mouseleave":
+            if not toolbar_button.value:
+                toolbar_widget.children = [toolbar_button]
+                toolbar_button.value = False
+                close_button.value = False
+
+    toolbar_event.on_dom_event(handle_toolbar_event)
+
+    def toolbar_btn_click(change):
+        if change["new"]:
+            close_button.value = False
+            toolbar_widget.children = [toolbar_header, toolbar_footer]
+        else:
+            if not close_button.value:
+                toolbar_widget.children = [toolbar_button]
+
+    toolbar_button.observe(toolbar_btn_click, "value")
+
+    def close_btn_click(change):
+        if change["new"]:
+            toolbar_button.value = False
+            if m.toolbar_control in m.controls:
+                m.remove_control(m.toolbar_control)
+            toolbar_widget.close()
+
+    close_button.observe(close_btn_click, "value")
+
+    def segment_button_click(change):
+        if change["new"]:
+            segment_button.value = False
+            with output:
+                output.clear_output()
+                if len(text_prompt.value) == 0:
+                    print("Please enter a text prompt first.")
+                elif sam.source is None:
+                    print("Please run sam.set_image() first.")
+                else:
+                    print("Segmenting...")
+                    layer_name = text_prompt.value.replace(" ", "_")
+                    filename = os.path.join(
+                        out_dir, f"{layer_name}_{random_string()}.tif"
+                    )
+                    sam.predict(
+                        sam.source,
+                        text_prompt.value,
+                        box_slider.value,
+                        text_slider.value,
+                        output=filename,
+                    )
+                    sam.output = filename
+                    if m.find_layer(layer_name) is not None:
+                        m.remove_layer(m.find_layer(layer_name))
+                    if os.path.exists(filename):
+                        try:
+                            m.add_raster(
+                                filename,
+                                layer_name=layer_name,
+                                palette=cmap_dropdown.value,
+                                opacity=opacity_slider.value,
+                                nodata=0,
+                                zoom_to_layer=False,
+                            )
+                            m.layer_name = layer_name
+                            output.clear_output()
+                        except Exception as e:
+                            print(e)
+
+    segment_button.observe(segment_button_click, "value")
+
+    def filechooser_callback(chooser):
+        with output:
+            if chooser.selected is not None:
+                try:
+                    filename = chooser.selected
+                    shutil.copy(sam.output, filename)
+                    vector = filename.replace(".tif", ".shp")
+                    raster_to_vector(filename, vector)
+
+                except Exception as e:
+                    print(e)
+
+                if hasattr(m, "save_control") and m.save_control in m.controls:
+                    m.remove_control(m.save_control)
+                    delattr(m, "save_control")
+                save_button.value = False
+
+    def save_button_click(change):
+        if change["new"]:
+            with output:
+                output.clear_output()
+                if not hasattr(m, "layer_name"):
+                    print("Please click the Segment button first.")
+                else:
+                    sandbox_path = os.environ.get("SANDBOX_PATH")
+                    filechooser = FileChooser(
+                        path=os.getcwd(),
+                        filename=f"{m.layer_name}.tif",
+                        sandbox_path=sandbox_path,
+                        layout=widgets.Layout(width="454px"),
+                    )
+                    filechooser.use_dir_icons = True
+                    filechooser.filter_pattern = ["*.tif"]
+                    filechooser.register_callback(filechooser_callback)
+                    save_control = ipyleaflet.WidgetControl(
+                        widget=filechooser, position="topright"
+                    )
+                    m.add_control(save_control)
+                    m.save_control = save_control
+
+        else:
+            if hasattr(m, "save_control") and m.save_control in m.controls:
+                m.remove_control(m.save_control)
+                delattr(m, "save_control")
+
+    save_button.observe(save_button_click, "value")
+
+    def reset_button_click(change):
+        if change["new"]:
+            segment_button.value = False
+            save_button.value = False
+            reset_button.value = False
+            opacity_slider.value = 0.5
+            box_slider.value = 0.5
+            text_slider.value = 0.5
+            cmap_dropdown.value = "viridis"
+            text_prompt.value = ""
+            output.clear_output()
+            try:
+                if hasattr(m, "layer_name") and m.find_layer(m.layer_name) is not None:
+                    m.remove_layer(m.find_layer(m.layer_name))
+                m.clear_drawings()
+            except:
+                pass
+
+    reset_button.observe(reset_button_click, "value")
+
+    toolbar_control = ipyleaflet.WidgetControl(
+        widget=toolbar_widget, position="topright"
+    )
+    m.add_control(toolbar_control)
+    m.toolbar_control = toolbar_control
+
+    return m

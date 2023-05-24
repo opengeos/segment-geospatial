@@ -614,9 +614,7 @@ class SamGeo:
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
 
-        raster_to_vector(
-            image, output, simplify_tolerance=simplify_tolerance, **kwargs
-        )
+        raster_to_vector(image, output, simplify_tolerance=simplify_tolerance, **kwargs)
 
     def tiff_to_vector(self, tiff_path, output, simplify_tolerance=None, **kwargs):
         """Convert a tiff file to a gpkg file.
