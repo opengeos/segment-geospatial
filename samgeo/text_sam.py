@@ -376,6 +376,20 @@ class LangSAM:
             else:
                 array_to_image(self.prediction, output, self.source)
 
+    def raster_to_vector(self, image, output, simplify_tolerance=None, **kwargs):
+        """Save the result to a vector file.
+
+        Args:
+            image (str): The path to the image file.
+            output (str): The path to the vector file.
+            simplify_tolerance (float, optional): The maximum allowed geometry displacement.
+                The higher this value, the smaller the number of vertices in the resulting geometry.
+        """
+
+        raster_to_vector(
+            image, output, simplify_tolerance=simplify_tolerance, **kwargs
+        )
+
 
 def main():
     parser = argparse.ArgumentParser(description="LangSAM")
