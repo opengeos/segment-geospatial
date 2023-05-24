@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.8.0 - May 24, 2023
+
+**New Features**
+
+-   Added support for using text prompts with SAM (#73)
+-   Added text prompt GUI (#80)
+
+**Improvements**
+
+-   Improved text prompt notebook (#79)
+-   Fixed notebook typos (#78)
+-   Added ArcGIS tutorial to docs (#72)
+
 ## v0.7.0 - May 20, 2023
 
 **New Features**
