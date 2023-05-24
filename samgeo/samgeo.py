@@ -604,6 +604,20 @@ class SamGeo:
         image = draw_tile(source, pt1[0], pt1[1], pt2[0], pt2[1], zoom, dist)
         return image
 
+    def raster_to_vector(self, image, output, simplify_tolerance=None, **kwargs):
+        """Save the result to a vector file.
+
+        Args:
+            image (str): The path to the image file.
+            output (str): The path to the vector file.
+            simplify_tolerance (float, optional): The maximum allowed geometry displacement.
+                The higher this value, the smaller the number of vertices in the resulting geometry.
+        """
+
+        raster_to_vector(
+            image, output, simplify_tolerance=simplify_tolerance, **kwargs
+        )
+
     def tiff_to_vector(self, tiff_path, output, simplify_tolerance=None, **kwargs):
         """Convert a tiff file to a gpkg file.
 
