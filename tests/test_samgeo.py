@@ -36,8 +36,7 @@ class TestSamgeo(unittest.TestCase):
         """Tear down test fixtures, if any."""
 
     def test_generate(self):
-        """Test the automatic generation of masks and annotations.
-        """
+        """Test the automatic generation of masks and annotations."""
         sam = self.sam
         source = self.source
 
@@ -50,10 +49,8 @@ class TestSamgeo(unittest.TestCase):
         sam.tiff_to_vector("masks.tif", "masks.gpkg")
         self.assertTrue(os.path.exists("masks.gpkg"))
 
-
     def test_predict(self):
-        """Test the prediction of masks and annotations based on input prompts.
-        """        
+        """Test the prediction of masks and annotations based on input prompts."""
         sam = samgeo.SamGeo(
             model_type="vit_h",
             checkpoint=self.checkpoint,
@@ -63,9 +60,17 @@ class TestSamgeo(unittest.TestCase):
 
         sam.set_image(self.source)
         point_coords = [[-122.1419, 37.6383]]
-        sam.predict(point_coords, point_labels=1, point_crs="EPSG:4326", output='mask1.tif')
+        sam.predict(
+            point_coords, point_labels=1, point_crs="EPSG:4326", output='mask1.tif'
+        )
         self.assertTrue(os.path.exists("mask1.tif"))
 
-        point_coords = [[-122.1464, 37.6431], [-122.1449, 37.6415], [-122.1451, 37.6395]]
-        sam.predict(point_coords, point_labels=1, point_crs="EPSG:4326", output='mask2.tif')
+        point_coords = [
+            [-122.1464, 37.6431],
+            [-122.1449, 37.6415],
+            [-122.1451, 37.6395],
+        ]
+        sam.predict(
+            point_coords, point_labels=1, point_crs="EPSG:4326", output='mask2.tif'
+        )
         self.assertTrue(os.path.exists("mask2.tif"))

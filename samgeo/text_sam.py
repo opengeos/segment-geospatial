@@ -197,6 +197,24 @@ class LangSAM:
         )
         return masks.cpu()
 
+    def set_image(self, image):
+        """Set the input image.
+
+        Args:
+            image (str): The path to the image file or a HTTP URL.
+        """
+
+        if isinstance(image, str):
+            if image.startswith("http"):
+                image = download_file(image)
+
+            if not os.path.exists(image):
+                raise ValueError(f"Input path {image} does not exist.")
+
+            self.source = image
+        else:
+            self.source = None
+
     def predict(
         self,
         image,
@@ -386,9 +404,19 @@ class LangSAM:
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
 
-        raster_to_vector(
-            image, output, simplify_tolerance=simplify_tolerance, **kwargs
-        )
+        raster_to_vector(image, output, simplify_tolerance=simplify_tolerance, **kwargs)
+
+    def show_map(self, basemap="SATELLITE", out_dir=None, **kwargs):
+        """Show the interactive map.
+
+        Args:
+            basemap (str, optional): The basemap. It can be one of the following: SATELLITE, ROADMAP, TERRAIN, HYBRID.
+            out_dir (str, optional): The path to the output directory. Defaults to None.
+
+        Returns:
+            leafmap.Map: The map object.
+        """
+        return text_sam_gui(self, basemap=basemap, out_dir=out_dir, **kwargs)
 
 
 def main():
