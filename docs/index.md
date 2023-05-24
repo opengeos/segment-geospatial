@@ -8,13 +8,20 @@
 [![Docker Pulls](https://badgen.net/docker/pulls/giswqs/segment-geospatial?icon=docker&label=pulls)](https://hub.docker.com/r/giswqs/segment-geospatial)
 [![PyPI Downloads](https://static.pepy.tech/badge/segment-geospatial)](https://pepy.tech/project/segment-geospatial)
 [![Conda Downloads](https://anaconda.org/conda-forge/segment-geospatial/badges/downloads.svg)](https://anaconda.org/conda-forge/segment-geospatial)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7966658.svg)](https://doi.org/10.5281/zenodo.7966658)
 
 **A Python package for segmenting geospatial data with the Segment Anything Model (SAM)** 🗺️
+
+## Introduction
 
 The **segment-geospatial** package draws its inspiration from [segment-anything-eo](https://github.com/aliaksandr960/segment-anything-eo) repository authored by [Aliaksandr Hancharenka](https://github.com/aliaksandr960). To facilitate the use of the Segment Anything Model (SAM) for geospatial data, I have developed the [segment-anything-py](https://github.com/opengeos/segment-anything) and [segment-geospatial](https://github.com/opengeos/segment-geospatial) Python packages, which are now available on PyPI and conda-forge. My primary objective is to simplify the process of leveraging SAM for geospatial data analysis by enabling users to achieve this with minimal coding effort. I have adapted the source code of segment-geospatial from the [segment-anything-eo](https://github.com/aliaksandr960/segment-anything-eo) repository, and credit for its original version goes to Aliaksandr Hancharenka.
 
 -   🆓 Free software: MIT license
 -   📖 Documentation: <https://samgeo.gishub.org>
+
+## Citations
+
+-   Qiusheng Wu, & Lucas Osco. (2023). samgeo: A Python package for segmenting geospatial data with the Segment Anything Model (SAM). Zenodo. <https://doi.org/10.5281/zenodo.7966658>
 
 ## Features
 
@@ -49,6 +56,10 @@ The **segment-geospatial** package draws its inspiration from [segment-anything-
 
 ![](https://i.imgur.com/Cb4ZaKY.gif)
 
+-   Interactive segmentation with text prompts
+
+![](https://i.imgur.com/wydt5Xt.gif)
+
 ## Tutorials
 
 Video tutorials are available on my [YouTube Channel](https://youtube.com/@giswqs).
@@ -60,6 +71,10 @@ Video tutorials are available on my [YouTube Channel](https://youtube.com/@giswq
 -   Using SAM with ArcGIS Pro
 
 [![Alt text](https://img.youtube.com/vi/VvyInoQ6N8Q/0.jpg)](https://www.youtube.com/playlist?list=PLAxJ4-o7ZoPcrg5RnZjkB_KY6tv96WO2h)
+
+-   Interactive segmentation with text prompts
+
+[![Alt text](https://img.youtube.com/vi/cSDvuv1zRos/0.jpg)](https://www.youtube.com/playlist?list=PLAxJ4-o7ZoPcrg5RnZjkB_KY6tv96WO2h)
 
 ## Using SAM with Desktop GIS
 
