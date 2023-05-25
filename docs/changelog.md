@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.8.1 - May 24, 2023
+
+**Improvements**
+
+-   Added huggingface_hub and remove onnx (#87)
+-   Added more demos to docs (#82)
+
 ## v0.8.0 - May 24, 2023
 
 **New Features**
