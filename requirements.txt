@@ -2,8 +2,7 @@ segment-anything-py
 opencv-python 
 pycocotools 
 matplotlib 
-onnxruntime; python_version < '3.11'
-onnx
+huggingface_hub
 geopandas
 rasterio
 tqdm
