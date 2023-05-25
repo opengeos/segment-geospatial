@@ -11,6 +11,7 @@ import torch
 from PIL import Image
 from segment_anything import sam_model_registry
 from segment_anything import SamPredictor
+from huggingface_hub import hf_hub_download
 from .common import *
 
 try:
@@ -29,7 +30,7 @@ try:
     from groundingdino.util.inference import predict
     from groundingdino.util.slconfig import SLConfig
     from groundingdino.util.utils import clean_state_dict
-    from huggingface_hub import hf_hub_download
+
 except ImportError:
     print("Installing GroundingDINO...")
     install_package("groundingdino-py")
