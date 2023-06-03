@@ -1,9 +1,9 @@
 contact_links:
     - name: Ask questions
-      url: https://github.com/giswqs/segment-geospatial/discussions/categories/q-a
+      url: https://github.com/opengeos/segment-geospatial/discussions/categories/q-a
       about: Please ask and answer questions here.
     - name: Ideas
-      url: https://github.com/giswqs/segment-geospatial/discussions/categories/ideas
+      url: https://github.com/opengeos/segment-geospatial/discussions/categories/ideas
       about: Please share your ideas here.
     - name: Ask questions from the GIS community
       url: https://gis.stackexchange.com
