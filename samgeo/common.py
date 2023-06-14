@@ -1714,11 +1714,28 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
         layout=widgets.Layout(width=widget_width, padding=padding),
         style=style,
     )
+
+    rectangular = widgets.Checkbox(
+        value=False,
+        description="Rectangularize",
+        layout=widgets.Layout(width="130px", padding=padding),
+        style=style,
+    )
+
+    colorpicker = widgets.ColorPicker(
+        concise=False,
+        description="Color",
+        value="#ffff00",
+        layout=widgets.Layout(width="140px", padding=padding),
+        style=style,
+    )
+
     buttons = widgets.VBox(
         [
             radio_buttons,
             widgets.HBox([fg_count, bg_count]),
             opacity_slider,
+            widgets.HBox([rectangular, colorpicker]),
             widgets.HBox(
                 [segment_button, save_button, reset_button],
                 layout=widgets.Layout(padding="0px 4px 0px 4px"),
@@ -1950,6 +1967,8 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
                         )
                         if m.find_layer("Masks") is not None:
                             m.remove_layer(m.find_layer("Masks"))
+                        if m.find_layer("Rectangular") is not None:
+                            m.remove_layer(m.find_layer("Rectangular"))
 
                         if hasattr(sam, "prediction_fp") and os.path.exists(
                             sam.prediction_fp
@@ -1966,6 +1985,19 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
                                 layer_name="Masks",
                                 zoom_to_layer=False,
                             )
+
+                            if rectangular.value:
+                                vector = filename.replace(".tif", ".gpkg")
+                                vector_rec = filename.replace(".tif", "_rec.gpkg")
+                                raster_to_vector(filename, vector)
+                                rectangularize(vector, vector_rec)
+                                vector_style = {"color": colorpicker.value}
+                                m.add_vector(
+                                    vector_rec,
+                                    layer_name="Rectangular",
+                                    style=vector_style,
+                                )
+
                         except:
                             pass
                         output.clear_output()
@@ -1984,7 +2016,10 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
                     filename = chooser.selected
                     shutil.copy(sam.prediction_fp, filename)
                     vector = filename.replace(".tif", ".gpkg")
-                    raster_to_gpkg(filename, vector)
+                    raster_to_vector(filename, vector)
+                    if rectangular.value:
+                        vector_rec = filename.replace(".tif", "_rec.gpkg")
+                        rectangularize(vector, vector_rec)
 
                     fg_points = [
                         [marker.location[1], marker.location[0]]
@@ -2040,9 +2075,13 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
             segment_button.value = False
             reset_button.value = False
             opacity_slider.value = 0.5
+            rectangular.value = False
+            colorpicker.value = "#ffff00"
             output.clear_output()
             try:
                 m.remove_layer(m.find_layer("Masks"))
+                if m.find_layer("Rectangular") is not None:
+                    m.remove_layer(m.find_layer("Rectangular"))
                 m.clear_drawings()
                 if hasattr(m, "fg_markers"):
                     m.user_rois = None
@@ -2456,8 +2495,10 @@ def text_sam_gui(sam, basemap="SATELLITE", out_dir=None, **kwargs):
                 try:
                     filename = chooser.selected
                     shutil.copy(sam.output, filename)
-                    vector = filename.replace(".tif", ".shp")
+                    vector = filename.replace(".tif", ".gpkg")
                     raster_to_vector(filename, vector)
+                    vector_rec = filename.replace(".tif", "_rec.gpkg")
+                    rectangularize(vector, vector_rec)
 
                 except Exception as e:
                     print(e)
@@ -2524,3 +2565,32 @@ def text_sam_gui(sam, basemap="SATELLITE", out_dir=None, **kwargs):
     m.toolbar_control = toolbar_control
 
     return m
+
+
+def rectangularize(source, output=None, crs="EPSG:4326", **kwargs):
+    """Rectangularize a polygon GeoDataFrame.
+
+    Args:
+        source (str | gpd.GeoDataFrame): The input file path or a GeoDataFrame.
+        output (str, optional): The output file path. Defaults to None.
+
+
+    Returns:
+        gpd.GeoDataFrame: The output GeoDataFrame.
+    """
+    if isinstance(source, str):
+        gdf = gpd.read_file(source)
+    elif isinstance(source, gpd.GeoDataFrame):
+        gdf = source
+    else:
+        raise ValueError("The input source must be a GeoDataFrame or a file path.")
+
+    polygons = gdf.geometry.apply(lambda geom: geom.minimum_rotated_rectangle)
+    result = gpd.GeoDataFrame(geometry=polygons, data=gdf.drop("geometry", axis=1))
+
+    if crs is not None:
+        result.to_crs(crs, inplace=True)
+    if output is not None:
+        result.to_file(output, **kwargs)
+    else:
+        return result
