@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.8.2 - Jun 14, 2023
+
+**New Features**
+
+-   Added regularized option for vector output (#104)
+-   Added text prompt GUI (#80)
+
+**Improvements**
+
+-   Added more deep learning resources (#90)
+-   Use the force_filename parameter with hf_hub_download() (#93)
+-   Fixed typo (#94)
+
 ## v0.8.1 - May 24, 2023
 
 **Improvements**
