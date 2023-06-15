@@ -2579,8 +2579,8 @@ def text_sam_gui(sam, basemap="SATELLITE", out_dir=None, **kwargs):
             save_button.value = False
             reset_button.value = False
             opacity_slider.value = 0.5
-            box_slider.value = 0.5
-            text_slider.value = 0.5
+            box_slider.value = 0.25
+            text_slider.value = 0.25
             cmap_dropdown.value = "viridis"
             text_prompt.value = ""
             output.clear_output()
