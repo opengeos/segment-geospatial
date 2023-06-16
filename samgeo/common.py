@@ -512,10 +512,8 @@ def tms_to_geotiff(
     ):
         x0, y0 = deg2num(lat0, lon0, zoom)
         x1, y1 = deg2num(lat1, lon1, zoom)
-        if x0 > x1:
-            x0, x1 = x1, x0
-        if y0 > y1:
-            y0, y1 = y1, y0
+        x0, x1 = sorted([x0, x1])
+        y0, y1 = sorted([y0, y1])
         corners = tuple(
             itertools.product(
                 range(math.floor(x0), math.ceil(x1)),
