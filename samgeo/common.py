@@ -1386,7 +1386,7 @@ def show_points(
     plt.show()
 
 
-def show_box(image, box, ax):
+def show_box(box, ax):
     ax = plt.gca()
     x0, y0 = box[0], box[1]
     w, h = box[2] - box[0], box[3] - box[1]
