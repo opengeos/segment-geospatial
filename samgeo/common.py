@@ -900,7 +900,7 @@ def calculate_sample_grid(raster_h, raster_w, sample_h, sample_w, bound):
 
     for y in range(-bound, raster_h, h):
         for x in range(-bound, raster_w, w):
-            rigth_x_bound = max(bound, x + width - raster_w)
+            right_x_bound = max(bound, x + width - raster_w)
             bottom_y_bound = max(bound, y + height - raster_h)
 
             blocks.append(
@@ -909,7 +909,7 @@ def calculate_sample_grid(raster_h, raster_w, sample_h, sample_w, bound):
                     "y": y,
                     "height": height,
                     "width": width,
-                    "bounds": [[bound, bottom_y_bound], [bound, rigth_x_bound]],
+                    "bounds": [[bound, bottom_y_bound], [bound, right_x_bound]],
                 }
             )
     return blocks
