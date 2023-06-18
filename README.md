@@ -87,7 +87,7 @@ The Segment Anything Model is computationally intensive, and a powerful GPU is r
 
 ## Acknowledgements
 
-This package was made possible by the following open source projects. Credit goes to the developers of these projects.
+This project is supported by Amazon Web Services ([AWS](https://aws.amazon.com/)). In addition, this package was made possible by the following open source projects. Credit goes to the developers of these projects.
 
 -   [segment-anything](https://github.com/facebookresearch/segment-anything)
 -   [segment-anything-eo](https://github.com/aliaksandr960/segment-anything-eo)
