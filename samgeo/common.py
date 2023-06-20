@@ -2187,7 +2187,7 @@ def show_canvas(image, fg_color=(0, 255, 0), bg_color=(0, 0, 255), radius=5):
     right_clicks = []
 
     # Create a mouse callback function
-    def get_mouse_coordinates(event, x, y, flags, param):
+    def get_mouse_coordinates(event, x, y):
         if event == cv2.EVENT_LBUTTONDOWN:
             # Append the coordinates to the mouse_clicks list
             left_clicks.append((x, y))
