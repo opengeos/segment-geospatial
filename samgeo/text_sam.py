@@ -274,6 +274,7 @@ class LangSAM:
                 )  # Convert numpy array to PIL image, excluding the alpha channel
         else:
             image_pil = image
+            image_np = np.array(image_pil)
 
         self.image = image_pil
 
