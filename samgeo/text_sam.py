@@ -65,11 +65,17 @@ def load_model_hf(
         torch.nn.Module: The loaded model.
     """
 
-    cache_config_file = hf_hub_download(repo_id=repo_id, filename=ckpt_config_filename, force_filename=ckpt_config_filename)
+    cache_config_file = hf_hub_download(
+        repo_id=repo_id,
+        filename=ckpt_config_filename,
+        force_filename=ckpt_config_filename,
+    )
     args = SLConfig.fromfile(cache_config_file)
     model = build_model(args)
     model.to(device)
-    cache_file = hf_hub_download(repo_id=repo_id, filename=filename, force_filename=filename)
+    cache_file = hf_hub_download(
+        repo_id=repo_id, filename=filename, force_filename=filename
+    )
     checkpoint = torch.load(cache_file, map_location="cpu")
     model.load_state_dict(clean_state_dict(checkpoint["model"]), strict=False)
     model.eval()
@@ -314,6 +320,70 @@ class LangSAM:
 
         if return_results:
             return masks, boxes, phrases, logits
+
+    def predict_batch(
+        self,
+        images,
+        out_dir,
+        text_prompt,
+        box_threshold,
+        text_threshold,
+        mask_multiplier=255,
+        dtype=np.uint8,
+        save_args={},
+        merge=True,
+        verbose=True,
+        **kwargs,
+    ):
+        """
+        Run both GroundingDINO and SAM model prediction for a batch of images.
+
+        Parameters:
+            images (list): List of input PIL Images.
+            out_dir (str): Output directory for the prediction.
+            text_prompt (str): Text prompt for the model.
+            box_threshold (float): Box threshold for the prediction.
+            text_threshold (float): Text threshold for the prediction.
+            mask_multiplier (int, optional): Mask multiplier for the prediction. Defaults to 255.
+            dtype (np.dtype, optional): Data type for the prediction. Defaults to np.uint8.
+            save_args (dict, optional): Save arguments for the prediction. Defaults to {}.
+            merge (bool, optional): Whether to merge the predictions into a single GeoTIFF file. Defaults to True.
+        """
+
+        import glob
+
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+
+        if isinstance(images, str):
+            images = list(glob.glob(os.path.join(images, "*.tif")))
+            images.sort()
+
+        if not isinstance(images, list):
+            raise ValueError("images must be a list or a directory to GeoTIFF files.")
+
+        for i, image in enumerate(images):
+            basename = os.path.splitext(os.path.basename(image))[0]
+            if verbose:
+                print(f"Processing image {str(i+1).zfill(len(str(len(images))))} of {len(images)}: {image}...")
+            output = os.path.join(out_dir, f"{basename}_mask.tif")
+            self.predict(
+                image,
+                text_prompt,
+                box_threshold,
+                text_threshold,
+                output=output,
+                mask_multiplier=mask_multiplier,
+                dtype=dtype,
+                save_args=save_args,
+                **kwargs,
+            )
+
+        if merge:
+            output = os.path.join(out_dir, "merged.tif")
+            merge_rasters(out_dir, output)
+            if verbose:
+                print(f"Saved the merged prediction to {output}.")
 
     def show_anns(
         self,

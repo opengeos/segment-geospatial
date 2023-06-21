@@ -53,8 +53,9 @@ nav:
           - examples/automatic_mask_generator.ipynb
           - examples/input_prompts.ipynb
           - examples/text_prompts.ipynb
-          - examples/arcgis.ipynb
+          - examples/text_prompts_batch.ipynb
           - examples/swimming_pools.ipynb
+          - examples/arcgis.ipynb
     - API Reference:
           - common module: common.md
           - samgeo module: samgeo.md
