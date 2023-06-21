@@ -2257,7 +2257,16 @@ def install_package(package):
         process.wait()
 
 
-def text_sam_gui(sam, basemap="SATELLITE", out_dir=None, **kwargs):
+def text_sam_gui(
+    sam,
+    basemap="SATELLITE",
+    out_dir=None,
+    box_threshold=0.25,
+    text_threshold=0.25,
+    cmap="viridis",
+    opacity=0.5,
+    **kwargs,
+):
     """Display the SAM Map GUI.
 
     Args:
@@ -2323,7 +2332,7 @@ def text_sam_gui(sam, basemap="SATELLITE", out_dir=None, **kwargs):
         description="Box threshold:",
         min=0,
         max=1,
-        value=0.25,
+        value=box_threshold,
         step=0.01,
         readout=True,
         continuous_update=True,
@@ -2336,7 +2345,7 @@ def text_sam_gui(sam, basemap="SATELLITE", out_dir=None, **kwargs):
         min=0,
         max=1,
         step=0.01,
-        value=0.25,
+        value=text_threshold,
         readout=True,
         continuous_update=True,
         layout=widgets.Layout(width=widget_width, padding=padding),
@@ -2346,7 +2355,7 @@ def text_sam_gui(sam, basemap="SATELLITE", out_dir=None, **kwargs):
     cmap_dropdown = widgets.Dropdown(
         description="Palette:",
         options=cm.list_colormaps(),
-        value="viridis",
+        value=cmap,
         style=style,
         layout=widgets.Layout(width=widget_width, padding=padding),
     )
@@ -2355,7 +2364,7 @@ def text_sam_gui(sam, basemap="SATELLITE", out_dir=None, **kwargs):
         description="Opacity:",
         min=0,
         max=1,
-        value=0.5,
+        value=opacity,
         readout=True,
         continuous_update=True,
         layout=widgets.Layout(width=widget_width, padding=padding),
@@ -2627,3 +2636,160 @@ def regularize(source, output=None, crs="EPSG:4326", **kwargs):
         result.to_file(output, **kwargs)
     else:
         return result
+
+
+def split_raster(filename, out_dir, tile_size=256, overlap=0):
+    """Split a raster into tiles.
+
+    Args:
+        filename (str): The path or http URL to the raster file.
+        out_dir (str): The path to the output directory.
+        tile_size (int | tuple, optional): The size of the tiles. Can be an integer or a tuple of (width, height). Defaults to 256.
+        overlap (int, optional): The number of pixels to overlap between tiles. Defaults to 0.
+
+    Raises:
+        ImportError: Raised if GDAL is not installed.
+    """
+
+    try:
+        from osgeo import gdal
+    except ImportError:
+        raise ImportError(
+            "GDAL is required to use this function. Install it with `conda install gdal -c conda-forge`"
+        )
+
+    if isinstance(filename, str):
+        if filename.startswith("http"):
+            output = filename.split("/")[-1]
+            download_file(filename, output)
+            filename = output
+
+    # Open the input GeoTIFF file
+    ds = gdal.Open(filename)
+
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+
+    if isinstance(tile_size, int):
+        tile_width = tile_size
+        tile_height = tile_size
+    elif isinstance(tile_size, tuple):
+        tile_width = tile_size[0]
+        tile_height = tile_size[1]
+
+    # Get the size of the input raster
+    width = ds.RasterXSize
+    height = ds.RasterYSize
+
+    # Calculate the number of tiles needed in both directions, taking into account the overlap
+    num_tiles_x = (width - overlap) // (tile_width - overlap) + int(
+        (width - overlap) % (tile_width - overlap) > 0
+    )
+    num_tiles_y = (height - overlap) // (tile_height - overlap) + int(
+        (height - overlap) % (tile_height - overlap) > 0
+    )
+
+    # Get the georeferencing information of the input raster
+    geotransform = ds.GetGeoTransform()
+
+    # Loop over all the tiles
+    for i in range(num_tiles_x):
+        for j in range(num_tiles_y):
+            # Calculate the pixel coordinates of the tile, taking into account the overlap and clamping to the edge of the raster
+            x_min = i * (tile_width - overlap)
+            y_min = j * (tile_height - overlap)
+            x_max = min(x_min + tile_width, width)
+            y_max = min(y_min + tile_height, height)
+
+            # Adjust the size of the last tile in each row and column to include any remaining pixels
+            if i == num_tiles_x - 1:
+                x_min = max(x_max - tile_width, 0)
+            if j == num_tiles_y - 1:
+                y_min = max(y_max - tile_height, 0)
+
+            # Calculate the size of the tile, taking into account the overlap
+            tile_width = x_max - x_min
+            tile_height = y_max - y_min
+
+            # Set the output file name
+            output_file = f"{out_dir}/tile_{i}_{j}.tif"
+
+            # Create a new dataset for the tile
+            driver = gdal.GetDriverByName("GTiff")
+            tile_ds = driver.Create(
+                output_file,
+                tile_width,
+                tile_height,
+                ds.RasterCount,
+                ds.GetRasterBand(1).DataType,
+            )
+
+            # Calculate the georeferencing information for the output tile
+            tile_geotransform = (
+                geotransform[0] + x_min * geotransform[1],
+                geotransform[1],
+                0,
+                geotransform[3] + y_min * geotransform[5],
+                0,
+                geotransform[5],
+            )
+
+            # Set the geotransform and projection of the tile
+            tile_ds.SetGeoTransform(tile_geotransform)
+            tile_ds.SetProjection(ds.GetProjection())
+
+            # Read the data from the input raster band(s) and write it to the tile band(s)
+            for k in range(ds.RasterCount):
+                band = ds.GetRasterBand(k + 1)
+                tile_band = tile_ds.GetRasterBand(k + 1)
+                tile_data = band.ReadAsArray(x_min, y_min, tile_width, tile_height)
+                tile_band.WriteArray(tile_data)
+
+            # Close the tile dataset
+            tile_ds = None
+
+    # Close the input dataset
+    ds = None
+
+
+def merge_rasters(
+    input_dir,
+    output,
+    input_pattern="*.tif",
+    output_format="GTiff",
+    output_nodata=None,
+    output_options=["COMPRESS=DEFLATE"],
+):
+    """Merge a directory of rasters into a single raster.
+
+    Args:
+        input_dir (str): The path to the input directory.
+        output (str): The path to the output raster.
+        input_pattern (str, optional): The pattern to match the input files. Defaults to "*.tif".
+        output_format (str, optional): The output format. Defaults to "GTiff".
+        output_nodata (float, optional): The output nodata value. Defaults to None.
+        output_options (list, optional): A list of output options. Defaults to ["COMPRESS=DEFLATE"].
+
+    Raises:
+        ImportError: Raised if GDAL is not installed.
+    """
+
+    import glob
+
+    try:
+        from osgeo import gdal
+    except ImportError:
+        raise ImportError(
+            "GDAL is required to use this function. Install it with `conda install gdal -c conda-forge`"
+        )
+    # Get a list of all the input files
+    input_files = glob.glob(os.path.join(input_dir, input_pattern))
+
+    # Merge the input files into a single output file
+    gdal.Warp(
+        output,
+        input_files,
+        format=output_format,
+        dstNodata=output_nodata,
+        options=output_options,
+    )
