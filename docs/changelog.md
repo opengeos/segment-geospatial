@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.8.3 - Jun 20, 2023
+
+**New Features**
+
+-   Added support for batch segmentation (#116)
+-   Added swimming pools example (#106)
+
+**Improvements**
+
+-   Removed 'flag' and 'param' arguments (#112)
+-   Used sorted function instead of if statements (#109)
+
 ## v0.8.2 - Jun 14, 2023
 
 **New Features**
