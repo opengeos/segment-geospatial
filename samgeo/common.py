@@ -1571,7 +1571,10 @@ def update_package(out_dir=None, keep=False, **kwargs):
 
         if not keep:
             shutil.rmtree(pkg_dir)
-            os.remove(filename)
+            try:
+                os.remove(filename)
+            except:
+                pass
 
         print("Package updated successfully.")
 
@@ -1971,7 +1974,10 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
                         if hasattr(sam, "prediction_fp") and os.path.exists(
                             sam.prediction_fp
                         ):
-                            os.remove(sam.prediction_fp)
+                            try:
+                                os.remove(sam.prediction_fp)
+                            except:
+                                pass
 
                         # Skip the image layer if localtileserver is not available
                         try:
@@ -2091,7 +2097,10 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
                     m.bg_layer.clear_layers()
                     fg_count.value = 0
                     bg_count.value = 0
-                os.remove(sam.prediction_fp)
+                try:
+                    os.remove(sam.prediction_fp)
+                except:
+                    pass
             except:
                 pass
 
