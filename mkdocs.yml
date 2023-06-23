@@ -59,3 +59,4 @@ nav:
     - API Reference:
           - common module: common.md
           - samgeo module: samgeo.md
+          - text_sam module: text_sam.md
