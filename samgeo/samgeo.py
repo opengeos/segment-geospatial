@@ -409,10 +409,11 @@ class SamGeo:
             if not os.path.exists(image):
                 raise ValueError(f"Input path {image} does not exist.")
 
-            self.image = image
+            self.source = image
 
             image = cv2.imread(image)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            self.image = image
         elif isinstance(image, np.ndarray):
             pass
         else:
