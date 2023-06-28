@@ -233,6 +233,7 @@ class LangSAM:
         dtype=np.uint8,
         save_args={},
         return_results=False,
+        return_coords=False,
         **kwargs,
     ):
         """
@@ -321,6 +322,13 @@ class LangSAM:
 
         if return_results:
             return masks, boxes, phrases, logits
+
+        if return_coords:
+            boxlist = []
+            for box in self.boxes:
+                box = box.cpu().numpy()
+                boxlist.append((box[0], box[1]))
+            return boxlist
 
     def predict_batch(
         self,
