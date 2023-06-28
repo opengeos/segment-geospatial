@@ -452,7 +452,7 @@ class SamGeo:
 
         array = self.masks[index] * mask_multiplier
         self.prediction = array
-        array_to_image(array, output, self.image, dtype=dtype, **kwargs)
+        array_to_image(array, output, self.source, dtype=dtype, **kwargs)
 
         if vector is not None:
             raster_to_vector(output, vector, simplify_tolerance=simplify_tolerance)
@@ -516,7 +516,7 @@ class SamGeo:
             point_labels = self.point_labels
 
         if point_crs is not None:
-            point_coords = coords_to_xy(self.image, point_coords, point_crs)
+            point_coords = coords_to_xy(self.source, point_coords, point_crs)
 
         if isinstance(point_coords, list):
             point_coords = np.array(point_coords)
@@ -537,7 +537,7 @@ class SamGeo:
             point_labels = np.array(point_labels)
 
         if isinstance(box, list) and point_crs is not None:
-            box = np.array(bbox_to_xy(self.image, box, point_crs))
+            box = np.array(bbox_to_xy(self.source, box, point_crs))
 
         predictor = self.predictor
         masks, scores, logits = predictor.predict(
