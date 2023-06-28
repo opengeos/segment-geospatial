@@ -2496,18 +2496,22 @@ def text_sam_gui(
                     filename = os.path.join(
                         out_dir, f"{layer_name}_{random_string()}.tif"
                     )
-                    sam.predict(
-                        sam.source,
-                        text_prompt.value,
-                        box_slider.value,
-                        text_slider.value,
-                        output=filename,
-                    )
-                    sam.output = filename
-                    if m.find_layer(layer_name) is not None:
-                        m.remove_layer(m.find_layer(layer_name))
-                    if m.find_layer(f"{layer_name}_rect") is not None:
-                        m.remove_layer(m.find_layer(f"{layer_name} Regularized"))
+                    try:
+                        sam.predict(
+                            sam.source,
+                            text_prompt.value,
+                            box_slider.value,
+                            text_slider.value,
+                            output=filename,
+                        )
+                        sam.output = filename
+                        if m.find_layer(layer_name) is not None:
+                            m.remove_layer(m.find_layer(layer_name))
+                        if m.find_layer(f"{layer_name}_rect") is not None:
+                            m.remove_layer(m.find_layer(f"{layer_name} Regularized"))
+                    except Exception as e:
+                        output.clear_output()
+                        print(e)
                     if os.path.exists(filename):
                         try:
                             m.add_raster(
