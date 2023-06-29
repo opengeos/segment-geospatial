@@ -1614,7 +1614,7 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
 
     # Skip the image layer if localtileserver is not available
     try:
-        m.add_raster(sam.image, layer_name="Image")
+        m.add_raster(sam.source, layer_name="Image")
     except:
         pass
 
