@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.8.4 - Jul 5, 2023
+
+**Improvements**
+
+-   Fixed model download bug (#136)
+-   Added legal notice (#133)
+-   Fixed image source bug for show_anns (#131)
+-   Improved exception handling for LangSAM GUI (#130)
+-   Added to return pixel coordinates of masks (#129)
+-   Added text_sam to docs (#123)
+-   Fixed file deletion error on Windows (#122)
+-   Fixed mask bug in text_sam/predict when the input is PIL image (#117)
+
 ## v0.8.3 - Jun 20, 2023
 
 **New Features**
