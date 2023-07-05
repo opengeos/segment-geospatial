@@ -374,7 +374,9 @@ class LangSAM:
         for i, image in enumerate(images):
             basename = os.path.splitext(os.path.basename(image))[0]
             if verbose:
-                print(f"Processing image {str(i+1).zfill(len(str(len(images))))} of {len(images)}: {image}...")
+                print(
+                    f"Processing image {str(i+1).zfill(len(str(len(images))))} of {len(images)}: {image}..."
+                )
             output = os.path.join(out_dir, f"{basename}_mask.tif")
             self.predict(
                 image,

@@ -19,7 +19,7 @@ class SamGeo:
     def __init__(
         self,
         model_type="vit_h",
-        checkpoint="sam_vit_h_4b8939.pth",
+        checkpoint=None,
         automatic=True,
         device=None,
         sam_kwargs=None,
@@ -31,7 +31,7 @@ class SamGeo:
                 Defaults to 'vit_h'. See https://bit.ly/3VrpxUh for more details.
             checkpoint (str, optional): The path to the model checkpoint. It can be one of the following:
                 sam_vit_h_4b8939.pth, sam_vit_l_0b3195.pth, sam_vit_b_01ec64.pth.
-                Defaults to "sam_vit_h_4b8939.pth". See https://bit.ly/3VrpxUh for more details.
+                Defaults to None. See https://bit.ly/3VrpxUh for more details.
             automatic (bool, optional): Whether to use the automatic mask generator or input prompts. Defaults to True.
                 The automatic mask generator will segment the entire image, while the input prompts will segment selected objects.
             device (str, optional): The device to use. It can be one of the following: cpu, cuda.
@@ -58,12 +58,36 @@ class SamGeo:
         CACHE_PATH = os.environ.get(
             "TORCH_HOME", os.path.expanduser("~/.cache/torch/hub/checkpoints")
         )
+
+        model_types = {
+            "vit_h": "sam_vit_h_4b8939.pth",
+            "vit_l": "sam_vit_l_0b3195.pth",
+            "vit_b": "sam_vit_b_01ec64.pth",
+        }
+
+        if model_type not in model_types:
+            raise ValueError(
+                f"Model type {model_type} is not supported. It must be one of the following: {model_types}."
+            )
+
+        checkpoints = {
+            "sam_vit_h_4b8939.pth": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth",
+            "sam_vit_l_0b3195.pth": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth",
+            "sam_vit_b_01ec64.pth": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth",
+        }
+
+        if checkpoint is None:
+            url = checkpoints[model_types[model_type]]
+            checkpoint = model_types[model_type]
+        else:
+            url = None
+
         if not os.path.exists(checkpoint):
             basename = os.path.basename(checkpoint)
             checkpoint = os.path.join(CACHE_PATH, basename)
             if not os.path.exists(checkpoint):
                 print(f"Checkpoint {checkpoint} does not exist.")
-                download_checkpoint(output=checkpoint)
+                download_checkpoint(url=url, output=checkpoint)
         self.checkpoint = checkpoint
 
         # Use cuda if available
