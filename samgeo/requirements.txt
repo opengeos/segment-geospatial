@@ -1,6 +1,0 @@
-rasterio
-torch
-torchvision
-segment-anything
-huggingface_hub
-git+https://github.com/IDEA-Research/GroundingDINO.git

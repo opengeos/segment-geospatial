@@ -223,6 +223,7 @@ class SamGeo:
             image = cv2.imread(source)
         elif isinstance(source, np.ndarray):
             image = source
+            source = None
         else:
             raise ValueError("Input source must be either a path or a numpy array.")
 
