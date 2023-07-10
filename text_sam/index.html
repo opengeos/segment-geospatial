@@ -1,0 +1,2640 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://samgeo.gishub.org/text_sam/">
+      
+      
+        <link rel="prev" href="../samgeo/">
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.4.3, mkdocs-material-9.1.18">
+    
+    
+      
+        <title>text_sam module - segment-geospatial</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.26e3688c.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ecc896b0.min.css">
+      
+      
+
+    
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="preference" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#text_sam-module" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="segment-geospatial" class="md-header__button md-logo" aria-label="segment-geospatial" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            segment-geospatial
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              text_sam module
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/opengeos/segment-geospatial" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="segment-geospatial" class="md-nav__button md-logo" aria-label="segment-geospatial" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    segment-geospatial
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/opengeos/segment-geospatial" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.4.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        Home
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        Installation
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/" class="md-nav__link">
+        Usage
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        Contributing
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        FAQ
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../changelog/" class="md-nav__link">
+        Changelog
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/opengeos/segment-geospatial/issues" class="md-nav__link">
+        Report Issues
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+      
+      
+      
+        <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+          Examples
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+        <label class="md-nav__title" for="__nav_8">
+          <span class="md-nav__icon md-icon"></span>
+          Examples
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/satellite/" class="md-nav__link">
+        Satellite
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/automatic_mask_generator/" class="md-nav__link">
+        Automatic mask generator
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/input_prompts/" class="md-nav__link">
+        Input prompts
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/text_prompts/" class="md-nav__link">
+        Text prompts
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/text_prompts_batch/" class="md-nav__link">
+        Text prompts batch
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/swimming_pools/" class="md-nav__link">
+        Swimming pools
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/arcgis/" class="md-nav__link">
+        Arcgis
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+    
+  
+  
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+      
+      
+      
+      <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" checked>
+      
+      
+      
+        <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+          API Reference
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="true">
+        <label class="md-nav__title" for="__nav_9">
+          <span class="md-nav__icon md-icon"></span>
+          API Reference
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../common/" class="md-nav__link">
+        common module
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../samgeo/" class="md-nav__link">
+        samgeo module
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          text_sam module
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        text_sam module
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#samgeo.text_sam" class="md-nav__link">
+    samgeo.text_sam
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM" class="md-nav__link">
+    LangSAM
+  </a>
+  
+    <nav class="md-nav" aria-label="LangSAM">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.__init__" class="md-nav__link">
+    __init__()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.build_groundingdino" class="md-nav__link">
+    build_groundingdino()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.build_sam" class="md-nav__link">
+    build_sam()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.predict" class="md-nav__link">
+    predict()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.predict_batch" class="md-nav__link">
+    predict_batch()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.predict_dino" class="md-nav__link">
+    predict_dino()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.predict_sam" class="md-nav__link">
+    predict_sam()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.raster_to_vector" class="md-nav__link">
+    raster_to_vector()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.set_image" class="md-nav__link">
+    set_image()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.show_anns" class="md-nav__link">
+    show_anns()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.show_map" class="md-nav__link">
+    show_map()
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#samgeo.text_sam.load_model_hf" class="md-nav__link">
+    load_model_hf()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#samgeo.text_sam.transform_image" class="md-nav__link">
+    transform_image()
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#samgeo.text_sam" class="md-nav__link">
+    samgeo.text_sam
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM" class="md-nav__link">
+    LangSAM
+  </a>
+  
+    <nav class="md-nav" aria-label="LangSAM">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.__init__" class="md-nav__link">
+    __init__()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.build_groundingdino" class="md-nav__link">
+    build_groundingdino()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.build_sam" class="md-nav__link">
+    build_sam()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.predict" class="md-nav__link">
+    predict()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.predict_batch" class="md-nav__link">
+    predict_batch()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.predict_dino" class="md-nav__link">
+    predict_dino()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.predict_sam" class="md-nav__link">
+    predict_sam()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.raster_to_vector" class="md-nav__link">
+    raster_to_vector()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.set_image" class="md-nav__link">
+    set_image()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.show_anns" class="md-nav__link">
+    show_anns()
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#samgeo.text_sam.LangSAM.show_map" class="md-nav__link">
+    show_map()
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#samgeo.text_sam.load_model_hf" class="md-nav__link">
+    load_model_hf()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#samgeo.text_sam.transform_image" class="md-nav__link">
+    transform_image()
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+
+
+
+                  
+
+  
+  
+
+
+<h1 id="text_sam-module">text_sam module<a class="headerlink" href="#text_sam-module" title="Permanent link">&para;</a></h1>
+
+
+  <div class="doc doc-object doc-module">
+
+<a id="samgeo.text_sam"></a>
+    <div class="doc doc-contents first">
+
+      <p>The LangSAM model for segmenting objects from satellite images using text prompts.
+The source code is adapted from the https://github.com/luca-medeiros/lang-segment-anything repository.
+Credits to Luca Medeiros for the original implementation.</p>
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-object doc-class">
+
+
+
+<h2 id="samgeo.text_sam.LangSAM" class="doc doc-heading">
+        <code>
+LangSAM        </code>
+
+
+
+<a href="#samgeo.text_sam.LangSAM" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents ">
+
+      <p>A Language-based Segment-Anything Model (LangSAM) class which combines GroundingDINO and SAM.</p>
+
+        <details class="quote">
+          <summary>Source code in <code>samgeo/text_sam.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">class</span> <span class="nc">LangSAM</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A Language-based Segment-Anything Model (LangSAM) class which combines GroundingDINO and SAM.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model_type</span><span class="o">=</span><span class="s2">&quot;vit_h&quot;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the LangSAM instance.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            model_type (str, optional): The model type. It can be one of the following: vit_h, vit_l, vit_b.</span>
+<span class="sd">                Defaults to &#39;vit_h&#39;. See https://bit.ly/3VrpxUh for more details.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">&quot;cuda&quot;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">build_groundingdino</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">build_sam</span><span class="p">(</span><span class="n">model_type</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">source</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">image</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">masks</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">boxes</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">phrases</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logits</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prediction</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">build_sam</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model_type</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Build the SAM model.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            model_type (str, optional): The model type. It can be one of the following: vit_h, vit_l, vit_b.</span>
+<span class="sd">                Defaults to &#39;vit_h&#39;. See https://bit.ly/3VrpxUh for more details.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">checkpoint_url</span> <span class="o">=</span> <span class="n">SAM_MODELS</span><span class="p">[</span><span class="n">model_type</span><span class="p">]</span>
+        <span class="n">sam</span> <span class="o">=</span> <span class="n">sam_model_registry</span><span class="p">[</span><span class="n">model_type</span><span class="p">]()</span>
+        <span class="n">state_dict</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">hub</span><span class="o">.</span><span class="n">load_state_dict_from_url</span><span class="p">(</span><span class="n">checkpoint_url</span><span class="p">)</span>
+        <span class="n">sam</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">state_dict</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">sam</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sam</span> <span class="o">=</span> <span class="n">SamPredictor</span><span class="p">(</span><span class="n">sam</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">build_groundingdino</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Build the GroundingDINO model.&quot;&quot;&quot;</span>
+        <span class="n">ckpt_repo_id</span> <span class="o">=</span> <span class="s2">&quot;ShilongLiu/GroundingDINO&quot;</span>
+        <span class="n">ckpt_filename</span> <span class="o">=</span> <span class="s2">&quot;groundingdino_swinb_cogcoor.pth&quot;</span>
+        <span class="n">ckpt_config_filename</span> <span class="o">=</span> <span class="s2">&quot;GroundingDINO_SwinB.cfg.py&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">groundingdino</span> <span class="o">=</span> <span class="n">load_model_hf</span><span class="p">(</span>
+            <span class="n">ckpt_repo_id</span><span class="p">,</span> <span class="n">ckpt_filename</span><span class="p">,</span> <span class="n">ckpt_config_filename</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">device</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">predict_dino</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image</span><span class="p">,</span> <span class="n">text_prompt</span><span class="p">,</span> <span class="n">box_threshold</span><span class="p">,</span> <span class="n">text_threshold</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Run the GroundingDINO model prediction.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            image (Image): Input PIL Image.</span>
+<span class="sd">            text_prompt (str): Text prompt for the model.</span>
+<span class="sd">            box_threshold (float): Box threshold for the prediction.</span>
+<span class="sd">            text_threshold (float): Text threshold for the prediction.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            tuple: Tuple containing boxes, logits, and phrases.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">image_trans</span> <span class="o">=</span> <span class="n">transform_image</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+        <span class="n">boxes</span><span class="p">,</span> <span class="n">logits</span><span class="p">,</span> <span class="n">phrases</span> <span class="o">=</span> <span class="n">predict</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">groundingdino</span><span class="p">,</span>
+            <span class="n">image</span><span class="o">=</span><span class="n">image_trans</span><span class="p">,</span>
+            <span class="n">caption</span><span class="o">=</span><span class="n">text_prompt</span><span class="p">,</span>
+            <span class="n">box_threshold</span><span class="o">=</span><span class="n">box_threshold</span><span class="p">,</span>
+            <span class="n">text_threshold</span><span class="o">=</span><span class="n">text_threshold</span><span class="p">,</span>
+            <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">W</span><span class="p">,</span> <span class="n">H</span> <span class="o">=</span> <span class="n">image</span><span class="o">.</span><span class="n">size</span>
+        <span class="n">boxes</span> <span class="o">=</span> <span class="n">box_ops</span><span class="o">.</span><span class="n">box_cxcywh_to_xyxy</span><span class="p">(</span><span class="n">boxes</span><span class="p">)</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">([</span><span class="n">W</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">H</span><span class="p">])</span>
+
+        <span class="k">return</span> <span class="n">boxes</span><span class="p">,</span> <span class="n">logits</span><span class="p">,</span> <span class="n">phrases</span>
+
+    <span class="k">def</span> <span class="nf">predict_sam</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image</span><span class="p">,</span> <span class="n">boxes</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Run the SAM model prediction.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            image (Image): Input PIL Image.</span>
+<span class="sd">            boxes (torch.Tensor): Tensor of bounding boxes.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Masks tensor.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">image_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sam</span><span class="o">.</span><span class="n">set_image</span><span class="p">(</span><span class="n">image_array</span><span class="p">)</span>
+        <span class="n">transformed_boxes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sam</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">apply_boxes_torch</span><span class="p">(</span>
+            <span class="n">boxes</span><span class="p">,</span> <span class="n">image_array</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="n">masks</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sam</span><span class="o">.</span><span class="n">predict_torch</span><span class="p">(</span>
+            <span class="n">point_coords</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">point_labels</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">boxes</span><span class="o">=</span><span class="n">transformed_boxes</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sam</span><span class="o">.</span><span class="n">device</span><span class="p">),</span>
+            <span class="n">multimask_output</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">masks</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">set_image</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Set the input image.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            image (str): The path to the image file or a HTTP URL.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">image</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;http&quot;</span><span class="p">):</span>
+                <span class="n">image</span> <span class="o">=</span> <span class="n">download_file</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">image</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Input path </span><span class="si">{</span><span class="n">image</span><span class="si">}</span><span class="s2"> does not exist.&quot;</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">source</span> <span class="o">=</span> <span class="n">image</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">source</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">predict</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">image</span><span class="p">,</span>
+        <span class="n">text_prompt</span><span class="p">,</span>
+        <span class="n">box_threshold</span><span class="p">,</span>
+        <span class="n">text_threshold</span><span class="p">,</span>
+        <span class="n">output</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">mask_multiplier</span><span class="o">=</span><span class="mi">255</span><span class="p">,</span>
+        <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">,</span>
+        <span class="n">save_args</span><span class="o">=</span><span class="p">{},</span>
+        <span class="n">return_results</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">return_coords</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Run both GroundingDINO and SAM model prediction.</span>
+
+<span class="sd">        Parameters:</span>
+<span class="sd">            image (Image): Input PIL Image.</span>
+<span class="sd">            text_prompt (str): Text prompt for the model.</span>
+<span class="sd">            box_threshold (float): Box threshold for the prediction.</span>
+<span class="sd">            text_threshold (float): Text threshold for the prediction.</span>
+<span class="sd">            output (str, optional): Output path for the prediction. Defaults to None.</span>
+<span class="sd">            mask_multiplier (int, optional): Mask multiplier for the prediction. Defaults to 255.</span>
+<span class="sd">            dtype (np.dtype, optional): Data type for the prediction. Defaults to np.uint8.</span>
+<span class="sd">            save_args (dict, optional): Save arguments for the prediction. Defaults to {}.</span>
+<span class="sd">            return_results (bool, optional): Whether to return the results. Defaults to False.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            tuple: Tuple containing masks, boxes, phrases, and logits.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">image</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;http&quot;</span><span class="p">):</span>
+                <span class="n">image</span> <span class="o">=</span> <span class="n">download_file</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">image</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Input path </span><span class="si">{</span><span class="n">image</span><span class="si">}</span><span class="s2"> does not exist.&quot;</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">source</span> <span class="o">=</span> <span class="n">image</span>
+
+            <span class="c1"># Load the georeferenced image</span>
+            <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">image</span><span class="p">)</span> <span class="k">as</span> <span class="n">src</span><span class="p">:</span>
+                <span class="n">image_np</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span>
+                    <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+                <span class="p">)</span>  <span class="c1"># Convert rasterio image to numpy array</span>
+                <span class="n">transform</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">transform</span>  <span class="c1"># Save georeferencing information</span>
+                <span class="n">crs</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">crs</span>  <span class="c1"># Save the Coordinate Reference System</span>
+                <span class="n">image_pil</span> <span class="o">=</span> <span class="n">Image</span><span class="o">.</span><span class="n">fromarray</span><span class="p">(</span>
+                    <span class="n">image_np</span><span class="p">[:,</span> <span class="p">:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+                <span class="p">)</span>  <span class="c1"># Convert numpy array to PIL image, excluding the alpha channel</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">image_pil</span> <span class="o">=</span> <span class="n">image</span>
+            <span class="n">image_np</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">image_pil</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">image</span> <span class="o">=</span> <span class="n">image_pil</span>
+
+        <span class="n">boxes</span><span class="p">,</span> <span class="n">logits</span><span class="p">,</span> <span class="n">phrases</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">predict_dino</span><span class="p">(</span>
+            <span class="n">image_pil</span><span class="p">,</span> <span class="n">text_prompt</span><span class="p">,</span> <span class="n">box_threshold</span><span class="p">,</span> <span class="n">text_threshold</span>
+        <span class="p">)</span>
+        <span class="n">masks</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([])</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">boxes</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">masks</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">predict_sam</span><span class="p">(</span><span class="n">image_pil</span><span class="p">,</span> <span class="n">boxes</span><span class="p">)</span>
+            <span class="n">masks</span> <span class="o">=</span> <span class="n">masks</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">boxes</span><span class="o">.</span><span class="n">nelement</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>  <span class="c1"># No &quot;object&quot; instances found</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;No objects found in the image.&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Create an empty image to store the mask overlays</span>
+            <span class="n">mask_overlay</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span>
+                <span class="n">image_np</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span>
+            <span class="p">)</span>  <span class="c1"># Adjusted for single channel</span>
+
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">box</span><span class="p">,</span> <span class="n">mask</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">boxes</span><span class="p">,</span> <span class="n">masks</span><span class="p">)):</span>
+                <span class="c1"># Convert tensor to numpy array if necessary and ensure it contains integers</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+                    <span class="n">mask</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="n">mask</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span>
+                    <span class="p">)</span>  <span class="c1"># If mask is on GPU, use .cpu() before .numpy()</span>
+                <span class="n">mask_overlay</span> <span class="o">+=</span> <span class="p">((</span><span class="n">mask</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span>
+                    <span class="n">dtype</span>
+                <span class="p">)</span>  <span class="c1"># Assign a unique value for each mask</span>
+
+            <span class="c1"># Normalize mask_overlay to be in [0, 255]</span>
+            <span class="n">mask_overlay</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">mask_overlay</span> <span class="o">&gt;</span> <span class="mi">0</span>
+            <span class="p">)</span> <span class="o">*</span> <span class="n">mask_multiplier</span>  <span class="c1"># Binary mask in [0, 255]</span>
+
+        <span class="k">if</span> <span class="n">output</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">array_to_image</span><span class="p">(</span><span class="n">mask_overlay</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span> <span class="o">**</span><span class="n">save_args</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">masks</span> <span class="o">=</span> <span class="n">masks</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">boxes</span> <span class="o">=</span> <span class="n">boxes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">phrases</span> <span class="o">=</span> <span class="n">phrases</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logits</span> <span class="o">=</span> <span class="n">logits</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prediction</span> <span class="o">=</span> <span class="n">mask_overlay</span>
+
+        <span class="k">if</span> <span class="n">return_results</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">masks</span><span class="p">,</span> <span class="n">boxes</span><span class="p">,</span> <span class="n">phrases</span><span class="p">,</span> <span class="n">logits</span>
+
+        <span class="k">if</span> <span class="n">return_coords</span><span class="p">:</span>
+            <span class="n">boxlist</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">box</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">boxes</span><span class="p">:</span>
+                <span class="n">box</span> <span class="o">=</span> <span class="n">box</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+                <span class="n">boxlist</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">box</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">box</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+            <span class="k">return</span> <span class="n">boxlist</span>
+
+    <span class="k">def</span> <span class="nf">predict_batch</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">images</span><span class="p">,</span>
+        <span class="n">out_dir</span><span class="p">,</span>
+        <span class="n">text_prompt</span><span class="p">,</span>
+        <span class="n">box_threshold</span><span class="p">,</span>
+        <span class="n">text_threshold</span><span class="p">,</span>
+        <span class="n">mask_multiplier</span><span class="o">=</span><span class="mi">255</span><span class="p">,</span>
+        <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">,</span>
+        <span class="n">save_args</span><span class="o">=</span><span class="p">{},</span>
+        <span class="n">merge</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Run both GroundingDINO and SAM model prediction for a batch of images.</span>
+
+<span class="sd">        Parameters:</span>
+<span class="sd">            images (list): List of input PIL Images.</span>
+<span class="sd">            out_dir (str): Output directory for the prediction.</span>
+<span class="sd">            text_prompt (str): Text prompt for the model.</span>
+<span class="sd">            box_threshold (float): Box threshold for the prediction.</span>
+<span class="sd">            text_threshold (float): Text threshold for the prediction.</span>
+<span class="sd">            mask_multiplier (int, optional): Mask multiplier for the prediction. Defaults to 255.</span>
+<span class="sd">            dtype (np.dtype, optional): Data type for the prediction. Defaults to np.uint8.</span>
+<span class="sd">            save_args (dict, optional): Save arguments for the prediction. Defaults to {}.</span>
+<span class="sd">            merge (bool, optional): Whether to merge the predictions into a single GeoTIFF file. Defaults to True.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="kn">import</span> <span class="nn">glob</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">out_dir</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">out_dir</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">images</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">images</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">images</span><span class="p">,</span> <span class="s2">&quot;*.tif&quot;</span><span class="p">)))</span>
+            <span class="n">images</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">images</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;images must be a list or a directory to GeoTIFF files.&quot;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">image</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">images</span><span class="p">):</span>
+            <span class="n">basename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">image</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Processing image </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">zfill</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">images</span><span class="p">))))</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">images</span><span class="p">)</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">image</span><span class="si">}</span><span class="s2">...&quot;</span>
+                <span class="p">)</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">out_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">basename</span><span class="si">}</span><span class="s2">_mask.tif&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span>
+                <span class="n">image</span><span class="p">,</span>
+                <span class="n">text_prompt</span><span class="p">,</span>
+                <span class="n">box_threshold</span><span class="p">,</span>
+                <span class="n">text_threshold</span><span class="p">,</span>
+                <span class="n">output</span><span class="o">=</span><span class="n">output</span><span class="p">,</span>
+                <span class="n">mask_multiplier</span><span class="o">=</span><span class="n">mask_multiplier</span><span class="p">,</span>
+                <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
+                <span class="n">save_args</span><span class="o">=</span><span class="n">save_args</span><span class="p">,</span>
+                <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">merge</span><span class="p">:</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">out_dir</span><span class="p">,</span> <span class="s2">&quot;merged.tif&quot;</span><span class="p">)</span>
+            <span class="n">merge_rasters</span><span class="p">(</span><span class="n">out_dir</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Saved the merged prediction to </span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">show_anns</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span>
+        <span class="n">axis</span><span class="o">=</span><span class="s2">&quot;off&quot;</span><span class="p">,</span>
+        <span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;viridis&quot;</span><span class="p">,</span>
+        <span class="n">alpha</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span>
+        <span class="n">add_boxes</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">box_color</span><span class="o">=</span><span class="s2">&quot;r&quot;</span><span class="p">,</span>
+        <span class="n">box_linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">title</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">output</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">blend</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Show the annotations (objects with random color) on the input image.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            figsize (tuple, optional): The figure size. Defaults to (12, 10).</span>
+<span class="sd">            axis (str, optional): Whether to show the axis. Defaults to &quot;off&quot;.</span>
+<span class="sd">            cmap (str, optional): The colormap for the annotations. Defaults to &quot;viridis&quot;.</span>
+<span class="sd">            alpha (float, optional): The alpha value for the annotations. Defaults to 0.4.</span>
+<span class="sd">            add_boxes (bool, optional): Whether to show the bounding boxes. Defaults to True.</span>
+<span class="sd">            box_color (str, optional): The color for the bounding boxes. Defaults to &quot;r&quot;.</span>
+<span class="sd">            box_linewidth (int, optional): The line width for the bounding boxes. Defaults to 1.</span>
+<span class="sd">            title (str, optional): The title for the image. Defaults to None.</span>
+<span class="sd">            output (str, optional): The path to the output image. Defaults to None.</span>
+<span class="sd">            blend (bool, optional): Whether to show the input image. Defaults to True.</span>
+<span class="sd">            kwargs (dict, optional): Additional arguments for matplotlib.pyplot.savefig().</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="kn">import</span> <span class="nn">warnings</span>
+        <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+        <span class="kn">import</span> <span class="nn">matplotlib.patches</span> <span class="k">as</span> <span class="nn">patches</span>
+
+        <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">)</span>
+
+        <span class="n">anns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prediction</span>
+
+        <span class="k">if</span> <span class="n">anns</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Please run predict() first.&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">anns</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;No objects found in the image.&quot;</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="n">figsize</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">image</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">add_boxes</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">box</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">boxes</span><span class="p">:</span>
+                <span class="c1"># Draw bounding box</span>
+                <span class="n">box</span> <span class="o">=</span> <span class="n">box</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>  <span class="c1"># Convert the tensor to a numpy array</span>
+                <span class="n">rect</span> <span class="o">=</span> <span class="n">patches</span><span class="o">.</span><span class="n">Rectangle</span><span class="p">(</span>
+                    <span class="p">(</span><span class="n">box</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">box</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
+                    <span class="n">box</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">box</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                    <span class="n">box</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">box</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                    <span class="n">linewidth</span><span class="o">=</span><span class="n">box_linewidth</span><span class="p">,</span>
+                    <span class="n">edgecolor</span><span class="o">=</span><span class="n">box_color</span><span class="p">,</span>
+                    <span class="n">facecolor</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">gca</span><span class="p">()</span><span class="o">.</span><span class="n">add_patch</span><span class="p">(</span><span class="n">rect</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="s2">&quot;dpi&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;dpi&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">100</span>
+
+        <span class="k">if</span> <span class="s2">&quot;bbox_inches&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;bbox_inches&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;tight&quot;</span>
+
+        <span class="n">plt</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">anns</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="n">cmap</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="n">alpha</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">title</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="n">title</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">axis</span><span class="p">(</span><span class="n">axis</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">output</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">blend</span><span class="p">:</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">array_to_image</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prediction</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">raster_to_vector</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">simplify_tolerance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Save the result to a vector file.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            image (str): The path to the image file.</span>
+<span class="sd">            output (str): The path to the vector file.</span>
+<span class="sd">            simplify_tolerance (float, optional): The maximum allowed geometry displacement.</span>
+<span class="sd">                The higher this value, the smaller the number of vertices in the resulting geometry.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">raster_to_vector</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">simplify_tolerance</span><span class="o">=</span><span class="n">simplify_tolerance</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">show_map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">basemap</span><span class="o">=</span><span class="s2">&quot;SATELLITE&quot;</span><span class="p">,</span> <span class="n">out_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Show the interactive map.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            basemap (str, optional): The basemap. It can be one of the following: SATELLITE, ROADMAP, TERRAIN, HYBRID.</span>
+<span class="sd">            out_dir (str, optional): The path to the output directory. Defaults to None.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            leafmap.Map: The map object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">text_sam_gui</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">basemap</span><span class="o">=</span><span class="n">basemap</span><span class="p">,</span> <span class="n">out_dir</span><span class="o">=</span><span class="n">out_dir</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+        </details>
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="samgeo.text_sam.LangSAM.__init__" class="doc doc-heading">
+<code class="highlight language-python"><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model_type</span><span class="o">=</span><span class="s1">&#39;vit_h&#39;</span><span class="p">)</span></code>
+
+  <span class="doc doc-properties">
+      <small class="doc doc-property doc-property-special"><code>special</code></small>
+  </span>
+
+<a href="#samgeo.text_sam.LangSAM.__init__" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Initialize the LangSAM instance.</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>model_type</code></td>
+        <td><code>str</code></td>
+        <td><p>The model type. It can be one of the following: vit_h, vit_l, vit_b.
+Defaults to 'vit_h'. See https://bit.ly/3VrpxUh for more details.</p></td>
+        <td><code>&#39;vit_h&#39;</code></td>
+      </tr>
+  </tbody>
+</table>
+        <details class="quote">
+          <summary>Source code in <code>samgeo/text_sam.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model_type</span><span class="o">=</span><span class="s2">&quot;vit_h&quot;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Initialize the LangSAM instance.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        model_type (str, optional): The model type. It can be one of the following: vit_h, vit_l, vit_b.</span>
+<span class="sd">            Defaults to &#39;vit_h&#39;. See https://bit.ly/3VrpxUh for more details.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">&quot;cuda&quot;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">build_groundingdino</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">build_sam</span><span class="p">(</span><span class="n">model_type</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">source</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">image</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">masks</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">boxes</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">phrases</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">logits</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">prediction</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="samgeo.text_sam.LangSAM.build_groundingdino" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">build_groundingdino</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span></code>
+
+
+<a href="#samgeo.text_sam.LangSAM.build_groundingdino" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Build the GroundingDINO model.</p>
+
+        <details class="quote">
+          <summary>Source code in <code>samgeo/text_sam.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span> <span class="nf">build_groundingdino</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build the GroundingDINO model.&quot;&quot;&quot;</span>
+    <span class="n">ckpt_repo_id</span> <span class="o">=</span> <span class="s2">&quot;ShilongLiu/GroundingDINO&quot;</span>
+    <span class="n">ckpt_filename</span> <span class="o">=</span> <span class="s2">&quot;groundingdino_swinb_cogcoor.pth&quot;</span>
+    <span class="n">ckpt_config_filename</span> <span class="o">=</span> <span class="s2">&quot;GroundingDINO_SwinB.cfg.py&quot;</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">groundingdino</span> <span class="o">=</span> <span class="n">load_model_hf</span><span class="p">(</span>
+        <span class="n">ckpt_repo_id</span><span class="p">,</span> <span class="n">ckpt_filename</span><span class="p">,</span> <span class="n">ckpt_config_filename</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">device</span>
+    <span class="p">)</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="samgeo.text_sam.LangSAM.build_sam" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">build_sam</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model_type</span><span class="p">)</span></code>
+
+
+<a href="#samgeo.text_sam.LangSAM.build_sam" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Build the SAM model.</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>model_type</code></td>
+        <td><code>str</code></td>
+        <td><p>The model type. It can be one of the following: vit_h, vit_l, vit_b.
+Defaults to 'vit_h'. See https://bit.ly/3VrpxUh for more details.</p></td>
+        <td><em>required</em></td>
+      </tr>
+  </tbody>
+</table>
+        <details class="quote">
+          <summary>Source code in <code>samgeo/text_sam.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span> <span class="nf">build_sam</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model_type</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build the SAM model.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        model_type (str, optional): The model type. It can be one of the following: vit_h, vit_l, vit_b.</span>
+<span class="sd">            Defaults to &#39;vit_h&#39;. See https://bit.ly/3VrpxUh for more details.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">checkpoint_url</span> <span class="o">=</span> <span class="n">SAM_MODELS</span><span class="p">[</span><span class="n">model_type</span><span class="p">]</span>
+    <span class="n">sam</span> <span class="o">=</span> <span class="n">sam_model_registry</span><span class="p">[</span><span class="n">model_type</span><span class="p">]()</span>
+    <span class="n">state_dict</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">hub</span><span class="o">.</span><span class="n">load_state_dict_from_url</span><span class="p">(</span><span class="n">checkpoint_url</span><span class="p">)</span>
+    <span class="n">sam</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">state_dict</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">sam</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">sam</span> <span class="o">=</span> <span class="n">SamPredictor</span><span class="p">(</span><span class="n">sam</span><span class="p">)</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="samgeo.text_sam.LangSAM.predict" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image</span><span class="p">,</span> <span class="n">text_prompt</span><span class="p">,</span> <span class="n">box_threshold</span><span class="p">,</span> <span class="n">text_threshold</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mask_multiplier</span><span class="o">=</span><span class="mi">255</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=&lt;</span><span class="k">class</span> <span class="err">&#39;</span><span class="nc">numpy</span><span class="o">.</span><span class="n">uint8</span><span class="s1">&#39;&gt;, save_args=</span><span class="si">{}</span><span class="s1">, return_results=False, return_coords=False, **kwargs)</span></code>
+
+
+<a href="#samgeo.text_sam.LangSAM.predict" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Run both GroundingDINO and SAM model prediction.</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>image</code></td>
+        <td><code>Image</code></td>
+        <td><p>Input PIL Image.</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>text_prompt</code></td>
+        <td><code>str</code></td>
+        <td><p>Text prompt for the model.</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>box_threshold</code></td>
+        <td><code>float</code></td>
+        <td><p>Box threshold for the prediction.</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>text_threshold</code></td>
+        <td><code>float</code></td>
+        <td><p>Text threshold for the prediction.</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>output</code></td>
+        <td><code>str</code></td>
+        <td><p>Output path for the prediction. Defaults to None.</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>mask_multiplier</code></td>
+        <td><code>int</code></td>
+        <td><p>Mask multiplier for the prediction. Defaults to 255.</p></td>
+        <td><code>255</code></td>
+      </tr>
+      <tr>
+        <td><code>dtype</code></td>
+        <td><code>np.dtype</code></td>
+        <td><p>Data type for the prediction. Defaults to np.uint8.</p></td>
+        <td><code>&lt;class &#39;numpy.uint8&#39;&gt;</code></td>
+      </tr>
+      <tr>
+        <td><code>save_args</code></td>
+        <td><code>dict</code></td>
+        <td><p>Save arguments for the prediction. Defaults to {}.</p></td>
+        <td><code>{}</code></td>
+      </tr>
+      <tr>
+        <td><code>return_results</code></td>
+        <td><code>bool</code></td>
+        <td><p>Whether to return the results. Defaults to False.</p></td>
+        <td><code>False</code></td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>Returns:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>tuple</code></td>
+      <td><p>Tuple containing masks, boxes, phrases, and logits.</p></td>
+    </tr>
+  </tbody>
+</table>
+        <details class="quote">
+          <summary>Source code in <code>samgeo/text_sam.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span> <span class="nf">predict</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">image</span><span class="p">,</span>
+    <span class="n">text_prompt</span><span class="p">,</span>
+    <span class="n">box_threshold</span><span class="p">,</span>
+    <span class="n">text_threshold</span><span class="p">,</span>
+    <span class="n">output</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">mask_multiplier</span><span class="o">=</span><span class="mi">255</span><span class="p">,</span>
+    <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">,</span>
+    <span class="n">save_args</span><span class="o">=</span><span class="p">{},</span>
+    <span class="n">return_results</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">return_coords</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Run both GroundingDINO and SAM model prediction.</span>
+
+<span class="sd">    Parameters:</span>
+<span class="sd">        image (Image): Input PIL Image.</span>
+<span class="sd">        text_prompt (str): Text prompt for the model.</span>
+<span class="sd">        box_threshold (float): Box threshold for the prediction.</span>
+<span class="sd">        text_threshold (float): Text threshold for the prediction.</span>
+<span class="sd">        output (str, optional): Output path for the prediction. Defaults to None.</span>
+<span class="sd">        mask_multiplier (int, optional): Mask multiplier for the prediction. Defaults to 255.</span>
+<span class="sd">        dtype (np.dtype, optional): Data type for the prediction. Defaults to np.uint8.</span>
+<span class="sd">        save_args (dict, optional): Save arguments for the prediction. Defaults to {}.</span>
+<span class="sd">        return_results (bool, optional): Whether to return the results. Defaults to False.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        tuple: Tuple containing masks, boxes, phrases, and logits.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">image</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;http&quot;</span><span class="p">):</span>
+            <span class="n">image</span> <span class="o">=</span> <span class="n">download_file</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">image</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Input path </span><span class="si">{</span><span class="n">image</span><span class="si">}</span><span class="s2"> does not exist.&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">source</span> <span class="o">=</span> <span class="n">image</span>
+
+        <span class="c1"># Load the georeferenced image</span>
+        <span class="k">with</span> <span class="n">rasterio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">image</span><span class="p">)</span> <span class="k">as</span> <span class="n">src</span><span class="p">:</span>
+            <span class="n">image_np</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span>
+                <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="p">)</span>  <span class="c1"># Convert rasterio image to numpy array</span>
+            <span class="n">transform</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">transform</span>  <span class="c1"># Save georeferencing information</span>
+            <span class="n">crs</span> <span class="o">=</span> <span class="n">src</span><span class="o">.</span><span class="n">crs</span>  <span class="c1"># Save the Coordinate Reference System</span>
+            <span class="n">image_pil</span> <span class="o">=</span> <span class="n">Image</span><span class="o">.</span><span class="n">fromarray</span><span class="p">(</span>
+                <span class="n">image_np</span><span class="p">[:,</span> <span class="p">:,</span> <span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+            <span class="p">)</span>  <span class="c1"># Convert numpy array to PIL image, excluding the alpha channel</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">image_pil</span> <span class="o">=</span> <span class="n">image</span>
+        <span class="n">image_np</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">image_pil</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">image</span> <span class="o">=</span> <span class="n">image_pil</span>
+
+    <span class="n">boxes</span><span class="p">,</span> <span class="n">logits</span><span class="p">,</span> <span class="n">phrases</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">predict_dino</span><span class="p">(</span>
+        <span class="n">image_pil</span><span class="p">,</span> <span class="n">text_prompt</span><span class="p">,</span> <span class="n">box_threshold</span><span class="p">,</span> <span class="n">text_threshold</span>
+    <span class="p">)</span>
+    <span class="n">masks</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([])</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">boxes</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">masks</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">predict_sam</span><span class="p">(</span><span class="n">image_pil</span><span class="p">,</span> <span class="n">boxes</span><span class="p">)</span>
+        <span class="n">masks</span> <span class="o">=</span> <span class="n">masks</span><span class="o">.</span><span class="n">squeeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">boxes</span><span class="o">.</span><span class="n">nelement</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>  <span class="c1"># No &quot;object&quot; instances found</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;No objects found in the image.&quot;</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Create an empty image to store the mask overlays</span>
+        <span class="n">mask_overlay</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span>
+            <span class="n">image_np</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span>
+        <span class="p">)</span>  <span class="c1"># Adjusted for single channel</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">box</span><span class="p">,</span> <span class="n">mask</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">boxes</span><span class="p">,</span> <span class="n">masks</span><span class="p">)):</span>
+            <span class="c1"># Convert tensor to numpy array if necessary and ensure it contains integers</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mask</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+                <span class="n">mask</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">mask</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span>
+                <span class="p">)</span>  <span class="c1"># If mask is on GPU, use .cpu() before .numpy()</span>
+            <span class="n">mask_overlay</span> <span class="o">+=</span> <span class="p">((</span><span class="n">mask</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span>
+                <span class="n">dtype</span>
+            <span class="p">)</span>  <span class="c1"># Assign a unique value for each mask</span>
+
+        <span class="c1"># Normalize mask_overlay to be in [0, 255]</span>
+        <span class="n">mask_overlay</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">mask_overlay</span> <span class="o">&gt;</span> <span class="mi">0</span>
+        <span class="p">)</span> <span class="o">*</span> <span class="n">mask_multiplier</span>  <span class="c1"># Binary mask in [0, 255]</span>
+
+    <span class="k">if</span> <span class="n">output</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">array_to_image</span><span class="p">(</span><span class="n">mask_overlay</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span> <span class="o">**</span><span class="n">save_args</span><span class="p">)</span>
+
+    <span class="bp">self</span><span class="o">.</span><span class="n">masks</span> <span class="o">=</span> <span class="n">masks</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">boxes</span> <span class="o">=</span> <span class="n">boxes</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">phrases</span> <span class="o">=</span> <span class="n">phrases</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">logits</span> <span class="o">=</span> <span class="n">logits</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">prediction</span> <span class="o">=</span> <span class="n">mask_overlay</span>
+
+    <span class="k">if</span> <span class="n">return_results</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">masks</span><span class="p">,</span> <span class="n">boxes</span><span class="p">,</span> <span class="n">phrases</span><span class="p">,</span> <span class="n">logits</span>
+
+    <span class="k">if</span> <span class="n">return_coords</span><span class="p">:</span>
+        <span class="n">boxlist</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">box</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">boxes</span><span class="p">:</span>
+            <span class="n">box</span> <span class="o">=</span> <span class="n">box</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+            <span class="n">boxlist</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">box</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">box</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+        <span class="k">return</span> <span class="n">boxlist</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="samgeo.text_sam.LangSAM.predict_batch" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">predict_batch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">images</span><span class="p">,</span> <span class="n">out_dir</span><span class="p">,</span> <span class="n">text_prompt</span><span class="p">,</span> <span class="n">box_threshold</span><span class="p">,</span> <span class="n">text_threshold</span><span class="p">,</span> <span class="n">mask_multiplier</span><span class="o">=</span><span class="mi">255</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=&lt;</span><span class="k">class</span> <span class="err">&#39;</span><span class="nc">numpy</span><span class="o">.</span><span class="n">uint8</span><span class="s1">&#39;&gt;, save_args=</span><span class="si">{}</span><span class="s1">, merge=True, verbose=True, **kwargs)</span></code>
+
+
+<a href="#samgeo.text_sam.LangSAM.predict_batch" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Run both GroundingDINO and SAM model prediction for a batch of images.</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>images</code></td>
+        <td><code>list</code></td>
+        <td><p>List of input PIL Images.</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>out_dir</code></td>
+        <td><code>str</code></td>
+        <td><p>Output directory for the prediction.</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>text_prompt</code></td>
+        <td><code>str</code></td>
+        <td><p>Text prompt for the model.</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>box_threshold</code></td>
+        <td><code>float</code></td>
+        <td><p>Box threshold for the prediction.</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>text_threshold</code></td>
+        <td><code>float</code></td>
+        <td><p>Text threshold for the prediction.</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>mask_multiplier</code></td>
+        <td><code>int</code></td>
+        <td><p>Mask multiplier for the prediction. Defaults to 255.</p></td>
+        <td><code>255</code></td>
+      </tr>
+      <tr>
+        <td><code>dtype</code></td>
+        <td><code>np.dtype</code></td>
+        <td><p>Data type for the prediction. Defaults to np.uint8.</p></td>
+        <td><code>&lt;class &#39;numpy.uint8&#39;&gt;</code></td>
+      </tr>
+      <tr>
+        <td><code>save_args</code></td>
+        <td><code>dict</code></td>
+        <td><p>Save arguments for the prediction. Defaults to {}.</p></td>
+        <td><code>{}</code></td>
+      </tr>
+      <tr>
+        <td><code>merge</code></td>
+        <td><code>bool</code></td>
+        <td><p>Whether to merge the predictions into a single GeoTIFF file. Defaults to True.</p></td>
+        <td><code>True</code></td>
+      </tr>
+  </tbody>
+</table>
+        <details class="quote">
+          <summary>Source code in <code>samgeo/text_sam.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span> <span class="nf">predict_batch</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">images</span><span class="p">,</span>
+    <span class="n">out_dir</span><span class="p">,</span>
+    <span class="n">text_prompt</span><span class="p">,</span>
+    <span class="n">box_threshold</span><span class="p">,</span>
+    <span class="n">text_threshold</span><span class="p">,</span>
+    <span class="n">mask_multiplier</span><span class="o">=</span><span class="mi">255</span><span class="p">,</span>
+    <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">,</span>
+    <span class="n">save_args</span><span class="o">=</span><span class="p">{},</span>
+    <span class="n">merge</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Run both GroundingDINO and SAM model prediction for a batch of images.</span>
+
+<span class="sd">    Parameters:</span>
+<span class="sd">        images (list): List of input PIL Images.</span>
+<span class="sd">        out_dir (str): Output directory for the prediction.</span>
+<span class="sd">        text_prompt (str): Text prompt for the model.</span>
+<span class="sd">        box_threshold (float): Box threshold for the prediction.</span>
+<span class="sd">        text_threshold (float): Text threshold for the prediction.</span>
+<span class="sd">        mask_multiplier (int, optional): Mask multiplier for the prediction. Defaults to 255.</span>
+<span class="sd">        dtype (np.dtype, optional): Data type for the prediction. Defaults to np.uint8.</span>
+<span class="sd">        save_args (dict, optional): Save arguments for the prediction. Defaults to {}.</span>
+<span class="sd">        merge (bool, optional): Whether to merge the predictions into a single GeoTIFF file. Defaults to True.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="kn">import</span> <span class="nn">glob</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">out_dir</span><span class="p">):</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">out_dir</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">images</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">images</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">images</span><span class="p">,</span> <span class="s2">&quot;*.tif&quot;</span><span class="p">)))</span>
+        <span class="n">images</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">images</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;images must be a list or a directory to GeoTIFF files.&quot;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">image</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">images</span><span class="p">):</span>
+        <span class="n">basename</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">image</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Processing image </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">zfill</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">images</span><span class="p">))))</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">images</span><span class="p">)</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">image</span><span class="si">}</span><span class="s2">...&quot;</span>
+            <span class="p">)</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">out_dir</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">basename</span><span class="si">}</span><span class="s2">_mask.tif&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span>
+            <span class="n">image</span><span class="p">,</span>
+            <span class="n">text_prompt</span><span class="p">,</span>
+            <span class="n">box_threshold</span><span class="p">,</span>
+            <span class="n">text_threshold</span><span class="p">,</span>
+            <span class="n">output</span><span class="o">=</span><span class="n">output</span><span class="p">,</span>
+            <span class="n">mask_multiplier</span><span class="o">=</span><span class="n">mask_multiplier</span><span class="p">,</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
+            <span class="n">save_args</span><span class="o">=</span><span class="n">save_args</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">merge</span><span class="p">:</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">out_dir</span><span class="p">,</span> <span class="s2">&quot;merged.tif&quot;</span><span class="p">)</span>
+        <span class="n">merge_rasters</span><span class="p">(</span><span class="n">out_dir</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Saved the merged prediction to </span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">)</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="samgeo.text_sam.LangSAM.predict_dino" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">predict_dino</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image</span><span class="p">,</span> <span class="n">text_prompt</span><span class="p">,</span> <span class="n">box_threshold</span><span class="p">,</span> <span class="n">text_threshold</span><span class="p">)</span></code>
+
+
+<a href="#samgeo.text_sam.LangSAM.predict_dino" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Run the GroundingDINO model prediction.</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>image</code></td>
+        <td><code>Image</code></td>
+        <td><p>Input PIL Image.</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>text_prompt</code></td>
+        <td><code>str</code></td>
+        <td><p>Text prompt for the model.</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>box_threshold</code></td>
+        <td><code>float</code></td>
+        <td><p>Box threshold for the prediction.</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>text_threshold</code></td>
+        <td><code>float</code></td>
+        <td><p>Text threshold for the prediction.</p></td>
+        <td><em>required</em></td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>Returns:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>tuple</code></td>
+      <td><p>Tuple containing boxes, logits, and phrases.</p></td>
+    </tr>
+  </tbody>
+</table>
+        <details class="quote">
+          <summary>Source code in <code>samgeo/text_sam.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span> <span class="nf">predict_dino</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image</span><span class="p">,</span> <span class="n">text_prompt</span><span class="p">,</span> <span class="n">box_threshold</span><span class="p">,</span> <span class="n">text_threshold</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Run the GroundingDINO model prediction.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        image (Image): Input PIL Image.</span>
+<span class="sd">        text_prompt (str): Text prompt for the model.</span>
+<span class="sd">        box_threshold (float): Box threshold for the prediction.</span>
+<span class="sd">        text_threshold (float): Text threshold for the prediction.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        tuple: Tuple containing boxes, logits, and phrases.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">image_trans</span> <span class="o">=</span> <span class="n">transform_image</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+    <span class="n">boxes</span><span class="p">,</span> <span class="n">logits</span><span class="p">,</span> <span class="n">phrases</span> <span class="o">=</span> <span class="n">predict</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">groundingdino</span><span class="p">,</span>
+        <span class="n">image</span><span class="o">=</span><span class="n">image_trans</span><span class="p">,</span>
+        <span class="n">caption</span><span class="o">=</span><span class="n">text_prompt</span><span class="p">,</span>
+        <span class="n">box_threshold</span><span class="o">=</span><span class="n">box_threshold</span><span class="p">,</span>
+        <span class="n">text_threshold</span><span class="o">=</span><span class="n">text_threshold</span><span class="p">,</span>
+        <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">W</span><span class="p">,</span> <span class="n">H</span> <span class="o">=</span> <span class="n">image</span><span class="o">.</span><span class="n">size</span>
+    <span class="n">boxes</span> <span class="o">=</span> <span class="n">box_ops</span><span class="o">.</span><span class="n">box_cxcywh_to_xyxy</span><span class="p">(</span><span class="n">boxes</span><span class="p">)</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">([</span><span class="n">W</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">H</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">boxes</span><span class="p">,</span> <span class="n">logits</span><span class="p">,</span> <span class="n">phrases</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="samgeo.text_sam.LangSAM.predict_sam" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">predict_sam</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image</span><span class="p">,</span> <span class="n">boxes</span><span class="p">)</span></code>
+
+
+<a href="#samgeo.text_sam.LangSAM.predict_sam" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Run the SAM model prediction.</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>image</code></td>
+        <td><code>Image</code></td>
+        <td><p>Input PIL Image.</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>boxes</code></td>
+        <td><code>torch.Tensor</code></td>
+        <td><p>Tensor of bounding boxes.</p></td>
+        <td><em>required</em></td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>Returns:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td></td>
+      <td><p>Masks tensor.</p></td>
+    </tr>
+  </tbody>
+</table>
+        <details class="quote">
+          <summary>Source code in <code>samgeo/text_sam.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span> <span class="nf">predict_sam</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image</span><span class="p">,</span> <span class="n">boxes</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Run the SAM model prediction.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        image (Image): Input PIL Image.</span>
+<span class="sd">        boxes (torch.Tensor): Tensor of bounding boxes.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Masks tensor.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">image_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">sam</span><span class="o">.</span><span class="n">set_image</span><span class="p">(</span><span class="n">image_array</span><span class="p">)</span>
+    <span class="n">transformed_boxes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sam</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">apply_boxes_torch</span><span class="p">(</span>
+        <span class="n">boxes</span><span class="p">,</span> <span class="n">image_array</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="n">masks</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sam</span><span class="o">.</span><span class="n">predict_torch</span><span class="p">(</span>
+        <span class="n">point_coords</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">point_labels</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">boxes</span><span class="o">=</span><span class="n">transformed_boxes</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sam</span><span class="o">.</span><span class="n">device</span><span class="p">),</span>
+        <span class="n">multimask_output</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">masks</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="samgeo.text_sam.LangSAM.raster_to_vector" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">raster_to_vector</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">simplify_tolerance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+
+<a href="#samgeo.text_sam.LangSAM.raster_to_vector" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Save the result to a vector file.</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>image</code></td>
+        <td><code>str</code></td>
+        <td><p>The path to the image file.</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>output</code></td>
+        <td><code>str</code></td>
+        <td><p>The path to the vector file.</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>simplify_tolerance</code></td>
+        <td><code>float</code></td>
+        <td><p>The maximum allowed geometry displacement.
+The higher this value, the smaller the number of vertices in the resulting geometry.</p></td>
+        <td><code>None</code></td>
+      </tr>
+  </tbody>
+</table>
+        <details class="quote">
+          <summary>Source code in <code>samgeo/text_sam.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span> <span class="nf">raster_to_vector</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">simplify_tolerance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Save the result to a vector file.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        image (str): The path to the image file.</span>
+<span class="sd">        output (str): The path to the vector file.</span>
+<span class="sd">        simplify_tolerance (float, optional): The maximum allowed geometry displacement.</span>
+<span class="sd">            The higher this value, the smaller the number of vertices in the resulting geometry.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">raster_to_vector</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">simplify_tolerance</span><span class="o">=</span><span class="n">simplify_tolerance</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="samgeo.text_sam.LangSAM.set_image" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">set_image</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image</span><span class="p">)</span></code>
+
+
+<a href="#samgeo.text_sam.LangSAM.set_image" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Set the input image.</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>image</code></td>
+        <td><code>str</code></td>
+        <td><p>The path to the image file or a HTTP URL.</p></td>
+        <td><em>required</em></td>
+      </tr>
+  </tbody>
+</table>
+        <details class="quote">
+          <summary>Source code in <code>samgeo/text_sam.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span> <span class="nf">set_image</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Set the input image.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        image (str): The path to the image file or a HTTP URL.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">image</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;http&quot;</span><span class="p">):</span>
+            <span class="n">image</span> <span class="o">=</span> <span class="n">download_file</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">image</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Input path </span><span class="si">{</span><span class="n">image</span><span class="si">}</span><span class="s2"> does not exist.&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">source</span> <span class="o">=</span> <span class="n">image</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">source</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="samgeo.text_sam.LangSAM.show_anns" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">show_anns</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="s1">&#39;off&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">add_boxes</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">box_color</span><span class="o">=</span><span class="s1">&#39;r&#39;</span><span class="p">,</span> <span class="n">box_linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">blend</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+
+<a href="#samgeo.text_sam.LangSAM.show_anns" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Show the annotations (objects with random color) on the input image.</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>figsize</code></td>
+        <td><code>tuple</code></td>
+        <td><p>The figure size. Defaults to (12, 10).</p></td>
+        <td><code>(12, 10)</code></td>
+      </tr>
+      <tr>
+        <td><code>axis</code></td>
+        <td><code>str</code></td>
+        <td><p>Whether to show the axis. Defaults to "off".</p></td>
+        <td><code>&#39;off&#39;</code></td>
+      </tr>
+      <tr>
+        <td><code>cmap</code></td>
+        <td><code>str</code></td>
+        <td><p>The colormap for the annotations. Defaults to "viridis".</p></td>
+        <td><code>&#39;viridis&#39;</code></td>
+      </tr>
+      <tr>
+        <td><code>alpha</code></td>
+        <td><code>float</code></td>
+        <td><p>The alpha value for the annotations. Defaults to 0.4.</p></td>
+        <td><code>0.4</code></td>
+      </tr>
+      <tr>
+        <td><code>add_boxes</code></td>
+        <td><code>bool</code></td>
+        <td><p>Whether to show the bounding boxes. Defaults to True.</p></td>
+        <td><code>True</code></td>
+      </tr>
+      <tr>
+        <td><code>box_color</code></td>
+        <td><code>str</code></td>
+        <td><p>The color for the bounding boxes. Defaults to "r".</p></td>
+        <td><code>&#39;r&#39;</code></td>
+      </tr>
+      <tr>
+        <td><code>box_linewidth</code></td>
+        <td><code>int</code></td>
+        <td><p>The line width for the bounding boxes. Defaults to 1.</p></td>
+        <td><code>1</code></td>
+      </tr>
+      <tr>
+        <td><code>title</code></td>
+        <td><code>str</code></td>
+        <td><p>The title for the image. Defaults to None.</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>output</code></td>
+        <td><code>str</code></td>
+        <td><p>The path to the output image. Defaults to None.</p></td>
+        <td><code>None</code></td>
+      </tr>
+      <tr>
+        <td><code>blend</code></td>
+        <td><code>bool</code></td>
+        <td><p>Whether to show the input image. Defaults to True.</p></td>
+        <td><code>True</code></td>
+      </tr>
+      <tr>
+        <td><code>kwargs</code></td>
+        <td><code>dict</code></td>
+        <td><p>Additional arguments for matplotlib.pyplot.savefig().</p></td>
+        <td><code>{}</code></td>
+      </tr>
+  </tbody>
+</table>
+        <details class="quote">
+          <summary>Source code in <code>samgeo/text_sam.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span> <span class="nf">show_anns</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span>
+    <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span>
+    <span class="n">axis</span><span class="o">=</span><span class="s2">&quot;off&quot;</span><span class="p">,</span>
+    <span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;viridis&quot;</span><span class="p">,</span>
+    <span class="n">alpha</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span>
+    <span class="n">add_boxes</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">box_color</span><span class="o">=</span><span class="s2">&quot;r&quot;</span><span class="p">,</span>
+    <span class="n">box_linewidth</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">title</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">output</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">blend</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Show the annotations (objects with random color) on the input image.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        figsize (tuple, optional): The figure size. Defaults to (12, 10).</span>
+<span class="sd">        axis (str, optional): Whether to show the axis. Defaults to &quot;off&quot;.</span>
+<span class="sd">        cmap (str, optional): The colormap for the annotations. Defaults to &quot;viridis&quot;.</span>
+<span class="sd">        alpha (float, optional): The alpha value for the annotations. Defaults to 0.4.</span>
+<span class="sd">        add_boxes (bool, optional): Whether to show the bounding boxes. Defaults to True.</span>
+<span class="sd">        box_color (str, optional): The color for the bounding boxes. Defaults to &quot;r&quot;.</span>
+<span class="sd">        box_linewidth (int, optional): The line width for the bounding boxes. Defaults to 1.</span>
+<span class="sd">        title (str, optional): The title for the image. Defaults to None.</span>
+<span class="sd">        output (str, optional): The path to the output image. Defaults to None.</span>
+<span class="sd">        blend (bool, optional): Whether to show the input image. Defaults to True.</span>
+<span class="sd">        kwargs (dict, optional): Additional arguments for matplotlib.pyplot.savefig().</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="kn">import</span> <span class="nn">warnings</span>
+    <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+    <span class="kn">import</span> <span class="nn">matplotlib.patches</span> <span class="k">as</span> <span class="nn">patches</span>
+
+    <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">)</span>
+
+    <span class="n">anns</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prediction</span>
+
+    <span class="k">if</span> <span class="n">anns</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Please run predict() first.&quot;</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">anns</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;No objects found in the image.&quot;</span><span class="p">)</span>
+        <span class="k">return</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="n">figsize</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">image</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">add_boxes</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">box</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">boxes</span><span class="p">:</span>
+            <span class="c1"># Draw bounding box</span>
+            <span class="n">box</span> <span class="o">=</span> <span class="n">box</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>  <span class="c1"># Convert the tensor to a numpy array</span>
+            <span class="n">rect</span> <span class="o">=</span> <span class="n">patches</span><span class="o">.</span><span class="n">Rectangle</span><span class="p">(</span>
+                <span class="p">(</span><span class="n">box</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">box</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
+                <span class="n">box</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">box</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                <span class="n">box</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">-</span> <span class="n">box</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                <span class="n">linewidth</span><span class="o">=</span><span class="n">box_linewidth</span><span class="p">,</span>
+                <span class="n">edgecolor</span><span class="o">=</span><span class="n">box_color</span><span class="p">,</span>
+                <span class="n">facecolor</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">gca</span><span class="p">()</span><span class="o">.</span><span class="n">add_patch</span><span class="p">(</span><span class="n">rect</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="s2">&quot;dpi&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;dpi&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">100</span>
+
+    <span class="k">if</span> <span class="s2">&quot;bbox_inches&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;bbox_inches&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;tight&quot;</span>
+
+    <span class="n">plt</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">anns</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="n">cmap</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="n">alpha</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">title</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="n">title</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">axis</span><span class="p">(</span><span class="n">axis</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">output</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">blend</span><span class="p">:</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">array_to_image</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">prediction</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">source</span><span class="p">)</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+  <div class="doc doc-object doc-method">
+
+
+
+<h3 id="samgeo.text_sam.LangSAM.show_map" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">show_map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">basemap</span><span class="o">=</span><span class="s1">&#39;SATELLITE&#39;</span><span class="p">,</span> <span class="n">out_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+
+<a href="#samgeo.text_sam.LangSAM.show_map" class="headerlink" title="Permanent link">&para;</a></h3>
+
+    <div class="doc doc-contents ">
+
+      <p>Show the interactive map.</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>basemap</code></td>
+        <td><code>str</code></td>
+        <td><p>The basemap. It can be one of the following: SATELLITE, ROADMAP, TERRAIN, HYBRID.</p></td>
+        <td><code>&#39;SATELLITE&#39;</code></td>
+      </tr>
+      <tr>
+        <td><code>out_dir</code></td>
+        <td><code>str</code></td>
+        <td><p>The path to the output directory. Defaults to None.</p></td>
+        <td><code>None</code></td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>Returns:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>leafmap.Map</code></td>
+      <td><p>The map object.</p></td>
+    </tr>
+  </tbody>
+</table>
+        <details class="quote">
+          <summary>Source code in <code>samgeo/text_sam.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span> <span class="nf">show_map</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">basemap</span><span class="o">=</span><span class="s2">&quot;SATELLITE&quot;</span><span class="p">,</span> <span class="n">out_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Show the interactive map.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        basemap (str, optional): The basemap. It can be one of the following: SATELLITE, ROADMAP, TERRAIN, HYBRID.</span>
+<span class="sd">        out_dir (str, optional): The path to the output directory. Defaults to None.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        leafmap.Map: The map object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">text_sam_gui</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">basemap</span><span class="o">=</span><span class="n">basemap</span><span class="p">,</span> <span class="n">out_dir</span><span class="o">=</span><span class="n">out_dir</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+
+
+  </div>
+
+    </div>
+
+  </div>
+
+
+
+
+  <div class="doc doc-object doc-function">
+
+
+
+<h2 id="samgeo.text_sam.load_model_hf" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">load_model_hf</span><span class="p">(</span><span class="n">repo_id</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">ckpt_config_filename</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s1">&#39;cpu&#39;</span><span class="p">)</span></code>
+
+
+<a href="#samgeo.text_sam.load_model_hf" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents ">
+
+      <p>Loads a model from HuggingFace Model Hub.</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>repo_id</code></td>
+        <td><code>str</code></td>
+        <td><p>Repository ID on HuggingFace Model Hub.</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>filename</code></td>
+        <td><code>str</code></td>
+        <td><p>Name of the model file in the repository.</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>ckpt_config_filename</code></td>
+        <td><code>str</code></td>
+        <td><p>Name of the config file for the model in the repository.</p></td>
+        <td><em>required</em></td>
+      </tr>
+      <tr>
+        <td><code>device</code></td>
+        <td><code>str</code></td>
+        <td><p>Device to load the model onto. Default is 'cpu'.</p></td>
+        <td><code>&#39;cpu&#39;</code></td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>Returns:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>torch.nn.Module</code></td>
+      <td><p>The loaded model.</p></td>
+    </tr>
+  </tbody>
+</table>
+        <details class="quote">
+          <summary>Source code in <code>samgeo/text_sam.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span> <span class="nf">load_model_hf</span><span class="p">(</span>
+    <span class="n">repo_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">ckpt_config_filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">device</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;cpu&quot;</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Loads a model from HuggingFace Model Hub.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        repo_id (str): Repository ID on HuggingFace Model Hub.</span>
+<span class="sd">        filename (str): Name of the model file in the repository.</span>
+<span class="sd">        ckpt_config_filename (str): Name of the config file for the model in the repository.</span>
+<span class="sd">        device (str): Device to load the model onto. Default is &#39;cpu&#39;.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        torch.nn.Module: The loaded model.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">cache_config_file</span> <span class="o">=</span> <span class="n">hf_hub_download</span><span class="p">(</span>
+        <span class="n">repo_id</span><span class="o">=</span><span class="n">repo_id</span><span class="p">,</span>
+        <span class="n">filename</span><span class="o">=</span><span class="n">ckpt_config_filename</span><span class="p">,</span>
+        <span class="n">force_filename</span><span class="o">=</span><span class="n">ckpt_config_filename</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">SLConfig</span><span class="o">.</span><span class="n">fromfile</span><span class="p">(</span><span class="n">cache_config_file</span><span class="p">)</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">build_model</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">cache_file</span> <span class="o">=</span> <span class="n">hf_hub_download</span><span class="p">(</span>
+        <span class="n">repo_id</span><span class="o">=</span><span class="n">repo_id</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="n">filename</span><span class="p">,</span> <span class="n">force_filename</span><span class="o">=</span><span class="n">filename</span>
+    <span class="p">)</span>
+    <span class="n">checkpoint</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">cache_file</span><span class="p">,</span> <span class="n">map_location</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">clean_state_dict</span><span class="p">(</span><span class="n">checkpoint</span><span class="p">[</span><span class="s2">&quot;model&quot;</span><span class="p">]),</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">model</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+
+  <div class="doc doc-object doc-function">
+
+
+
+<h2 id="samgeo.text_sam.transform_image" class="doc doc-heading">
+<code class="highlight language-python"><span class="n">transform_image</span><span class="p">(</span><span class="n">image</span><span class="p">)</span></code>
+
+
+<a href="#samgeo.text_sam.transform_image" class="headerlink" title="Permanent link">&para;</a></h2>
+
+    <div class="doc doc-contents ">
+
+      <p>Transforms an image using standard transformations for image-based models.</p>
+
+<p><strong>Parameters:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Description</th>
+      <th>Default</th>
+    </tr>
+  </thead>
+  <tbody>
+      <tr>
+        <td><code>image</code></td>
+        <td><code>Image</code></td>
+        <td><p>The PIL Image to be transformed.</p></td>
+        <td><em>required</em></td>
+      </tr>
+  </tbody>
+</table>
+<p><strong>Returns:</strong></p>
+<table>
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>torch.Tensor</code></td>
+      <td><p>The transformed image as a tensor.</p></td>
+    </tr>
+  </tbody>
+</table>
+        <details class="quote">
+          <summary>Source code in <code>samgeo/text_sam.py</code></summary>
+          <div class="highlight"><pre><span></span><code><span class="k">def</span> <span class="nf">transform_image</span><span class="p">(</span><span class="n">image</span><span class="p">:</span> <span class="n">Image</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Transforms an image using standard transformations for image-based models.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        image (Image): The PIL Image to be transformed.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        torch.Tensor: The transformed image as a tensor.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">transform</span> <span class="o">=</span> <span class="n">T</span><span class="o">.</span><span class="n">Compose</span><span class="p">(</span>
+        <span class="p">[</span>
+            <span class="n">T</span><span class="o">.</span><span class="n">RandomResize</span><span class="p">([</span><span class="mi">800</span><span class="p">],</span> <span class="n">max_size</span><span class="o">=</span><span class="mi">1333</span><span class="p">),</span>
+            <span class="n">T</span><span class="o">.</span><span class="n">ToTensor</span><span class="p">(),</span>
+            <span class="n">T</span><span class="o">.</span><span class="n">Normalize</span><span class="p">([</span><span class="mf">0.485</span><span class="p">,</span> <span class="mf">0.456</span><span class="p">,</span> <span class="mf">0.406</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.229</span><span class="p">,</span> <span class="mf">0.224</span><span class="p">,</span> <span class="mf">0.225</span><span class="p">]),</span>
+        <span class="p">]</span>
+    <span class="p">)</span>
+    <span class="n">image_transformed</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">transform</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">image_transformed</span>
+</code></pre></div>
+        </details>
+    </div>
+
+  </div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+  </div>
+
+  <hr>
+<div class="md-source-file">
+  <small>
+    
+      Last update:
+      2023-07-09
+    
+  </small>
+</div>
+
+
+
+
+
+                
+
+              </article>
+            </div>
+          
+          
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.instant", "search.highlight"], "search": "../assets/javascripts/workers/search.74e28a9f.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.220ee61c.min.js"></script>
+      
+    
+  </body>
+</html>
