@@ -24,6 +24,11 @@ conda install -n base mamba -c conda-forge
 mamba create -n geo segment-geospatial python=3.9 -c conda-forge
 ```
 
+As of July 9th, 2023 Linux systems have also required that `libgl1` be installed for segment-geospatial to work. The following command will install that dependency
+```bash
+apt update; apt install -y libgl1
+```  
+
 ## Install from GitHub
 
 To install the development version from GitHub using [Git](https://git-scm.com/), run the following command in your terminal:
