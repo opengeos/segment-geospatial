@@ -11,17 +11,19 @@ pip install segment-geospatial
 ## Install from conda-forge
 
 **segment-geospatial** is also available on [conda-forge](https://anaconda.org/conda-forge/segment-geospatial). If you have
-[Anaconda](https://www.anaconda.com/distribution/#download-section) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html) installed on your computer, you can install segment-geospatial using the following command:
+[Anaconda](https://www.anaconda.com/distribution/#download-section) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html) installed on your computer, you can install segment-geospatial using the following commands. It is recommended to create a fresh conda environment for **segment-geospatial**. The following commands will create a new conda environment named `geo` and install **segment-geospatial** and its dependencies:
 
 ```bash
-conda install -c conda-forge segment-geospatial
+conda create -n geo python=3.10
+conda activate geo
+conda install -c conda-forge mamba
+mamba install -c conda-forge segment-geospatial
 ```
 
-It is recommended to create a fresh conda environment for **segment-geospatial**. The following command will create a new conda environment named `geo` and install **segment-geospatial** and its dependencies:
+Samgeo-geospatial has some optional dependencies that are not included in the default conda environment. To install these dependencies, run the following command:
 
 ```bash
-conda install -n base mamba -c conda-forge
-mamba create -n geo segment-geospatial python=3.9 -c conda-forge
+pip install groundingdino-py
 ```
 
 ## Install from GitHub
