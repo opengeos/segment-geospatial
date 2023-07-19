@@ -23,13 +23,14 @@ mamba install -c conda-forge segment-geospatial
 Samgeo-geospatial has some optional dependencies that are not included in the default conda environment. To install these dependencies, run the following command:
 
 ```bash
-pip install groundingdino-py
+mamba install -c conda-forge groundingdino-py
 ```
 
 As of July 9th, 2023 Linux systems have also required that `libgl1` be installed for segment-geospatial to work. The following command will install that dependency
+
 ```bash
 apt update; apt install -y libgl1
-```  
+```
 
 ## Install from GitHub
 
