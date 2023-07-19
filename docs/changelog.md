@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.8.5 - Jul 19, 2023
+
+**Improvements**
+
+-   Updated installation docs (#146)
+-   Updated leafmap and localtileserver to dependencies (#146)
+-   Added info about libgl1 dependency install on Linux systems (#141)
+-   Fixed save_masks bug without source image (#139)
+
 ## v0.8.4 - Jul 5, 2023
 
 **Improvements**
