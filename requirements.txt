@@ -9,3 +9,5 @@ tqdm
 gdown
 xyzservices
 pyproj
+leafmap
+localtileserver
