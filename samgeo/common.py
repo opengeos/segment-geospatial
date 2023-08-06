@@ -755,6 +755,8 @@ def bbox_to_xy(
     src_fp: str, coords: list, coord_crs: str = "epsg:4326", **kwargs
 ) -> list:
     """Converts a list of coordinates to pixel coordinates, i.e., (col, row) coordinates.
+        Note that map bbox coords is [minx, miny, maxx, maxy] from bottomleft to topright
+        While rasterio bbox coords is [minx, max, maxx, min] from topleft to bottomright
 
     Args:
         src_fp (str): The source raster file path.
@@ -762,7 +764,7 @@ def bbox_to_xy(
         coord_crs (str, optional): The coordinate CRS of the input coordinates. Defaults to "epsg:4326".
 
     Returns:
-        list: A list of pixel coordinates in the format of [[minx, miny, maxx, maxy], ...]
+        list: A list of pixel coordinates in the format of [[minx, maxy, maxx, miny], ...] from top left to bottom right.
     """
 
     if isinstance(coords, str):
@@ -825,7 +827,9 @@ def bbox_to_xy(
             and maxx < width
             and maxy < height
         ):
-            result.append(coord)
+            # Note that map bbox coords is [minx, miny, maxx, maxy] from bottomleft to topright
+            # While rasterio bbox coords is [minx, max, maxx, min] from topleft to bottomright
+            result.append([minx, maxy, maxx, miny])
 
     if len(result) == 0:
         print("No valid pixel coordinates found.")
@@ -1245,6 +1249,7 @@ def array_to_image(
                 compress = src.compression
 
         # Determine the minimum and maximum values in the array
+
         min_value = np.min(array)
         max_value = np.max(array)
 
