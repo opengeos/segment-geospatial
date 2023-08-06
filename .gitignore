@@ -13,6 +13,7 @@ private/
 **/*.jpg
 **/*.png
 **/*.csv
+docs/examples/*.geojson
 
 # C extensions
 *.so
