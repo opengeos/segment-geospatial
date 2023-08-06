@@ -268,8 +268,8 @@ class LangSAM:
                 image_np = src.read().transpose(
                     (1, 2, 0)
                 )  # Convert rasterio image to numpy array
-                transform = src.transform  # Save georeferencing information
-                crs = src.crs  # Save the Coordinate Reference System
+                self.transform = src.transform  # Save georeferencing information
+                self.crs = src.crs  # Save the Coordinate Reference System
                 image_pil = Image.fromarray(
                     image_np[:, :, :3]
                 )  # Convert numpy array to PIL image, excluding the alpha channel
@@ -395,6 +395,26 @@ class LangSAM:
             merge_rasters(out_dir, output)
             if verbose:
                 print(f"Saved the merged prediction to {output}.")
+
+    def save_boxes(self, output=None, dst_crs="EPSG:4326", **kwargs):
+        """Save the bounding boxes to a vector file.
+
+        Args:
+            output (str): The path to the output vector file.
+            dst_crs (str, optional): The destination CRS. Defaults to "EPSG:4326".
+            **kwargs: Additional arguments for boxes_to_vector().
+        """
+
+        if self.boxes is None:
+            print("Please run predict() first.")
+            return
+        else:
+            boxes = self.boxes.tolist()
+            coords = rowcol_to_xy(self.source, boxes=boxes, dst_crs=dst_crs, **kwargs)
+            if output is None:
+                return boxes_to_vector(coords, self.crs, dst_crs, output)
+            else:
+                boxes_to_vector(coords, self.crs, dst_crs, output)
 
     def show_anns(
         self,
