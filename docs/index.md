@@ -36,10 +36,11 @@ The **segment-geospatial** package draws its inspiration from [segment-anything-
 
 ## Examples
 
--   [Segmenting satellite imagery](https://samgeo.gishub.org/examples/satellite)
+-   [Segmenting remote sensing imagery](https://samgeo.gishub.org/examples/satellite)
 -   [Automatically generating object masks](https://samgeo.gishub.org/examples/automatic_mask_generator)
--   [Segmenting satellite imagery with input prompts](https://samgeo.gishub.org/examples/input_prompts)
--   [Segmenting imagery with text prompts](https://samgeo.gishub.org/examples/text_prompts)
+-   [Segmenting remote sensing imagery with input prompts](https://samgeo.gishub.org/examples/input_prompts)
+-   [Segmenting remote sensing imagery with box prompts](https://samgeo.gishub.org/examples/box_prompts)
+-   [Segmenting remote sensing imagery with text prompts](https://samgeo.gishub.org/examples/text_prompts)
 -   [Batch segmentation with text prompts](https://samgeo.gishub.org/examples/text_prompts_batch)
 -   [Using segment-geospatial with ArcGIS Pro](https://samgeo.gishub.org/examples/arcgis)
 -   [Segmenting swimming pools with text prompts](https://samgeo.gishub.org/examples/swimming_pools)
