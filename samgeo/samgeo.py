@@ -494,7 +494,7 @@ class SamGeo:
         output=None,
         index=None,
         mask_multiplier=255,
-        dtype=np.float32,
+        dtype="float32",
         return_results=False,
         **kwargs,
     ):
@@ -615,7 +615,7 @@ class SamGeo:
             return masks, scores, logits
 
     def tensor_to_numpy(
-        self, index=None, output=None, mask_multiplier=255, dtype=np.uint8, save_args={}
+        self, index=None, output=None, mask_multiplier=255, dtype="uint8", save_args={}
     ):
         """Convert the predicted masks from tensors to numpy arrays.
 
@@ -642,9 +642,6 @@ class SamGeo:
 
         masks = masks[:, index, :, :]
         masks = masks.squeeze(1)
-        # masks = torch.tensor([])
-        # if len(boxes) > 0:
-        #     masks = self.predict_sam(image_pil, boxes)
 
         if boxes is None or (len(boxes) == 0):  # No "object" instances found
             print("No objects found in the image.")
