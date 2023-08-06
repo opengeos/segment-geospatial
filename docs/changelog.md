@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.9.0 - Aug 6, 2023
+
+**New Features**
+
+-   Added support for multiple input boxes (#159)
+
+**Improvements**
+
+-   UpdateD groundingdino installation (#147)
+-   Updated README (#152)
+
 ## v0.8.5 - Jul 19, 2023
 
 **Improvements**
