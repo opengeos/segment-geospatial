@@ -533,6 +533,12 @@ class SamGeo:
             if gdf.crs is not None:
                 gdf = gdf.to_crs("epsg:4326")
             boxes = gdf.geometry.bounds.values.tolist()
+        elif isinstance(boxes, dict):
+            import json
+
+            geojson = json.dumps(boxes)
+            gdf = gpd.read_file(geojson, driver="GeoJSON")
+            boxes = gdf.geometry.bounds.values.tolist()
 
         if isinstance(point_coords, str):
             point_coords = vector_to_geojson(point_coords)
