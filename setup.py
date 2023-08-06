@@ -19,7 +19,7 @@ install_requires = [x.strip() for x in all_reqs if "git+" not in x]
 dependency_links = [x.strip().replace("git+", "") for x in all_reqs if "git+" not in x]
 
 extras_requires = {
-    "all": ["leafmap", "localtileserver"],
+    "all": ["groundingdino-py"],
 }
 
 requirements = []
@@ -57,6 +57,6 @@ setup(
     test_suite="tests",
     tests_require=test_requirements,
     url="https://github.com/opengeos/segment-geospatial",
-    version='0.8.5',
+    version="0.8.5",
     zip_safe=False,
 )

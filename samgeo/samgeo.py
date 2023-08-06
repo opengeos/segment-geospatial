@@ -486,7 +486,7 @@ class SamGeo:
         self,
         point_coords=None,
         point_labels=None,
-        box=None,
+        boxes=None,
         point_crs=None,
         mask_input=None,
         multimask_output=True,
@@ -494,7 +494,7 @@ class SamGeo:
         output=None,
         index=None,
         mask_multiplier=255,
-        dtype=np.float32,
+        dtype="float32",
         return_results=False,
         **kwargs,
     ):
@@ -507,7 +507,7 @@ class SamGeo:
             point_labels (list | int | np.ndarray, optional): A length N array of labels for the
                 point prompts. 1 indicates a foreground point and 0 indicates a background point.
             point_crs (str, optional): The coordinate reference system (CRS) of the point prompts.
-            box (list | np.ndarray, optional): A length 4 array given a box prompt to the
+            boxes (list | np.ndarray, optional): A length 4 array given a box prompt to the
                 model, in XYXY format.
             mask_input (np.ndarray, optional): A low resolution mask input to the model, typically
                 coming from a previous prediction iteration. Has form 1xHxW, where for SAM, H=W=256.
@@ -528,6 +528,18 @@ class SamGeo:
 
         """
 
+        if isinstance(boxes, str):
+            gdf = gpd.read_file(boxes)
+            if gdf.crs is not None:
+                gdf = gdf.to_crs("epsg:4326")
+            boxes = gdf.geometry.bounds.values.tolist()
+        elif isinstance(boxes, dict):
+            import json
+
+            geojson = json.dumps(boxes)
+            gdf = gpd.read_file(geojson, driver="GeoJSON")
+            boxes = gdf.geometry.bounds.values.tolist()
+
         if isinstance(point_coords, str):
             point_coords = vector_to_geojson(point_coords)
 
@@ -540,16 +552,17 @@ class SamGeo:
         if hasattr(self, "point_labels"):
             point_labels = self.point_labels
 
-        if point_crs is not None:
+        if (point_crs is not None) and (point_coords is not None):
             point_coords = coords_to_xy(self.source, point_coords, point_crs)
 
         if isinstance(point_coords, list):
             point_coords = np.array(point_coords)
 
-        if point_labels is None:
-            point_labels = [1] * len(point_coords)
-        elif isinstance(point_labels, int):
-            point_labels = [point_labels] * len(point_coords)
+        if point_coords is not None:
+            if point_labels is None:
+                point_labels = [1] * len(point_coords)
+            elif isinstance(point_labels, int):
+                point_labels = [point_labels] * len(point_coords)
 
         if isinstance(point_labels, list):
             if len(point_labels) != len(point_coords):
@@ -561,22 +574,115 @@ class SamGeo:
                     )
             point_labels = np.array(point_labels)
 
-        if isinstance(box, list) and point_crs is not None:
-            box = np.array(bbox_to_xy(self.source, box, point_crs))
-
         predictor = self.predictor
-        masks, scores, logits = predictor.predict(
-            point_coords, point_labels, box, mask_input, multimask_output, return_logits
-        )
+
+        input_boxes = None
+        if isinstance(boxes, list) and (point_crs is not None):
+            coords = bbox_to_xy(self.source, boxes, point_crs)
+            input_boxes = np.array(coords)
+            if isinstance(coords[0], int):
+                input_boxes = input_boxes[None, :]
+            else:
+                input_boxes = torch.tensor(input_boxes, device=self.device)
+                input_boxes = predictor.transform.apply_boxes_torch(
+                    input_boxes, self.image.shape[:2]
+                )
+        elif isinstance(boxes, list) and (point_crs is None):
+            input_boxes = np.array(boxes)
+            if isinstance(boxes[0], int):
+                input_boxes = input_boxes[None, :]
+
+        self.boxes = input_boxes
+
+        if boxes is None or (not isinstance(boxes[0], list)):
+            masks, scores, logits = predictor.predict(
+                point_coords,
+                point_labels,
+                input_boxes,
+                mask_input,
+                multimask_output,
+                return_logits,
+            )
+        else:
+            masks, scores, logits = predictor.predict_torch(
+                point_coords=point_coords,
+                point_labels=point_coords,
+                boxes=input_boxes,
+                multimask_output=True,
+            )
+
         self.masks = masks
         self.scores = scores
         self.logits = logits
 
         if output is not None:
-            self.save_prediction(output, index, mask_multiplier, dtype, **kwargs)
+            if boxes is None or (not isinstance(boxes[0], list)):
+                self.save_prediction(output, index, mask_multiplier, dtype, **kwargs)
+            else:
+                self.tensor_to_numpy(
+                    index, output, mask_multiplier, dtype, save_args=kwargs
+                )
 
         if return_results:
             return masks, scores, logits
+
+    def tensor_to_numpy(
+        self, index=None, output=None, mask_multiplier=255, dtype="uint8", save_args={}
+    ):
+        """Convert the predicted masks from tensors to numpy arrays.
+
+        Args:
+            index (index, optional): The index of the mask to save. Defaults to None,
+                which will save the mask with the highest score.
+            output (str, optional): The path to the output image. Defaults to None.
+            mask_multiplier (int, optional): The mask multiplier for the output mask, which is usually a binary mask [0, 1].
+            dtype (np.dtype, optional): The data type of the output image. Defaults to np.uint8.
+            save_args (dict, optional): Optional arguments for saving the output image. Defaults to {}.
+
+        Returns:
+            np.ndarray: The predicted mask as a numpy array.
+        """
+
+        boxes = self.boxes
+        masks = self.masks
+
+        image_pil = self.image
+        image_np = np.array(image_pil)
+
+        if index is None:
+            index = 1
+
+        masks = masks[:, index, :, :]
+        masks = masks.squeeze(1)
+
+        if boxes is None or (len(boxes) == 0):  # No "object" instances found
+            print("No objects found in the image.")
+            return
+        else:
+            # Create an empty image to store the mask overlays
+            mask_overlay = np.zeros_like(
+                image_np[..., 0], dtype=dtype
+            )  # Adjusted for single channel
+
+            for i, (box, mask) in enumerate(zip(boxes, masks)):
+                # Convert tensor to numpy array if necessary and ensure it contains integers
+                if isinstance(mask, torch.Tensor):
+                    mask = (
+                        mask.cpu().numpy().astype(dtype)
+                    )  # If mask is on GPU, use .cpu() before .numpy()
+                mask_overlay += ((mask > 0) * (i + 1)).astype(
+                    dtype
+                )  # Assign a unique value for each mask
+
+            # Normalize mask_overlay to be in [0, 255]
+            mask_overlay = (
+                mask_overlay > 0
+            ) * mask_multiplier  # Binary mask in [0, 255]
+
+        if output is not None:
+            array_to_image(mask_overlay, output, self.source, dtype=dtype, **save_args)
+        else:
+            return mask_overlay
 
     def show_map(self, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwargs):
         """Show the interactive map.

@@ -751,10 +751,101 @@ def coords_to_xy(
     return result
 
 
+def boxes_to_vector(coords, src_crs, dst_crs="EPSG:4326", output=None, **kwargs):
+    """
+    Convert a list of bounding box coordinates to vector data.
+
+    Args:
+        coords (list): A list of bounding box coordinates in the format [[left, top, right, bottom], [left, top, right, bottom], ...].
+        src_crs (int or str): The EPSG code or proj4 string representing the source coordinate reference system (CRS) of the input coordinates.
+        dst_crs (int or str, optional): The EPSG code or proj4 string representing the destination CRS to reproject the data (default is "EPSG:4326").
+        output (str or None, optional): The full file path (including the directory and filename without the extension) where the vector data should be saved.
+                                       If None (default), the function returns the GeoDataFrame without saving it to a file.
+        **kwargs: Additional keyword arguments to pass to geopandas.GeoDataFrame.to_file() when saving the vector data.
+
+    Returns:
+        geopandas.GeoDataFrame or None: The GeoDataFrame with the converted vector data if output is None, otherwise None if the data is saved to a file.
+    """
+
+    from shapely.geometry import box
+
+    # Create a list of Shapely Polygon objects based on the provided coordinates
+    polygons = [box(*coord) for coord in coords]
+
+    # Create a GeoDataFrame with the Shapely Polygon objects
+    gdf = gpd.GeoDataFrame({"geometry": polygons}, crs=src_crs)
+
+    # Reproject the GeoDataFrame to the specified EPSG code
+    gdf_reprojected = gdf.to_crs(dst_crs)
+
+    if output is not None:
+        gdf_reprojected.to_file(output, **kwargs)
+    else:
+        return gdf_reprojected
+
+
+def rowcol_to_xy(
+    src_fp,
+    rows=None,
+    cols=None,
+    boxes=None,
+    zs=None,
+    offset="center",
+    output=None,
+    dst_crs="EPSG:4326",
+    **kwargs,
+):
+    """Converts a list of (row, col) coordinates to (x, y) coordinates.
+
+    Args:
+        src_fp (str): The source raster file path.
+        rows (list, optional): A list of row coordinates. Defaults to None.
+        cols (list, optional): A list of col coordinates. Defaults to None.
+        boxes (list, optional): A list of (row, col) coordinates in the format of [[left, top, right, bottom], [left, top, right, bottom], ...]
+        zs: zs (list or float, optional): Height associated with coordinates. Primarily used for RPC based coordinate transformations.
+        offset (str, optional): Determines if the returned coordinates are for the center of the pixel or for a corner.
+        output (str, optional): The output vector file path. Defaults to None.
+        dst_crs (str, optional): The destination CRS. Defaults to "EPSG:4326".
+        **kwargs: Additional keyword arguments to pass to rasterio.transform.xy.
+
+    Returns:
+        A list of (x, y) coordinates.
+    """
+
+    if boxes is not None:
+        rows = []
+        cols = []
+
+        for box in boxes:
+            rows.append(box[1])
+            rows.append(box[3])
+            cols.append(box[0])
+            cols.append(box[2])
+
+    if rows is None or cols is None:
+        raise ValueError("rows and cols must be provided.")
+
+    with rasterio.open(src_fp) as src:
+        xs, ys = rasterio.transform.xy(src.transform, rows, cols, zs, offset, **kwargs)
+        src_crs = src.crs
+
+    if boxes is None:
+        return [[x, y] for x, y in zip(xs, ys)]
+    else:
+        result = [[xs[i], ys[i + 1], xs[i + 1], ys[i]] for i in range(0, len(xs), 2)]
+
+        if output is not None:
+            boxes_to_vector(result, src_crs, dst_crs, output)
+        else:
+            return result
+
+
 def bbox_to_xy(
     src_fp: str, coords: list, coord_crs: str = "epsg:4326", **kwargs
 ) -> list:
     """Converts a list of coordinates to pixel coordinates, i.e., (col, row) coordinates.
+        Note that map bbox coords is [minx, miny, maxx, maxy] from bottomleft to topright
+        While rasterio bbox coords is [minx, max, maxx, min] from topleft to bottomright
 
     Args:
         src_fp (str): The source raster file path.
@@ -762,7 +853,7 @@ def bbox_to_xy(
         coord_crs (str, optional): The coordinate CRS of the input coordinates. Defaults to "epsg:4326".
 
     Returns:
-        list: A list of pixel coordinates in the format of [[minx, miny, maxx, maxy], ...]
+        list: A list of pixel coordinates in the format of [[minx, maxy, maxx, miny], ...] from top left to bottom right.
     """
 
     if isinstance(coords, str):
@@ -825,7 +916,9 @@ def bbox_to_xy(
             and maxx < width
             and maxy < height
         ):
-            result.append(coord)
+            # Note that map bbox coords is [minx, miny, maxx, maxy] from bottomleft to topright
+            # While rasterio bbox coords is [minx, max, maxx, min] from topleft to bottomright
+            result.append([minx, maxy, maxx, miny])
 
     if len(result) == 0:
         print("No valid pixel coordinates found.")
@@ -1245,6 +1338,7 @@ def array_to_image(
                 compress = src.compression
 
         # Determine the minimum and maximum values in the array
+
         min_value = np.min(array)
         max_value = np.max(array)
 
