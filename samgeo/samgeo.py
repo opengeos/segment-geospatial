@@ -87,7 +87,7 @@ class SamGeo:
             checkpoint = os.path.join(CACHE_PATH, basename)
             if not os.path.exists(checkpoint):
                 print(f"Checkpoint {checkpoint} does not exist.")
-                download_checkpoint(url=url, output=checkpoint)
+                download_checkpoint_legacy(url=url, output=checkpoint)
         self.checkpoint = checkpoint
 
         # Use cuda if available

@@ -178,7 +178,68 @@ def download_file(
     return os.path.abspath(output)
 
 
-def download_checkpoint(url=None, output=None, overwrite=False, **kwargs):
+def download_checkpoint(model_type="vit_h", out_dir=None, hq=False):
+    """Download the SAM model checkpoint.
+
+    Args:
+        model_type (str, optional): The model type. Can be one of ['vit_h', 'vit_l', 'vit_b'].
+            Defaults to 'vit_h'. See https://bit.ly/3VrpxUh for more details.
+        out_dir (str, optional): The output directory. Defaults to None, "~/.cache/torch/hub/checkpoints".
+        hq (bool, optional): Whether to use HQ-SAM model (https://github.com/SysCV/sam-hq). Defaults to False.
+    """
+
+    if hq:
+        model_types = {
+            "vit_h": {
+                "name": "sam_vit_h_4b8939.pth",
+                "url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth",
+            },
+            "vit_l": {
+                "name": "sam_vit_l_0b3195.pth",
+                "url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth",
+            },
+            "vit_b": {
+                "name": "sam_vit_b_01ec64.pth",
+                "url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth",
+            },
+        }
+    else:
+        model_types = {
+            "vit_h": {
+                "name": "sam_hq_vit_h.pth",
+                "url": "https://drive.google.com/file/d/1qobFYrI4eyIANfBSmYcGuWRaSIXfMOQ8/view?usp=sharing",
+            },
+            "vit_l": {
+                "name": "sam_hq_vit_l.pth",
+                "url": "https://drive.google.com/file/d/1Uk17tDKX1YAKas5knI4y9ZJCo0lRVL0G/view?usp=sharing",
+            },
+            "vit_b": {
+                "name": "sam_hq_vit_b.pth",
+                "url": "https://drive.google.com/file/d/11yExZLOve38kRZPfRx_MRxfIAKmfMY47/view?usp=sharing",
+            },
+            "vit_tiny": {
+                "name": "sam_hq_vit_tiny.pth",
+                "url": "https://huggingface.co/lkeab/hq-sam/resolve/main/sam_hq_vit_tiny.pth",
+            },
+        }
+
+    if model_type not in model_types:
+        raise ValueError(
+            f"Invalid model_type: {model_type}. It must be one of {','.join(model_types)}"
+        )
+
+    if out_dir is None:
+        out_dir = os.environ.get(
+            "TORCH_HOME", os.path.expanduser("~/.cache/torch/hub/checkpoints")
+        )
+
+    checkpoint = os.path.join(out_dir, model_types[model_type]["name"])
+    if not os.path.exists(checkpoint):
+        url = model_types[model_type]["url"]
+        download_file(url, checkpoint)
+
+
+def download_checkpoint_legacy(url=None, output=None, overwrite=False, **kwargs):
     """Download a checkpoint from URL. It can be one of the following: sam_vit_h_4b8939.pth, sam_vit_l_0b3195.pth, sam_vit_b_01ec64.pth.
 
     Args:
