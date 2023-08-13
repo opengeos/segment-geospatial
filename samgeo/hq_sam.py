@@ -6,7 +6,21 @@ import os
 import cv2
 import torch
 import numpy as np
-from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
+
+try:
+    from segment_anything_hq import (
+        sam_model_registry,
+        SamAutomaticMaskGenerator,
+        SamPredictor,
+    )
+except ImportError:
+    print("Warning: HQ-SAM not available. Installing.")
+    install_package("segment-anything-hq")
+    from segment_anything_hq import (
+        sam_model_registry,
+        SamAutomaticMaskGenerator,
+        SamPredictor,
+    )
 
 from .common import *
 
@@ -22,6 +36,7 @@ class SamGeo:
         automatic=True,
         device=None,
         checkpoint_dir=None,
+        hq=False,
         sam_kwargs=None,
         **kwargs,
     ):
@@ -34,6 +49,7 @@ class SamGeo:
                 The automatic mask generator will segment the entire image, while the input prompts will segment selected objects.
             device (str, optional): The device to use. It can be one of the following: cpu, cuda.
                 Defaults to None, which will use cuda if available.
+            hq (bool, optional): Whether to use the HQ-SAM model. Defaults to False.
             checkpoint_dir (str, optional): The path to the model checkpoint. It can be one of the following:
                 sam_vit_h_4b8939.pth, sam_vit_l_0b3195.pth, sam_vit_b_01ec64.pth.
                 Defaults to None. See https://bit.ly/3VrpxUh for more details.
@@ -55,8 +71,8 @@ class SamGeo:
                 output_mode: str = "binary_mask",
 
         """
-        hq = False  # Not using HQ-SAM
 
+        hq = True  # Using HQ-SAM
         if "checkpoint" in kwargs:
             checkpoint = kwargs["checkpoint"]
             if not os.path.exists(checkpoint):
