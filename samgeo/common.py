@@ -178,17 +178,17 @@ def download_file(
     return os.path.abspath(output)
 
 
-def download_checkpoint(model_type="vit_h", out_dir=None, hq=False):
+def download_checkpoint(model_type="vit_h", checkpoint_dir=None, hq=False):
     """Download the SAM model checkpoint.
 
     Args:
         model_type (str, optional): The model type. Can be one of ['vit_h', 'vit_l', 'vit_b'].
             Defaults to 'vit_h'. See https://bit.ly/3VrpxUh for more details.
-        out_dir (str, optional): The output directory. Defaults to None, "~/.cache/torch/hub/checkpoints".
+        checkpoint_dir (str, optional): The checkpoint_dir directory. Defaults to None, "~/.cache/torch/hub/checkpoints".
         hq (bool, optional): Whether to use HQ-SAM model (https://github.com/SysCV/sam-hq). Defaults to False.
     """
 
-    if hq:
+    if not hq:
         model_types = {
             "vit_h": {
                 "name": "sam_vit_h_4b8939.pth",
@@ -225,18 +225,20 @@ def download_checkpoint(model_type="vit_h", out_dir=None, hq=False):
 
     if model_type not in model_types:
         raise ValueError(
-            f"Invalid model_type: {model_type}. It must be one of {','.join(model_types)}"
+            f"Invalid model_type: {model_type}. It must be one of {', '.join(model_types)}"
         )
 
-    if out_dir is None:
-        out_dir = os.environ.get(
+    if checkpoint_dir is None:
+        checkpoint_dir = os.environ.get(
             "TORCH_HOME", os.path.expanduser("~/.cache/torch/hub/checkpoints")
         )
 
-    checkpoint = os.path.join(out_dir, model_types[model_type]["name"])
+    checkpoint = os.path.join(checkpoint_dir, model_types[model_type]["name"])
     if not os.path.exists(checkpoint):
+        print(f"Model checkpoint for {model_type} not found.")
         url = model_types[model_type]["url"]
         download_file(url, checkpoint)
+    return checkpoint
 
 
 def download_checkpoint_legacy(url=None, output=None, overwrite=False, **kwargs):
