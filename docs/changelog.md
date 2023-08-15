@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.9.1 - Aug 14, 2023
+
+**New Features**
+
+-   Added support for HQ-SAM (#161)
+-   Added HQ-SAM notebooks (#162)
+
 ## v0.9.0 - Aug 6, 2023
 
 **New Features**
