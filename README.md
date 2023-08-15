@@ -26,7 +26,7 @@ The **segment-geospatial** package draws its inspiration from [segment-anything-
 ## Features
 
 -   Download map tiles from Tile Map Service (TMS) servers and create GeoTIFF files
--   Segment GeoTIFF files using the Segment Anything Model (SAM)
+-   Segment GeoTIFF files using the Segment Anything Model ([SAM](https://github.com/facebookresearch/segment-anything)) and [HQ-SAM](https://github.com/SysCV/sam-hq)
 -   Segment remote sensing imagery with text prompts
 -   Create foreground and background markers interactively
 -   Load existing markers from vector datasets

@@ -51,7 +51,9 @@ nav:
     - Examples:
           - examples/satellite.ipynb
           - examples/automatic_mask_generator.ipynb
+          - examples/automatic_mask_generator_hq.ipynb
           - examples/input_prompts.ipynb
+          - examples/input_prompts_hq.ipynb
           - examples/box_prompts.ipynb
           - examples/text_prompts.ipynb
           - examples/text_prompts_batch.ipynb

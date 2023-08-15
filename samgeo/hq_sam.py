@@ -1,26 +1,13 @@
 """
-The source code is adapted from https://github.com/aliaksandr960/segment-anything-eo. Credit to the author Aliaksandr Hancharenka.
+Segment remote sensing imagery with HQ-SAM (High Quality Segment Anything Model).
+See https://github.com/SysCV/sam-hq
 """
 
 import os
 import cv2
 import torch
 import numpy as np
-
-try:
-    from segment_anything_hq import (
-        sam_model_registry,
-        SamAutomaticMaskGenerator,
-        SamPredictor,
-    )
-except ImportError:
-    print("Warning: HQ-SAM not available. Installing.")
-    install_package("segment-anything-hq")
-    from segment_anything_hq import (
-        sam_model_registry,
-        SamAutomaticMaskGenerator,
-        SamPredictor,
-    )
+from segment_anything_hq import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
 
 from .common import *
 
