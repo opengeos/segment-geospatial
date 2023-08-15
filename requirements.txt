@@ -1,4 +1,5 @@
 segment-anything-py
+segment-anything-hq
 opencv-python 
 pycocotools 
 matplotlib 
