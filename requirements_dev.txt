@@ -1,2 +1,1 @@
 rio-cogeo
-segment-anything-hq
