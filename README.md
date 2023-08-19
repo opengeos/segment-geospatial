@@ -92,6 +92,10 @@ The Segment Anything Model is computationally intensive, and a powerful GPU is r
 
 This repository and its content are provided for educational purposes only. By using the information and code provided, users acknowledge that they are using the APIs and models at their own risk and agree to comply with any applicable laws and regulations. Users who intend to download a large number of image tiles from any basemap are advised to contact the basemap provider to obtain permission before doing so. Unauthorized use of the basemap or any of its components may be a violation of copyright laws or other applicable laws and regulations.
 
+## Contributing
+
+Please refer to the [contributing guidelines](https://samgeo.gishub.org/contributing) for more information.
+
 ## Acknowledgements
 
 This project is based upon work partially supported by the National Aeronautics and Space Administration (NASA) under Grant No. 80NSSC22K1742 issued through the [Open Source Tools, Frameworks, and Libraries 2020 Program](https://bit.ly/3RVBRcQ).
