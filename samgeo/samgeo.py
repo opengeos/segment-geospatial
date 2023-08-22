@@ -196,6 +196,7 @@ class SamGeo:
                 )
 
             image = cv2.imread(source)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         elif isinstance(source, np.ndarray):
             image = source
             source = None
