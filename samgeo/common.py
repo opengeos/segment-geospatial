@@ -1228,7 +1228,7 @@ def draw_tile(source, lat0, lon0, lat1, lon1, zoom, filename, **kwargs):
     return image
 
 
-def raster_to_vector(source, output, simplify_tolerance=None, **kwargs):
+def raster_to_vector(source, output, simplify_tolerance=None, dst_crs=None, **kwargs):
     """Vectorize a raster dataset.
 
     Args:
@@ -1256,6 +1256,10 @@ def raster_to_vector(source, output, simplify_tolerance=None, **kwargs):
     gdf = gpd.GeoDataFrame.from_features(fc)
     if src.crs is not None:
         gdf.set_crs(crs=src.crs, inplace=True)
+
+    if dst_crs is not None:
+        gdf = gdf.to_crs(dst_crs)
+
     gdf.to_file(output, **kwargs)
 
 

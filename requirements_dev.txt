@@ -1,1 +1,3 @@
 rio-cogeo
+groundingdino-py
+segment-anything-fast
