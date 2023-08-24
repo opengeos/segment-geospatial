@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.10.0 - Aug 24, 2023
+
+### What's Changed
+
+-   Added fastsam module by @giswqs #167
+-   Update optional dependencies by @giswqs in #68
+-   Improve contributing guidelines by @giswqs in #169
+-   [FIX] Added missing conversions from BGR to RGB by @lbferreira in #171
+-   Address JOSS review comments by @giswqs in #175
+
+### New Contributors
+
+-   @lbferreira made their first contribution in #171
+
 ## v0.9.1 - Aug 14, 2023
 
 **New Features**
