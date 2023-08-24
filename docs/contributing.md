@@ -99,9 +99,27 @@ Ready to contribute? Here's how to set up segment-geospatial for local developme
 
 Before you submit a pull request, check that it meets these guidelines:
 
-1.  The pull request should include tests.
+1.  The pull request should include tests (see the section below - [Unit Testing](https://samgeo.gishub.org/contributing/#unit-testing)).
 2.  If the pull request adds functionality, the docs should be updated.
     Put your new functionality into a function with a docstring, and add
-    the feature to the list in README.rst.
+    the feature to the list in README.md.
 3.  The pull request should work for Python 3.8, 3.9, 3.10, and 3.11. Check <https://github.com/giswqs/segment-geospatial/pull_requests> and make sure that the tests pass for all
     supported Python versions.
+
+## Unit Testing
+
+Unit tests are in the `tests` folder. If you add new functionality to the package, please add a unit test for it. You can either add the test to an existing test file or create a new one. For example, if you add a new function to `samgeo/samgeo.py`, you can add the unit test to `tests/test_samgeo.py`. If you add a new module to `samgeo/<MODULE-NAME>`, you can create a new test file in `tests/test_<MODULE-NAME>`. Please refer to `tests/test_samgeo.py` for examples. For more information about unit testing, please refer to this tutorial - [Getting Started With Testing in Python](https://realpython.com/python-testing/).
+
+To run the unit tests, navigate to the root directory of the package and run the following command:
+
+```bash
+python -m unittest discover tests/
+```
+
+## Add new dependencies
+
+If you PR involves adding new dependencies, please make sure that the new dependencies are available on both [PyPI](https://pypi.org/) and [conda-forge](https://conda-forge.org/). Search [here](https://conda-forge.org/feedstock-outputs/) to see if the package is available on conda-forge. If the package is not available on conda-forge, it can't be added as a required dependency in `requirements.txt`. Instead, it should be added as an optional dependency in `requirements_dev.txt`.
+
+If the package is available on PyPI and conda-forge, but if it is challenging to install the package on some operating systems, we would recommend adding the package as an optional dependency in `requirements_dev.txt` rather than a required dependency in `requirements.txt`.
+
+The dependencies required for building the documentation should be added to `requirements_docs.txt`. In most cases, contributors do not need to add new dependencies to `requirements_docs.txt` unless the documentation fails to build due to missing dependencies.
