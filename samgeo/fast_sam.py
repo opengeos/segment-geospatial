@@ -285,3 +285,28 @@ class SamGeo(FastSAM):
             dst_crs=dst_crs,
             **kwargs,
         )
+
+    def show_anns(
+        self,
+        output=None,
+        **kwargs,
+    ):
+        """Show the annotations (objects with random color) on the input image.
+
+        Args:
+            figsize (tuple, optional): The figure size. Defaults to (12, 10).
+            axis (str, optional): Whether to show the axis. Defaults to "off".
+            alpha (float, optional): The alpha value for the annotations. Defaults to 0.35.
+            output (str, optional): The path to the output image. Defaults to None.
+            blend (bool, optional): Whether to show the input image. Defaults to True.
+        """
+
+        annotations = self.annotations
+        prompt_process = self.prompt_process
+
+        if output is None:
+            output = temp_file_path(".png")
+
+        prompt_process.plot(annotations, output, **kwargs)
+
+        show_image(output)

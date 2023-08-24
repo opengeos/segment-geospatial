@@ -1,2 +1,2 @@
 rio-cogeo
-segment-anything-hq
+segment-anything-fast
