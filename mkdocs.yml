@@ -59,6 +59,7 @@ nav:
           - examples/text_prompts_batch.ipynb
           - examples/swimming_pools.ipynb
           - examples/arcgis.ipynb
+          - examples/fast_sam.ipynb
     - API Reference:
           - common module: common.md
           - samgeo module: samgeo.md
