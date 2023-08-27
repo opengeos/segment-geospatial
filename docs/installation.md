@@ -14,7 +14,7 @@ pip install segment-geospatial
 [Anaconda](https://www.anaconda.com/distribution/#download-section) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html) installed on your computer, you can install segment-geospatial using the following commands. It is recommended to create a fresh conda environment for **segment-geospatial**. The following commands will create a new conda environment named `geo` and install **segment-geospatial** and its dependencies:
 
 ```bash
-conda create -n geo python=3.10
+conda create -n geo python
 conda activate geo
 conda install -c conda-forge mamba
 mamba install -c conda-forge segment-geospatial

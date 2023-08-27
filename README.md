@@ -34,6 +34,40 @@ The **segment-geospatial** package draws its inspiration from [segment-anything-
 -   Save input prompts as GeoJSON files
 -   Visualize segmentation results on interactive maps
 
+## Installation
+
+### Install from PyPI
+
+**segment-geospatial** is available on [PyPI](https://pypi.org/project/segment-geospatial/). To install **segment-geospatial**, run this command in your terminal:
+
+```bash
+pip install segment-geospatial
+```
+
+### Install from conda-forge
+
+**segment-geospatial** is also available on [conda-forge](https://anaconda.org/conda-forge/segment-geospatial). If you have
+[Anaconda](https://www.anaconda.com/distribution/#download-section) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html) installed on your computer, you can install segment-geospatial using the following commands. It is recommended to create a fresh conda environment for **segment-geospatial**. The following commands will create a new conda environment named `geo` and install **segment-geospatial** and its dependencies:
+
+```bash
+conda create -n geo python
+conda activate geo
+conda install -c conda-forge mamba
+mamba install -c conda-forge segment-geospatial
+```
+
+Samgeo-geospatial has some optional dependencies that are not included in the default conda environment. To install these dependencies, run the following command:
+
+```bash
+mamba install -c conda-forge groundingdino-py segment-anything-fast
+```
+
+As of July 9th, 2023 Linux systems have also required that `libgl1` be installed for segment-geospatial to work. The following command will install that dependency
+
+```bash
+apt update; apt install -y libgl1
+```
+
 ## Examples
 
 -   [Segmenting remote sensing imagery](https://samgeo.gishub.org/examples/satellite)
