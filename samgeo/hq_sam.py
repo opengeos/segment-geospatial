@@ -573,7 +573,9 @@ class SamGeo:
 
         self.boxes = input_boxes
 
-        if boxes is None or (not isinstance(boxes[0], list)):
+        if boxes is None or (len(boxes) == 1) or (len(boxes) == 4 and isinstance(boxes[0], float)):
+            if isinstance(boxes, list) and isinstance(boxes[0], list):
+                boxes = boxes[0]
             masks, scores, logits = predictor.predict(
                 point_coords,
                 point_labels,
