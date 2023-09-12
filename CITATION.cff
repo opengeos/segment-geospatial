@@ -1,0 +1,34 @@
+cff-version: "1.2.0"
+authors:
+    - family-names: Wu
+      given-names: Qiusheng
+      orcid: "https://orcid.org/0000-0001-5437-4073"
+    - family-names: Osco
+      given-names: Lucas Prado
+      orcid: "https://orcid.org/0000-0002-0258-536X"
+doi: 10.5281/zenodo.8338074
+message: If you use this software, please cite our article in the
+    Journal of Open Source Software.
+preferred-citation:
+    authors:
+        - family-names: Wu
+          given-names: Qiusheng
+          orcid: "https://orcid.org/0000-0001-5437-4073"
+        - family-names: Osco
+          given-names: Lucas Prado
+          orcid: "https://orcid.org/0000-0002-0258-536X"
+    date-published: 2023-09-12
+    doi: 10.21105/joss.05663
+    issn: 2475-9066
+    issue: 89
+    journal: Journal of Open Source Software
+    publisher:
+        name: Open Journals
+    start: 5663
+    title: "samgeo: A Python package for segmenting geospatial data with
+        the Segment Anything Model (SAM)"
+    type: article
+    url: "https://joss.theoj.org/papers/10.21105/joss.05663"
+    volume: 8
+title: "samgeo: A Python package for segmenting geospatial data with the
+    Segment Anything Model (SAM)"

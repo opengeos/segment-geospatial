@@ -8,7 +8,7 @@
 [![Docker Pulls](https://badgen.net/docker/pulls/giswqs/segment-geospatial?icon=docker&label=pulls)](https://hub.docker.com/r/giswqs/segment-geospatial)
 [![PyPI Downloads](https://static.pepy.tech/badge/segment-geospatial)](https://pepy.tech/project/segment-geospatial)
 [![Conda Downloads](https://anaconda.org/conda-forge/segment-geospatial/badges/downloads.svg)](https://anaconda.org/conda-forge/segment-geospatial)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7966658.svg)](https://doi.org/10.5281/zenodo.7966658)
+[![DOI](https://joss.theoj.org/papers/10.21105/joss.05663/status.svg)](https://doi.org/10.21105/joss.05663)
 
 **A Python package for segmenting geospatial data with the Segment Anything Model (SAM)**
 
@@ -21,7 +21,7 @@ The **segment-geospatial** package draws its inspiration from [segment-anything-
 
 ## Citations
 
--   Qiusheng Wu, & Lucas Osco. (2023). samgeo: A Python package for segmenting geospatial data with the Segment Anything Model (SAM). Zenodo. <https://doi.org/10.5281/zenodo.7966658>
+-   Wu, Q., & Osco, L. (2023). samgeo: A Python package for segmenting geospatial data with the Segment Anything Model (SAM). _Journal of Open Source Software_, 8(89), 5663, <https://doi.org/10.21105/joss.05663>
 
 ## Features
 
