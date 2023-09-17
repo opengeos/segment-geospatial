@@ -60,6 +60,7 @@ nav:
           - examples/fast_sam.ipynb
           - examples/swimming_pools.ipynb
           - examples/arcgis.ipynb
+          - examples/maxar_open_data.ipynb
     - API Reference:
           - common module: common.md
           - samgeo module: samgeo.md
