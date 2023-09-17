@@ -78,6 +78,7 @@ apt update; apt install -y libgl1
 -   [Batch segmentation with text prompts](https://samgeo.gishub.org/examples/text_prompts_batch)
 -   [Using segment-geospatial with ArcGIS Pro](https://samgeo.gishub.org/examples/arcgis)
 -   [Segmenting swimming pools with text prompts](https://samgeo.gishub.org/examples/swimming_pools)
+-   [Segmenting satellite imagery from the Maxar Open Data Program](https://samgeo.gishub.org/examples/max_open_data)
 
 ## Demos
 
