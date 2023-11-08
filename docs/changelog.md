@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.10.2 - Nov 7, 2023
+
+**What's Changed**
+
+-   Add JOSS paper by @giswqs in [#197](https://github.com/opengeos/segment-geospatial/pull/197)
+-   Add notebook for using Maxar Open Data by @giswqs in [#198](https://github.com/opengeos/segment-geospatial/pull/198)
+-   Add checkpoint to textsam.LangSAM() by @forestbat in [#204](https://github.com/opengeos/segment-geospatial/pull/204)
+-   Add workshop notebook by @giswqs in [#209](https://github.com/opengeos/segment-geospatial/pull/209)
+
+**New Contributors**
+
+-   @forestbat made their first contribution in [#204](https://github.com/opengeos/segment-geospatial/pull/204)
+
+**Full Changelog**: [v0.10.1...v0.10.2](https://github.com/opengeos/segment-geospatial/compare/v0.10.1...v0.10.2)
+
+## v0.10.1 - Sep 1, 2023
+
+**What's Changed**
+
+-   Fix basemap issue by @giswqs in [#190](https://github.com/opengeos/segment-geospatial/pull/190)
+
+**Full Changelog**: [v0.10.0...v0.10.1)](https://github.com/opengeos/segment-geospatial/compare/v0.10.0...v0.10.1)
+
 ## v0.10.0 - Aug 24, 2023
 
 ### What's Changed
