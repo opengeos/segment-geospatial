@@ -20,6 +20,12 @@ conda install -c conda-forge mamba
 mamba install -c conda-forge segment-geospatial
 ```
 
+If your system has a GPU, but the above commands do not install the GPU version of pytorch, you can force the installation of the GPU version of pytorch using the following command:
+
+```bash
+mamba install -c conda-forge segment-geospatial "pytorch=*=cuda*"
+```
+
 Samgeo-geospatial has some optional dependencies that are not included in the default conda environment. To install these dependencies, run the following command:
 
 ```bash

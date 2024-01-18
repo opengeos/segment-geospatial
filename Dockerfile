@@ -4,7 +4,7 @@ LABEL repo="https://github.com/opengeos/segment-geospatial"
 
 RUN mamba install -c conda-forge leafmap localtileserver segment-geospatial -y && \
     pip install -U segment-geospatial jupyter-server-proxy && \
-    jupyter serverextension enable --sys-prefix jupyter_server_proxy && \
+    jupyter server extension enable --sys-prefix jupyter_server_proxy && \
     fix-permissions "${CONDA_DIR}" && \
     fix-permissions "/home/${NB_USER}"
 
