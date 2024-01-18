@@ -780,7 +780,7 @@ def geojson_to_coords(
 
 
 def coords_to_xy(
-    src_fp: str, coords: list, coord_crs: str = "epsg:4326", **kwargs
+    src_fp: str, coords: list, coord_crs: str = "epsg:4326", return_out_of_bounds=False, **kwargs
 ) -> list:
     """Converts a list of coordinates to pixel coordinates, i.e., (col, row) coordinates.
 
@@ -788,11 +788,14 @@ def coords_to_xy(
         src_fp: The source raster file path.
         coords: A list of coordinates in the format of [[x1, y1], [x2, y2], ...]
         coord_crs: The coordinate CRS of the input coordinates. Defaults to "epsg:4326".
+        return_out_of_bounds: Whether to return out of bounds coordinates. Defaults to False.
         **kwargs: Additional keyword arguments to pass to rasterio.transform.rowcol.
 
     Returns:
         A list of pixel coordinates in the format of [[x1, y1], [x2, y2], ...]
     """
+    out_of_bounds = []
+
     if isinstance(coords, np.ndarray):
         coords = coords.tolist()
 
@@ -805,15 +808,26 @@ def coords_to_xy(
         rows, cols = rasterio.transform.rowcol(src.transform, xs, ys, **kwargs)
     result = [[col, row] for col, row in zip(cols, rows)]
 
-    result = [
-        [x, y] for x, y in result if x >= 0 and y >= 0 and x < width and y < height
-    ]
-    if len(result) == 0:
+    output = []
+
+    for i, (x, y) in enumerate(result):
+        if x >= 0 and y >= 0 and x < width and y < height:
+            output.append([x, y])
+        else:
+            out_of_bounds.append(i)
+
+    # output = [
+    #     [x, y] for x, y in result if x >= 0 and y >= 0 and x < width and y < height
+    # ]
+    if len(output) == 0:
         print("No valid pixel coordinates found.")
-    elif len(result) < len(coords):
+    elif len(output) < len(coords):
         print("Some coordinates are out of the image boundary.")
 
-    return result
+    if return_out_of_bounds:
+        return output, out_of_bounds
+    else:
+        return output
 
 
 def boxes_to_vector(coords, src_crs, dst_crs="EPSG:4326", output=None, **kwargs):

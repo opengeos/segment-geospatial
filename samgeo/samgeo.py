@@ -503,6 +503,7 @@ class SamGeo:
             return_results (bool, optional): Whether to return the predicted masks, scores, and logits. Defaults to False.
 
         """
+        out_of_bounds = []
 
         if isinstance(boxes, str):
             gdf = gpd.read_file(boxes)
@@ -529,7 +530,7 @@ class SamGeo:
             point_labels = self.point_labels
 
         if (point_crs is not None) and (point_coords is not None):
-            point_coords = coords_to_xy(self.source, point_coords, point_crs)
+            point_coords, out_of_bounds = coords_to_xy(self.source, point_coords, point_crs, return_out_of_bounds=True)
 
         if isinstance(point_coords, list):
             point_coords = np.array(point_coords)
@@ -544,6 +545,13 @@ class SamGeo:
             if len(point_labels) != len(point_coords):
                 if len(point_labels) == 1:
                     point_labels = point_labels * len(point_coords)
+                elif len(out_of_bounds) > 0:
+                    print(f"Removing {len(out_of_bounds)} out-of-bound points.")
+                    point_labels_new = []
+                    for i, p in enumerate(point_labels):
+                        if i not in out_of_bounds:
+                            point_labels_new.append(p)
+                    point_labels = point_labels_new
                 else:
                     raise ValueError(
                         "The length of point_labels must be equal to the length of point_coords."
