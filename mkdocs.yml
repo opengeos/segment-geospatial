@@ -67,5 +67,6 @@ nav:
           - common module: common.md
           - samgeo module: samgeo.md
           - fast_sam module: fast_sam.md
+          - efficient_sam module: efficient_sam.md
           - hq_sam module: hq_sam.md
           - text_sam module: text_sam.md
