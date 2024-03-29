@@ -780,7 +780,11 @@ def geojson_to_coords(
 
 
 def coords_to_xy(
-    src_fp: str, coords: list, coord_crs: str = "epsg:4326", return_out_of_bounds=False, **kwargs
+    src_fp: str,
+    coords: list,
+    coord_crs: str = "epsg:4326",
+    return_out_of_bounds=False,
+    **kwargs,
 ) -> list:
     """Converts a list of coordinates to pixel coordinates, i.e., (col, row) coordinates.
 

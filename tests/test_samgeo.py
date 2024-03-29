@@ -61,7 +61,7 @@ class TestSamgeo(unittest.TestCase):
         sam.set_image(self.source)
         point_coords = [[-122.1419, 37.6383]]
         sam.predict(
-            point_coords, point_labels=1, point_crs="EPSG:4326", output='mask1.tif'
+            point_coords, point_labels=1, point_crs="EPSG:4326", output="mask1.tif"
         )
         self.assertTrue(os.path.exists("mask1.tif"))
 
@@ -71,6 +71,6 @@ class TestSamgeo(unittest.TestCase):
             [-122.1451, 37.6395],
         ]
         sam.predict(
-            point_coords, point_labels=1, point_crs="EPSG:4326", output='mask2.tif'
+            point_coords, point_labels=1, point_crs="EPSG:4326", output="mask2.tif"
         )
         self.assertTrue(os.path.exists("mask2.tif"))

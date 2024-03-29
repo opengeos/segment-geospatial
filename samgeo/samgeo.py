@@ -530,7 +530,9 @@ class SamGeo:
             point_labels = self.point_labels
 
         if (point_crs is not None) and (point_coords is not None):
-            point_coords, out_of_bounds = coords_to_xy(self.source, point_coords, point_crs, return_out_of_bounds=True)
+            point_coords, out_of_bounds = coords_to_xy(
+                self.source, point_coords, point_crs, return_out_of_bounds=True
+            )
 
         if isinstance(point_coords, list):
             point_coords = np.array(point_coords)
@@ -578,7 +580,11 @@ class SamGeo:
 
         self.boxes = input_boxes
 
-        if boxes is None or (len(boxes) == 1) or (len(boxes) == 4 and isinstance(boxes[0], float)):
+        if (
+            boxes is None
+            or (len(boxes) == 1)
+            or (len(boxes) == 4 and isinstance(boxes[0], float))
+        ):
             if isinstance(boxes, list) and isinstance(boxes[0], list):
                 boxes = boxes[0]
             masks, scores, logits = predictor.predict(
