@@ -11,12 +11,12 @@ jobs:
     test-windows:
         runs-on: windows-latest
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
             - name: Install miniconda
               uses: conda-incubator/setup-miniconda@v2
               with:
                   auto-activate-base: true
-                  python-version: "3.10"
+                  python-version: "3.11"
             - name: Install GDAL
               run: conda install -c conda-forge gdal=3.4.0 --yes
             - name: Test GDAL installation
