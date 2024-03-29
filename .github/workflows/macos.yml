@@ -15,14 +15,14 @@ jobs:
             fail-fast: false
             matrix:
                 config:
-                    - { os: macOS-latest, py: "3.10" }
+                    - { os: macOS-latest, py: "3.11" }
         env:
             SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
         steps:
             - name: CHECKOUT CODE
-              uses: actions/checkout@v3
+              uses: actions/checkout@v4
             - name: SETUP PYTHON
-              uses: actions/setup-python@v4
+              uses: actions/setup-python@v5
               with:
                   python-version: ${{ matrix.config.py }}
             # - name: Install GDAL

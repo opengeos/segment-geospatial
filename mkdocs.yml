@@ -63,6 +63,7 @@ nav:
           - examples/maxar_open_data.ipynb
     - Workshops:
           - workshops/purdue.ipynb
+          - workshops/cn_workshop.ipynb
     - API Reference:
           - common module: common.md
           - samgeo module: samgeo.md

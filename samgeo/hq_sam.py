@@ -7,7 +7,11 @@ import os
 import cv2
 import torch
 import numpy as np
-from segment_anything_hq import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
+from segment_anything_hq import (
+    sam_model_registry,
+    SamAutomaticMaskGenerator,
+    SamPredictor,
+)
 
 from .common import *
 
@@ -573,7 +577,11 @@ class SamGeo:
 
         self.boxes = input_boxes
 
-        if boxes is None or (len(boxes) == 1) or (len(boxes) == 4 and isinstance(boxes[0], float)):
+        if (
+            boxes is None
+            or (len(boxes) == 1)
+            or (len(boxes) == 4 and isinstance(boxes[0], float))
+        ):
             if isinstance(boxes, list) and isinstance(boxes[0], list):
                 boxes = boxes[0]
             masks, scores, logits = predictor.predict(
