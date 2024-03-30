@@ -5,6 +5,7 @@ leafmap
 localtileserver
 matplotlib
 opencv-python
+patool
 pycocotools
 pyproj
 rasterio
