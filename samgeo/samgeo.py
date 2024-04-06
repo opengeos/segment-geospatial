@@ -152,6 +152,9 @@ class SamGeo:
         output=None,
         foreground=True,
         batch=False,
+        batch_sample_size=(512,512),
+        batch_nodata_threshold=1.0,
+        nodata_value=None,
         erosion_kernel=None,
         mask_multiplier=255,
         unique=True,
@@ -164,6 +167,12 @@ class SamGeo:
             output (str, optional): The path to the output image. Defaults to None.
             foreground (bool, optional): Whether to generate the foreground mask. Defaults to True.
             batch (bool, optional): Whether to generate masks for a batch of image tiles. Defaults to False.
+            batch_sample_size (tuple, optional): When batch=True, the size of the sample window when iterating over rasters. 
+            batch_nodata_threshold (float,optional): Batch samples with a fraction of nodata pixels above this threshold will
+                not be used to generate a mask. The default, 1.0, will skip samples with 100% nodata values. This is useful
+                when rasters have large areas of nodata values which can be skipped. 
+            nodata_value (int, optional): Nodata value to use in checking batch_nodata_threshold. The default, None,
+                will use the nodata value in the raster metadata if present. 
             erosion_kernel (tuple, optional): The erosion kernel for filtering object masks and extract borders.
                 Such as (3, 3) or (5, 5). Set to None to disable it. Defaults to None.
             mask_multiplier (int, optional): The mask multiplier for the output mask, which is usually a binary mask [0, 1].
@@ -190,6 +199,9 @@ class SamGeo:
                     output,
                     self,
                     foreground=foreground,
+                    sample_size=batch_sample_size,
+                    sample_nodata_threshold=batch_nodata_threshold,
+                    nodata_value=nodata_value,
                     erosion_kernel=erosion_kernel,
                     mask_multiplier=mask_multiplier,
                     **kwargs,

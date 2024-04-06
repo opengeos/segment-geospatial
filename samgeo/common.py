@@ -1122,6 +1122,8 @@ def tiff_to_tiff(
     func,
     data_to_rgb=chw_to_hwc,
     sample_size=(512, 512),
+    sample_nodata_threshold=1.0,
+    nodata_value=None,
     sample_resize=None,
     bound=128,
     foreground=True,
@@ -1131,6 +1133,9 @@ def tiff_to_tiff(
 ):
     with rasterio.open(src_fp) as src:
         profile = src.profile
+
+        if nodata_value is None:
+            nodata_values = profile.get('nodata', None)
 
         # Computer blocks
         rh, rw = profile["height"], profile["width"]
@@ -1154,6 +1159,11 @@ def tiff_to_tiff(
             for b in tqdm(sample_grid):
                 # Read each tile from the source
                 r = read_block(src, **b)
+                
+                if nodata_value is not None:
+                    if (r==nodata_value).mean() >= sample_nodata_threshold:
+                        continue
+                    
                 # Extract the first 3 channels as RGB
                 uint8_rgb_in = data_to_rgb(r)
                 orig_size = uint8_rgb_in.shape[:2]
