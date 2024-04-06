@@ -1135,7 +1135,7 @@ def tiff_to_tiff(
         profile = src.profile
 
         if nodata_value is None:
-            nodata_values = profile.get('nodata', None)
+            nodata_values = profile.get("nodata", None)
 
         # Computer blocks
         rh, rw = profile["height"], profile["width"]
@@ -1159,11 +1159,11 @@ def tiff_to_tiff(
             for b in tqdm(sample_grid):
                 # Read each tile from the source
                 r = read_block(src, **b)
-                
+
                 if nodata_value is not None:
-                    if (r==nodata_value).mean() >= sample_nodata_threshold:
+                    if (r == nodata_value).mean() >= sample_nodata_threshold:
                         continue
-                    
+
                 # Extract the first 3 channels as RGB
                 uint8_rgb_in = data_to_rgb(r)
                 orig_size = uint8_rgb_in.shape[:2]
