@@ -4,7 +4,7 @@ huggingface_hub
 leafmap
 localtileserver
 matplotlib
-opencv-python
+opencv-python-headless
 patool
 pycocotools
 pyproj

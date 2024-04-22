@@ -66,12 +66,6 @@ Samgeo-geospatial has some optional dependencies that are not included in the de
 
 ```bash
 mamba install -c conda-forge groundingdino-py segment-anything-fast
-````
-
-As of July 9th, 2023 Linux systems have also required that `libgl1` be installed for segment-geospatial to work. The following command will install that dependency
-
-```bash
-apt update; apt install -y libgl1
 ```
 
 ## Examples
