@@ -62,8 +62,6 @@ If your system has a GPU, but the above commands do not install the GPU version 
 mamba install -c conda-forge segment-geospatial "pytorch=*=cuda*"
 ```
 
-````bash
-
 Samgeo-geospatial has some optional dependencies that are not included in the default conda environment. To install these dependencies, run the following command:
 
 ```bash
