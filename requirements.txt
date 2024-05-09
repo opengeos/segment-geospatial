@@ -13,4 +13,5 @@ segment-anything-hq
 segment-anything-py
 timm
 tqdm
+xarray
 xyzservices
