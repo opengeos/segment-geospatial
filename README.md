@@ -21,7 +21,8 @@ The **segment-geospatial** package draws its inspiration from [segment-anything-
 
 ## Citations
 
--   Wu, Q., & Osco, L. (2023). samgeo: A Python package for segmenting geospatial data with the Segment Anything Model (SAM). _Journal of Open Source Software_, 8(89), 5663, <https://doi.org/10.21105/joss.05663>
+-   Wu, Q., & Osco, L. (2023). samgeo: A Python package for segmenting geospatial data with the Segment Anything Model (SAM). _Journal of Open Source Software_, 8(89), 5663. <https://doi.org/10.21105/joss.05663>
+-   Osco, L. P., Wu, Q., de Lemos, E. L., Gonçalves, W. N., Ramos, A. P. M., Li, J., & Junior, J. M. (2023). The Segment Anything Model (SAM) for remote sensing applications: From zero to one shot. _International Journal of Applied Earth Observation and Geoinformation_, 124, 103540. <https://doi.org/10.1016/j.jag.2023.103540>
 
 ## Features
 
@@ -56,16 +57,16 @@ conda install -c conda-forge mamba
 mamba install -c conda-forge segment-geospatial
 ```
 
+If your system has a GPU, but the above commands do not install the GPU version of pytorch, you can force the installation of the GPU version of pytorch using the following command:
+
+```bash
+mamba install -c conda-forge segment-geospatial "pytorch=*=cuda*"
+```
+
 Samgeo-geospatial has some optional dependencies that are not included in the default conda environment. To install these dependencies, run the following command:
 
 ```bash
 mamba install -c conda-forge groundingdino-py segment-anything-fast
-```
-
-As of July 9th, 2023 Linux systems have also required that `libgl1` be installed for segment-geospatial to work. The following command will install that dependency
-
-```bash
-apt update; apt install -y libgl1
 ```
 
 ## Examples
