@@ -18,7 +18,7 @@ repos:
             language_version: python3.11
 
     - repo: https://github.com/codespell-project/codespell
-      rev: v2.2.6
+      rev: v2.3.0
       hooks:
           - id: codespell
             args: [--toml, pyproject-codespell.precommit-toml]
