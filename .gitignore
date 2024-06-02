@@ -11,7 +11,7 @@ private/
 **/*.shx
 **/*.dbf
 **/*.jpg
-**/*.png
+# **/*.png
 **/*.csv
 **/*.pt
 docs/examples/*.geojson
