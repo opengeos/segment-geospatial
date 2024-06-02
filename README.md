@@ -10,6 +10,8 @@
 [![Conda Downloads](https://anaconda.org/conda-forge/segment-geospatial/badges/downloads.svg)](https://anaconda.org/conda-forge/segment-geospatial)
 [![DOI](https://joss.theoj.org/papers/10.21105/joss.05663/status.svg)](https://doi.org/10.21105/joss.05663)
 
+[![logo](https://raw.githubusercontent.com/opengeos/segment-geospatial/main/docs/assets/logo_rect.png)](https://github.com/opengeos/segment-geospatial/blob/main/docs/assets/logo.png)
+
 **A Python package for segmenting geospatial data with the Segment Anything Model (SAM)**
 
 ## Introduction
