@@ -2992,16 +2992,22 @@ def merge_rasters(
         raise ImportError(
             "GDAL is required to use this function. Install it with `conda install gdal -c conda-forge`"
         )
+
     # Get a list of all the input files
     input_files = glob.glob(os.path.join(input_dir, input_pattern))
 
-    # Merge the input files into a single output file
-    gdal.Warp(
-        output,
-        input_files,
+    # Prepare the gdal.Warp options
+    warp_options = gdal.WarpOptions(
         format=output_format,
         dstNodata=output_nodata,
-        options=output_options,
+        creationOptions=output_options
+    )
+
+    # Merge the input files into a single output file
+    gdal.Warp(
+        destNameOrDestDS=output,
+        srcDSOrSrcDSTab=input_files,
+        options=warp_options,
     )
 
 
