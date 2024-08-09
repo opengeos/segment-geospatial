@@ -2998,9 +2998,7 @@ def merge_rasters(
 
     # Prepare the gdal.Warp options
     warp_options = gdal.WarpOptions(
-        format=output_format,
-        dstNodata=output_nodata,
-        creationOptions=output_options
+        format=output_format, dstNodata=output_nodata, creationOptions=output_options
     )
 
     # Merge the input files into a single output file
