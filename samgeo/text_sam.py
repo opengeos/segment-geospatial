@@ -274,6 +274,18 @@ class LangSAM:
                 )  # Convert rasterio image to numpy array
                 self.transform = src.transform  # Save georeferencing information
                 self.crs = src.crs  # Save the Coordinate Reference System
+
+                if self.crs is None:
+                    warnings.warn(
+                        "The CRS (Coordinate Reference System) "
+                        "of input image is None. "
+                        "Please define a projection on the input image "
+                        "before running segment-geospatial, "
+                        "or manually set CRS on result object "
+                        "like `sam.crs = 'EPSG:3857'`.",
+                        UserWarning
+                    )
+
                 image_pil = Image.fromarray(
                     image_np[:, :, :3]
                 )  # Convert numpy array to PIL image, excluding the alpha channel
