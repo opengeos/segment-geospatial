@@ -283,7 +283,7 @@ class LangSAM:
                         "before running segment-geospatial, "
                         "or manually set CRS on result object "
                         "like `sam.crs = 'EPSG:3857'`.",
-                        UserWarning
+                        UserWarning,
                     )
 
                 image_pil = Image.fromarray(
