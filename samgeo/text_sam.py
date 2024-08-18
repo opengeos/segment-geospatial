@@ -327,10 +327,14 @@ class LangSAM:
 
                 req_nargs = 6 if inspect.ismethod(detection_filter) else 5
                 if not len(inspect.signature(detection_filter).parameters) == req_nargs:
-                    raise ValueError("detection_filter required args: "
-                                     "box, mask, logit, phrase, and index.")
+                    raise ValueError(
+                        "detection_filter required args: "
+                        "box, mask, logit, phrase, and index."
+                    )
 
-            for i, (box, mask, logit, phrase) in enumerate(zip(boxes, masks, logits, phrases)):
+            for i, (box, mask, logit, phrase) in enumerate(
+                zip(boxes, masks, logits, phrases)
+            ):
 
                 # Convert tensor to numpy array if necessary and ensure it contains integers
                 if isinstance(mask, torch.Tensor):
