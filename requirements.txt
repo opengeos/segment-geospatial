@@ -9,6 +9,7 @@ patool
 pycocotools
 pyproj
 rasterio
+sam2
 segment-anything-hq
 segment-anything-py
 timm
