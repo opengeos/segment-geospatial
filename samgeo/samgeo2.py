@@ -187,10 +187,6 @@ class SamGeo2:
         source: Union[str, np.ndarray],
         output: Optional[str] = None,
         foreground: bool = True,
-        batch: bool = False,
-        batch_sample_size: Tuple[int, int] = (512, 512),
-        batch_nodata_threshold: float = 1.0,
-        nodata_value: Optional[int] = None,
         erosion_kernel: Optional[Tuple[int, int]] = None,
         mask_multiplier: int = 255,
         unique: bool = True,
@@ -200,23 +196,23 @@ class SamGeo2:
         Generate masks for the input image.
 
         Args:
-            source (Union[str, np.ndarray]): The path to the input image or the input image as a numpy array.
+            source (Union[str, np.ndarray]): The path to the input image or the
+                input image as a numpy array.
             output (Optional[str]): The path to the output image. Defaults to None.
-            foreground (bool): Whether to generate the foreground mask. Defaults to True.
-            batch (bool): Whether to generate masks for a batch of image tiles. Defaults to False.
-            batch_sample_size (Tuple[int, int]): When batch=True, the size of the sample window when iterating over rasters.
-            batch_nodata_threshold (float): Batch samples with a fraction of nodata pixels above this threshold will
-                not be used to generate a mask. The default, 1.0, will skip samples with 100% nodata values. This is useful
-                when rasters have large areas of nodata values which can be skipped.
-            nodata_value (Optional[int]): Nodata value to use in checking batch_nodata_threshold. The default, None,
-                will use the nodata value in the raster metadata if present.
-            erosion_kernel (Optional[Tuple[int, int]]): The erosion kernel for filtering object masks and extract borders.
+            foreground (bool): Whether to generate the foreground mask. Defaults
+                to True.
+            erosion_kernel (Optional[Tuple[int, int]]): The erosion kernel for
+                filtering object masks and extract borders.
                 Such as (3, 3) or (5, 5). Set to None to disable it. Defaults to None.
-            mask_multiplier (int): The mask multiplier for the output mask, which is usually a binary mask [0, 1].
-                You can use this parameter to scale the mask to a larger range, for example [0, 255]. Defaults to 255.
+            mask_multiplier (int): The mask multiplier for the output mask,
+                which is usually a binary mask [0, 1].
+                You can use this parameter to scale the mask to a larger range,
+                for example [0, 255]. Defaults to 255.
                 The parameter is ignored if unique is True.
-            unique (bool): Whether to assign a unique value to each object. Defaults to True.
-                The unique value increases from 1 to the number of objects. The larger the number, the larger the object area.
+            unique (bool): Whether to assign a unique value to each object.
+                Defaults to True.
+                The unique value increases from 1 to the number of objects. The
+                larger the number, the larger the object area.
             **kwargs (Any): Additional keyword arguments.
 
         Returns:
@@ -243,7 +239,6 @@ class SamGeo2:
         mask_generator = self.mask_generator  # The automatic mask generator
         masks = mask_generator.generate(image)  # Segment the input image
         self.masks = masks  # Store the masks as a list of dictionaries
-        self.batch = False
 
         if output is not None:
             # Save the masks to the output path. The output is either a binary mask or a mask of objects with unique values.
@@ -364,11 +359,8 @@ class SamGeo2:
 
         import matplotlib.pyplot as plt
 
-        if self.batch:
-            self.objects = cv2.imread(self.masks)
-        else:
-            if self.objects is None:
-                self.save_masks(foreground=foreground, **kwargs)
+        if self.objects is None:
+            self.save_masks(foreground=foreground, **kwargs)
 
         plt.figure(figsize=figsize)
         plt.imshow(self.objects, cmap=cmap)
