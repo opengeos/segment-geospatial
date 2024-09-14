@@ -2,7 +2,7 @@ import os
 import cv2
 import torch
 import numpy as np
-from PIL import Image
+from PIL.Image import Image
 from typing import Any, Dict, List, Optional, Tuple, Union
 from sam2.sam2_image_predictor import SAM2ImagePredictor
 from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
@@ -40,6 +40,8 @@ class SamGeo2:
         output_mode: str = "binary_mask",
         use_m2m: bool = False,
         multimask_output: bool = True,
+        max_hole_area: float = 0.0,
+        max_sprinkle_area: float = 0.0,
         **kwargs: Any,
     ) -> None:
         """
@@ -93,7 +95,12 @@ class SamGeo2:
                 memory.
             use_m2m (bool): Whether to add a one step refinement using previous mask predictions.
             multimask_output (bool): Whether to output multimask at each point of the grid.
-            **kwargs (Any): Additional keyword arguments.
+            max_hole_area (int): If max_hole_area > 0, we fill small holes in up to
+                the maximum area of max_hole_area in low_res_masks.
+            max_sprinkle_area (int): If max_sprinkle_area > 0, we remove small sprinkles up to
+                the maximum area of max_sprinkle_area in low_res_masks.
+            **kwargs (Any): Additional keyword arguments to pass to
+                SAM2AutomaticMaskGenerator.from_pretrained() or SAM2ImagePredictor.from_pretrained().
         """
         if isinstance(model_id, str):
             if not model_id.startswith("facebook/"):
@@ -147,6 +154,16 @@ class SamGeo2:
                 multimask_output=multimask_output,
                 **kwargs,
             )
+        else:
+            self.predictor = SAM2ImagePredictor.from_pretrained(
+                model_id,
+                device=device,
+                mode=mode,
+                mask_threshold=mask_threshold,
+                max_hole_area=max_hole_area,
+                max_sprinkle_area=max_sprinkle_area,
+                **kwargs,
+            )
 
     def generate(
         self,
@@ -196,8 +213,8 @@ class SamGeo2:
             if not os.path.exists(source):
                 raise ValueError(f"Input path {source} does not exist.")
 
-            image = Image.open(source)
-            image = np.array(image.convert("RGB"))
+            image = cv2.imread(source)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         elif isinstance(source, np.ndarray):
             image = source
             source = None
@@ -221,24 +238,31 @@ class SamGeo2:
 
     def save_masks(
         self,
-        output=None,
-        foreground=True,
-        unique=True,
-        erosion_kernel=None,
-        mask_multiplier=255,
-        **kwargs,
-    ):
-        """Save the masks to the output path. The output is either a binary mask or a mask of objects with unique values.
+        output: Optional[str] = None,
+        foreground: bool = True,
+        unique: bool = True,
+        erosion_kernel: Optional[Tuple[int, int]] = None,
+        mask_multiplier: int = 255,
+        **kwargs: Any,
+    ) -> None:
+        """Save the masks to the output path. The output is either a binary mask
+        or a mask of objects with unique values.
 
         Args:
-            output (str, optional): The path to the output image. Defaults to None, saving the masks to SamGeo.objects.
-            foreground (bool, optional): Whether to generate the foreground mask. Defaults to True.
-            unique (bool, optional): Whether to assign a unique value to each object. Defaults to True.
-            erosion_kernel (tuple, optional): The erosion kernel for filtering object masks and extract borders.
-                Such as (3, 3) or (5, 5). Set to None to disable it. Defaults to None.
-            mask_multiplier (int, optional): The mask multiplier for the output mask, which is usually a binary mask [0, 1].
-                You can use this parameter to scale the mask to a larger range, for example [0, 255]. Defaults to 255.
-
+            output (str, optional): The path to the output image. Defaults to
+                None, saving the masks to SamGeo.objects.
+            foreground (bool, optional): Whether to generate the foreground mask.
+                Defaults to True.
+            unique (bool, optional): Whether to assign a unique value to each
+                object. Defaults to True.
+            erosion_kernel (tuple, optional): The erosion kernel for filtering
+                object masks and extract borders.
+                Such as (3, 3) or (5, 5). Set to None to disable it. Defaults to
+                None.
+            mask_multiplier (int, optional): The mask multiplier for the output
+                mask, which is usually a binary mask [0, 1]. You can use this
+                parameter to scale the mask to a larger range, for example
+                [0, 255]. Defaults to 255.
         """
 
         if self.masks is None:
@@ -303,15 +327,21 @@ class SamGeo2:
             common.array_to_image(self.objects, output, self.source, **kwargs)
 
     def show_masks(
-        self, figsize=(12, 10), cmap="binary_r", axis="off", foreground=True, **kwargs
-    ):
+        self,
+        figsize: Tuple[int, int] = (12, 10),
+        cmap: str = "binary_r",
+        axis: str = "off",
+        foreground: bool = True,
+        **kwargs: Any,
+    ) -> None:
         """Show the binary mask or the mask of objects with unique values.
 
         Args:
             figsize (tuple, optional): The figure size. Defaults to (12, 10).
             cmap (str, optional): The colormap. Defaults to "binary_r".
             axis (str, optional): Whether to show the axis. Defaults to "off".
-            foreground (bool, optional): Whether to show the foreground mask only. Defaults to True.
+            foreground (bool, optional): Whether to show the foreground mask only.
+                Defaults to True.
             **kwargs: Other arguments for save_masks().
         """
 
@@ -330,13 +360,13 @@ class SamGeo2:
 
     def show_anns(
         self,
-        figsize=(12, 10),
-        axis="off",
-        alpha=0.35,
-        output=None,
-        blend=True,
-        **kwargs,
-    ):
+        figsize: Tuple[int, int] = (12, 10),
+        axis: str = "off",
+        alpha: float = 0.35,
+        output: Optional[str] = None,
+        blend: bool = True,
+        **kwargs: Any,
+    ) -> None:
         """Show the annotations (objects with random color) on the input image.
 
         Args:
@@ -398,3 +428,149 @@ class SamGeo2:
             else:
                 array = self.annotations
             common.array_to_image(array, output, self.source)
+
+    @torch.no_grad()
+    def set_image(
+        self,
+        image: Union[str, np.ndarray, Image],
+    ) -> None:
+        """Set the input image as a numpy array.
+
+        Args:
+            image (Union[str, np.ndarray, Image]): The input image as a path,
+                a numpy array, or an Image.
+        """
+        if isinstance(image, str):
+            if image.startswith("http"):
+                image = common.download_file(image)
+
+            if not os.path.exists(image):
+                raise ValueError(f"Input path {image} does not exist.")
+
+            self.source = image
+
+            image = cv2.imread(image)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            self.image = image
+        elif isinstance(image, np.ndarray) or isinstance(image, Image):
+            pass
+        else:
+            raise ValueError("Input image must be either a path or a numpy array.")
+
+        self.predictor.set_image(image)
+
+    @torch.no_grad()
+    def set_image_batch(
+        self,
+        image_list: List[Union[np.ndarray, str, Image]],
+    ) -> None:
+        """Set a batch of images for prediction.
+
+        Args:
+            image_list (List[Union[np.ndarray, str, Image]]): A list of images,
+            which can be numpy arrays, file paths, or PIL images.
+
+        Raises:
+            ValueError: If an input image path does not exist or if the input
+                image type is not supported.
+        """
+        images = []
+        for image in image_list:
+            if isinstance(image, str):
+                if image.startswith("http"):
+                    image = common.download_file(image)
+
+                if not os.path.exists(image):
+                    raise ValueError(f"Input path {image} does not exist.")
+
+                image = cv2.imread(image)
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            elif isinstance(image, Image):
+                image = np.array(image)
+            elif isinstance(image, np.ndarray):
+                pass
+            else:
+                raise ValueError("Input image must be either a path or a numpy array.")
+
+            images.append(image)
+
+        self.predictor.set_image_batch(images)
+
+    def predict(
+        self,
+        point_coords: Optional[np.ndarray] = None,
+        point_labels: Optional[np.ndarray] = None,
+        box: Optional[np.ndarray] = None,
+        mask_input: Optional[np.ndarray] = None,
+        multimask_output: bool = True,
+        return_logits: bool = False,
+        normalize_coords=True,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Predict the mask for the input image.
+
+        Args:
+            point_coords (np.ndarray, optional): The point coordinates. Defaults to None.
+            point_labels (np.ndarray, optional): The point labels. Defaults to None.
+            box (np.ndarray, optional): The bounding box. Defaults to None.
+            mask_input (np.ndarray, optional): The mask input. Defaults to None.
+            multimask_output (bool, optional): Whether to output multimask at each
+                point of the grid. Defaults to True.
+            return_logits (bool, optional): Whether to return the logits. Defaults to False.
+            normalize_coords (bool, optional): Whether to normalize the coordinates.
+                Defaults to True.
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray, np.ndarray]: The mask, the multimask,
+                and the logits.
+        """
+        return self.predictor.predict(
+            point_coords=point_coords,
+            point_labels=point_labels,
+            box=box,
+            mask_input=mask_input,
+            multimask_output=multimask_output,
+            return_logits=return_logits,
+            normalize_coords=normalize_coords,
+        )
+
+    def predict_batch(
+        self,
+        point_coords_batch: List[np.ndarray] = None,
+        point_labels_batch: List[np.ndarray] = None,
+        box_batch: List[np.ndarray] = None,
+        mask_input_batch: List[np.ndarray] = None,
+        multimask_output: bool = True,
+        return_logits: bool = False,
+        normalize_coords=True,
+    ) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
+        """Predict masks for a batch of images.
+
+        Args:
+            point_coords_batch (Optional[List[np.ndarray]]): A batch of point
+                coordinates. Defaults to None.
+            point_labels_batch (Optional[List[np.ndarray]]): A batch of point
+                labels. Defaults to None.
+            box_batch (Optional[List[np.ndarray]]): A batch of bounding boxes.
+                Defaults to None.
+            mask_input_batch (Optional[List[np.ndarray]]): A batch of mask inputs.
+                Defaults to None.
+            multimask_output (bool): Whether to output multimask at each point
+                of the grid. Defaults to True.
+            return_logits (bool): Whether to return the logits. Defaults to False.
+            normalize_coords (bool): Whether to normalize the coordinates.
+                Defaults to True.
+
+        Returns:
+            Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]: Lists
+                of masks, multimasks, and logits.
+        """
+
+        return self.predictor.predict_batch(
+            point_coords_batch=point_coords_batch,
+            point_labels_batch=point_labels_batch,
+            box_batch=box_batch,
+            mask_input_batch=mask_input_batch,
+            multimask_output=multimask_output,
+            return_logits=return_logits,
+            normalize_coords=normalize_coords,
+        )
