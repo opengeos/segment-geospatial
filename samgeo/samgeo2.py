@@ -756,6 +756,15 @@ class SamGeo2:
         )
 
     @torch.inference_mode()
+    def reset_state(self, inference_state: Any) -> None:
+        """Remove all input points or masks in all frames throughout the video.
+
+        Args:
+            inference_state (Any): The current inference state.
+        """
+        self.predictor.reset_state(inference_state)
+
+    @torch.inference_mode()
     def add_new_points_or_box(
         self,
         inference_state: Any,
@@ -852,15 +861,6 @@ class SamGeo2:
             max_frame_num_to_track=max_frame_num_to_track,
             reverse=reverse,
         )
-
-    @torch.inference_mode()
-    def reset_state(self, inference_state: Any) -> None:
-        """Remove all input points or mask in all frames throughout the video.
-
-        Args:
-            inference_state (Any): The current inference state.
-        """
-        self.predictor.reset_state(inference_state)
 
     def tensor_to_numpy(
         self,
@@ -1030,3 +1030,145 @@ class SamGeo2:
         point_labels = [1] * len(fg_points) + [0] * len(bg_points)
         self.point_coords = point_coords
         self.point_labels = point_labels
+
+    def _convert_prompts(self, prompts: Dict[int, Any]) -> Dict[int, Any]:
+        """Convert the points and labels in the prompts to numpy arrays with specific data types.
+
+        Args:
+            prompts (Dict[str, Any]): A dictionary containing the prompts with points and labels.
+
+        Returns:
+            Dict[str, Any]: The updated dictionary with points and labels converted to numpy arrays.
+        """
+        for _, value in prompts.items():
+            # Convert points to np.float32 array
+            if "points" in value:
+                value["points"] = np.array(value["points"], dtype=np.float32)
+            # Convert labels to np.int32 array
+            if "labels" in value:
+                value["labels"] = np.array(value["labels"], dtype=np.int32)
+        return prompts
+
+    def set_video(
+        self,
+        video_path: str,
+        output_dir: str = None,
+        frame_rate: Optional[int] = None,
+        prefix: str = "",
+    ) -> None:
+        """Set the video path and parameters.
+
+        Args:
+            video_path (str): The path to the video file.
+            start_frame (int, optional): The starting frame index. Defaults to 0.
+            end_frame (Optional[int], optional): The ending frame index. Defaults to None.
+            step (int, optional): The step size. Defaults to 1.
+            frame_rate (Optional[int], optional): The frame rate. Defaults to None.
+        """
+        import tempfile
+
+        if isinstance(video_path, str):
+            if video_path.startswith("http"):
+                video_path = common.download_file(video_path)
+            if os.path.isfile(video_path):
+
+                if output_dir is None:
+                    output_dir = tempfile.mkdtemp()
+                    if not os.path.exists(output_dir):
+                        os.makedirs(output_dir)
+                print(f"Output directory: {output_dir}")
+                common.video_to_images(
+                    video_path, output_dir, frame_rate=frame_rate, prefix=prefix
+                )
+
+            elif os.path.isdir(video_path):
+                output_dir = video_path
+
+            if not os.path.exists(video_path):
+                raise ValueError(f"Input path {video_path} does not exist.")
+        else:
+            raise ValueError("Input video_path must be a string.")
+
+        self.video_path = output_dir
+        self.inference_state = self.predictor.init_state(video_path=output_dir)
+
+    def predict_video(
+        self,
+        prompts: Dict[int, Any],
+        output_dir: Optional[str] = None,
+        img_ext: str = "png",
+    ) -> None:
+        """Predict masks for the video.
+
+        Args:
+            prompts (Dict[int, Any]): A dictionary containing the prompts with points and labels.
+            output_dir (Optional[str]): The directory to save the output images. Defaults to None.
+            img_ext (str): The file extension for the output images. Defaults to "png".
+        """
+        prompts = self._convert_prompts(prompts)
+        predictor = self.predictor
+        inference_state = self.inference_state
+        for obj_id, prompt in prompts.items():
+            points = prompt["points"]
+            labels = prompt["labels"]
+            frame_idx = prompt["frame_idx"]
+            _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
+                inference_state=inference_state,
+                frame_idx=frame_idx,
+                obj_id=obj_id,
+                points=points,
+                labels=labels,
+            )
+
+        video_segments = {}
+        for out_frame_idx, out_obj_ids, out_mask_logits in predictor.propagate_in_video(
+            inference_state
+        ):
+            video_segments[out_frame_idx] = {
+                out_obj_id: (out_mask_logits[i] > 0.0).cpu().numpy()
+                for i, out_obj_id in enumerate(out_obj_ids)
+            }
+
+        self.video_segments = video_segments
+
+        if output_dir is not None:
+            self.save_video_segments(output_dir, img_ext)
+
+    def save_video_segments(self, output_dir: str, img_ext: str = "png") -> None:
+        """Save the video segments to the output directory.
+
+        Args:
+            output_dir (str): The path to the output directory.
+            img_ext (str): The file extension for the output images. Defaults to "png".
+        """
+        from PIL import Image
+
+        def save_image_from_dict(data, output_path="output_image.png"):
+            # Find the shape of the first array in the dictionary (assuming all arrays have the same shape)
+            array_shape = next(iter(data.values())).shape[1:]
+
+            # Initialize an empty array with the same shape as the arrays in the dictionary, filled with zeros
+            output_array = np.zeros(array_shape, dtype=np.uint8)
+
+            # Iterate over each key and array in the dictionary
+            for key, array in data.items():
+                # Assign the key value wherever the boolean array is True
+                output_array[array[0]] = key
+
+            # Convert the output array to a PIL image
+            image = Image.fromarray(output_array)
+
+            # Save the image
+            image.save(output_path)
+
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        num_frames = len(self.video_segments)
+        num_digits = len(str(num_frames))
+
+        for frame_idx, video_segment in self.video_segments.items():
+            output_path = os.path.join(
+                output_dir, f"{str(frame_idx).zfill(num_digits)}.{img_ext}"
+            )
+            save_image_from_dict(video_segment, output_path)

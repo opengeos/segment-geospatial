@@ -3261,7 +3261,7 @@ def video_to_images(
     video_path: str,
     output_dir: str,
     frame_rate: Optional[int] = None,
-    prefix: str = "frame_",
+    prefix: str = "",
 ) -> None:
     """
     Converts a video into a series of images. Each frame of the video is saved as an image.
