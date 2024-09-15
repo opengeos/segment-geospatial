@@ -3323,3 +3323,113 @@ def video_to_images(
     # Release the video capture object
     cap.release()
     print(f"Finished saving {saved_frame_count} images to {output_dir}")
+
+
+def show_image_gui(path: str) -> None:
+    """Show an interactive GUI to explore images.
+    Args:
+        path (str): The path to the image file or directory containing images.
+    """
+
+    from PIL import Image
+    from ipywidgets import interact, IntSlider
+    import matplotlib
+
+    def setup_interactive_matplotlib():
+        """Sets up ipympl backend for interactive plotting in Jupyter."""
+        # Use the ipympl backend for interactive plotting
+        try:
+            import ipympl
+
+            matplotlib.use("module://ipympl.backend_nbagg")
+        except ImportError:
+            print("ipympl is not installed. Falling back to default backend.")
+
+    def load_images_from_folder(folder):
+        """Load all images from the specified folder."""
+        images = []
+        filenames = []
+        for filename in sorted(os.listdir(folder)):
+            if filename.endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif")):
+                img = Image.open(os.path.join(folder, filename))
+                img_array = np.array(img)
+                images.append(img_array)
+                filenames.append(filename)
+        return images, filenames
+
+    def load_single_image(image_path):
+        """Load a single image from the specified image file path."""
+        img = Image.open(image_path)
+        img_array = np.array(img)
+        return [img_array], [
+            os.path.basename(image_path)
+        ]  # Return as lists for consistency
+
+    # Check if the input path is a file or a directory
+    if os.path.isfile(path):
+        images, filenames = load_single_image(path)
+    elif os.path.isdir(path):
+        images, filenames = load_images_from_folder(path)
+    else:
+        print("Invalid path. Please provide a valid image file or directory.")
+        return
+
+    total_images = len(images)
+
+    if total_images == 0:
+        print("No images found.")
+        return
+
+    # Set up interactive plotting
+    setup_interactive_matplotlib()
+
+    fig, ax = plt.subplots()
+    fig.canvas.toolbar_visible = True
+    fig.canvas.header_visible = False
+    fig.canvas.footer_visible = True
+
+    # Display the first image initially
+    im_display = ax.imshow(images[0])
+    ax.set_title(f"Image: {filenames[0]}")
+    plt.tight_layout()
+
+    # Function to update the image when the slider changes (for multiple images)
+    def update_image(image_index):
+        im_display.set_data(images[image_index])
+        ax.set_title(f"Image: {filenames[image_index]}")
+        fig.canvas.draw()
+
+    # Function to show pixel information on click
+    def onclick(event):
+        if event.xdata is not None and event.ydata is not None:
+            col = int(event.xdata)
+            row = int(event.ydata)
+            pixel_value = images[current_image_index][
+                row, col
+            ]  # Use current image index
+            ax.set_title(
+                f"Image: {filenames[current_image_index]} - X: {col}, Y: {row}, Pixel Value: {pixel_value}"
+            )
+            fig.canvas.draw()
+
+    # Track the current image index (whether from slider or for single image)
+    current_image_index = 0
+
+    # Slider widget to choose between images (only if there is more than one image)
+    if total_images > 1:
+        slider = IntSlider(min=0, max=total_images - 1, step=1, description="Image")
+
+        def on_slider_change(change):
+            nonlocal current_image_index
+            current_image_index = change["new"]  # Update current image index
+            update_image(current_image_index)
+
+        slider.observe(on_slider_change, names="value")
+        fig.canvas.mpl_connect("button_press_event", onclick)
+        interact(update_image, image_index=slider)
+    else:
+        # If there's only one image, no need for a slider, just show pixel info on click
+        fig.canvas.mpl_connect("button_press_event", onclick)
+
+    # Show the plot
+    plt.show()
