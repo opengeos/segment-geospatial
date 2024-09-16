@@ -1109,7 +1109,8 @@ class SamGeo2:
 
     def predict_video(
         self,
-        prompts: Dict[int, Any],
+        prompts: Dict[int, Any] = None,
+        point_crs: Optional[str] = None,
         output_dir: Optional[str] = None,
         img_ext: str = "png",
     ) -> None:
@@ -1117,6 +1118,7 @@ class SamGeo2:
 
         Args:
             prompts (Dict[int, Any]): A dictionary containing the prompts with points and labels.
+            point_crs (Optional[str]): The coordinate reference system (CRS) of the point prompts.
             output_dir (Optional[str]): The directory to save the output images. Defaults to None.
             img_ext (str): The file extension for the output images. Defaults to "png".
         """
@@ -1140,6 +1142,23 @@ class SamGeo2:
 
             # Save the image
             image.save(output_path)
+
+        if prompts is None:
+            if hasattr(self, "prompts"):
+                prompts = self.prompts
+            else:
+                raise ValueError("Please provide prompts.")
+
+        if point_crs is not None and self._tif_source is not None:
+            for prompt in prompts.values():
+                points = prompt.get("points", None)
+                if points is not None:
+                    points = common.coords_to_xy(self._tif_source, points, point_crs)
+                    prompt["points"] = points
+                box = prompt.get("box", None)
+                if box is not None:
+                    box = common.bbox_to_xy(self._tif_source, box, point_crs)
+                    prompt["box"] = box
 
         prompts = self._convert_prompts(prompts)
         predictor = self.predictor
@@ -1351,6 +1370,7 @@ class SamGeo2:
         frame_idx: int = 0,
         mask: Any = None,
         random_color: bool = False,
+        point_crs: Optional[str] = None,
         figsize: Tuple[int, int] = (9, 6),
     ) -> None:
         """Show the prompts on the image.
@@ -1362,6 +1382,7 @@ class SamGeo2:
             mask (Any, optional): The mask. Defaults to None.
             random_color (bool, optional): Whether to use random colors for the
                 masks. Defaults to False.
+            point_crs (Optional[str], optional): The coordinate reference system
             figsize (Tuple[int, int], optional): The figure size. Defaults to (9, 6).
 
         """
@@ -1410,7 +1431,19 @@ class SamGeo2:
                 )
             )
 
+        if point_crs is not None and self._tif_source is not None:
+            for prompt in prompts.values():
+                points = prompt.get("points", None)
+                if points is not None:
+                    points = common.coords_to_xy(self._tif_source, points, point_crs)
+                    prompt["points"] = points
+                box = prompt.get("box", None)
+                if box is not None:
+                    box = common.bbox_to_xy(self._tif_source, box, point_crs)
+                    prompt["box"] = box
+
         prompts = self._convert_prompts(prompts)
+        self.prompts = prompts
         video_dir = self.video_path
         frame_names = self._frame_names
         fig = plt.figure(figsize=figsize)
