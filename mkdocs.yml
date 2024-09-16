@@ -62,6 +62,8 @@ nav:
           - examples/arcgis.ipynb
           - examples/maxar_open_data.ipynb
           - examples/sam2_automatic.ipynb
+          - examples/sam2_predictor.ipynb
+          - examples/sam2_video.ipynb
     - Workshops:
           - workshops/purdue.ipynb
           - workshops/cn_workshop.ipynb
