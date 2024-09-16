@@ -7,7 +7,7 @@ import tempfile
 import cv2
 import numpy as np
 from tqdm import tqdm
-
+from typing import List, Optional, Union
 import shapely
 import pyproj
 import rasterio
@@ -3140,3 +3140,383 @@ def download_files(
 
         for file in filepaths:
             os.remove(file)
+
+
+def choose_device(empty_cache: bool = True, quiet: bool = True) -> str:
+    """Choose a device (CPU or GPU) for deep learning.
+
+    Args:
+        empty_cache (bool): Whether to empty the CUDA cache if a GPU is used. Defaults to True.
+        quiet (bool): Whether to suppress device information printout. Defaults to True.
+
+    Returns:
+        str: The device name.
+    """
+    import torch
+
+    # if using Apple MPS, fall back to CPU for unsupported ops
+    os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+
+    # select the device for computation
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+    if not quiet:
+        print(f"Using device: {device}")
+
+    if device.type == "cuda":
+        if empty_cache:
+            torch.cuda.empty_cache()
+        # use bfloat16 for the entire notebook
+        torch.autocast("cuda", dtype=torch.bfloat16).__enter__()
+        # turn on tfloat32 for Ampere GPUs (https://pytorch.org/docs/stable/notes/cuda.html#tensorfloat-32-tf32-on-ampere-devices)
+        if torch.cuda.get_device_properties(0).major >= 8:
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+    elif device.type == "mps":
+        if not quiet:
+            print(
+                "\nSupport for MPS devices is preliminary. SAM 2 is trained with CUDA and might "
+                "give numerically different outputs and sometimes degraded performance on MPS. "
+                "See e.g. https://github.com/pytorch/pytorch/issues/84936 for a discussion."
+            )
+    return device
+
+
+def images_to_video(
+    images: Union[str, List[str]],
+    output_video: str,
+    fps: int = 30,
+    video_size: Optional[tuple] = None,
+) -> None:
+    """
+    Converts a series of images into a video. The input can be either a directory
+    containing the images or a list of image file paths.
+
+    Args:
+        images (Union[str, List[str]]): A directory containing images or a list
+            of image file paths.
+        output_video (str): The filename of the output video (e.g., 'output.mp4').
+        fps (int, optional): Frames per second for the output video. Default is 30.
+        video_size (Optional[tuple], optional): The size (width, height) of the
+            video. If not provided, the size of the first image is used.
+
+    Raises:
+        ValueError: If the provided path is not a directory, if the images list
+            is empty, or if the first image cannot be read.
+
+    Example usage:
+        images_to_video('path_to_image_directory', 'output_video.mp4', fps=30, video_size=(1280, 720))
+        images_to_video(['image1.jpg', 'image2.jpg', 'image3.jpg'], 'output_video.mp4', fps=30)
+    """
+    if isinstance(images, str):
+        if not os.path.isdir(images):
+            raise ValueError(f"The provided path {images} is not a valid directory.")
+
+        # Get all image files in the directory (sorted by filename)
+
+        files = sorted(os.listdir(images))
+        if len(files) == 0:
+            raise ValueError(f"No image files found in the directory {images}")
+        elif files[0].endswith(".tif"):
+            images = geotiff_to_jpg_batch(images)
+
+        images = [
+            os.path.join(images, img)
+            for img in sorted(os.listdir(images))
+            if img.endswith((".jpg", ".png"))
+        ]
+
+    if not isinstance(images, list) or not images:
+        raise ValueError(
+            "The images parameter should either be a non-empty list of image paths or a valid directory."
+        )
+
+    # Read the first image to get the dimensions if video_size is not provided
+    first_image_path = images[0]
+    frame = cv2.imread(first_image_path)
+
+    if frame is None:
+        raise ValueError(f"Error reading the first image {first_image_path}")
+
+    if video_size is None:
+        height, width, _ = frame.shape
+        video_size = (width, height)
+
+    fourcc = cv2.VideoWriter_fourcc(*"avc1")  # Define the codec for mp4
+    video_writer = cv2.VideoWriter(output_video, fourcc, fps, video_size)
+
+    for image_path in images:
+        frame = cv2.imread(image_path)
+        if frame is None:
+            print(f"Warning: Could not read image {image_path}. Skipping.")
+            continue
+
+        if video_size != (frame.shape[1], frame.shape[0]):
+            frame = cv2.resize(frame, video_size)
+
+        video_writer.write(frame)
+
+    video_writer.release()
+    print(f"Video saved as {output_video}")
+
+
+def video_to_images(
+    video_path: str,
+    output_dir: str,
+    frame_rate: Optional[int] = None,
+    prefix: str = "",
+) -> None:
+    """
+    Converts a video into a series of images. Each frame of the video is saved as an image.
+
+    Args:
+        video_path (str): The path to the video file.
+        output_dir (str): The directory where the images will be saved.
+        frame_rate (Optional[int], optional): The number of frames to save per second of video.
+            If None, all frames will be saved. Defaults to None.
+        prefix (str, optional): The prefix for the output image filenames. Defaults to 'frame_'.
+
+    Raises:
+        ValueError: If the video file cannot be read or if the output directory is invalid.
+
+    Example usage:
+        video_to_images('input_video.mp4', 'output_images', frame_rate=1, prefix='image_')
+    """
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    # Open the video file
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise ValueError(f"Error opening video file {video_path}")
+
+    # Get video properties
+    video_fps = int(cap.get(cv2.CAP_PROP_FPS))
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    frame_rate = (
+        frame_rate if frame_rate else video_fps
+    )  # Default to original FPS if not provided
+
+    # Calculate the number of digits based on the total frames (e.g., if total frames are 1000, width = 4)
+    num_digits = len(str(total_frames))
+
+    print(f"Video FPS: {video_fps}")
+    print(f"Total Frames: {total_frames}")
+    print(f"Saving every {video_fps // frame_rate} frame(s)")
+
+    frame_count = 0
+    saved_frame_count = 0
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        # Save frames based on frame_rate
+        if frame_count % (video_fps // frame_rate) == 0:
+            img_path = os.path.join(
+                output_dir, f"{prefix}{saved_frame_count:0{num_digits}d}.jpg"
+            )
+            cv2.imwrite(img_path, frame)
+            saved_frame_count += 1
+            # print(f"Saved {img_path}")
+
+        frame_count += 1
+
+    # Release the video capture object
+    cap.release()
+    print(f"Finished saving {saved_frame_count} images to {output_dir}")
+
+
+def show_image_gui(path: str) -> None:
+    """Show an interactive GUI to explore images.
+    Args:
+        path (str): The path to the image file or directory containing images.
+    """
+
+    from PIL import Image
+    from ipywidgets import interact, IntSlider
+    import matplotlib
+
+    def setup_interactive_matplotlib():
+        """Sets up ipympl backend for interactive plotting in Jupyter."""
+        # Use the ipympl backend for interactive plotting
+        try:
+            import ipympl
+
+            matplotlib.use("module://ipympl.backend_nbagg")
+        except ImportError:
+            print("ipympl is not installed. Falling back to default backend.")
+
+    def load_images_from_folder(folder):
+        """Load all images from the specified folder."""
+        images = []
+        filenames = []
+        for filename in sorted(os.listdir(folder)):
+            if filename.endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif")):
+                img = Image.open(os.path.join(folder, filename))
+                img_array = np.array(img)
+                images.append(img_array)
+                filenames.append(filename)
+        return images, filenames
+
+    def load_single_image(image_path):
+        """Load a single image from the specified image file path."""
+        img = Image.open(image_path)
+        img_array = np.array(img)
+        return [img_array], [
+            os.path.basename(image_path)
+        ]  # Return as lists for consistency
+
+    # Check if the input path is a file or a directory
+    if os.path.isfile(path):
+        images, filenames = load_single_image(path)
+    elif os.path.isdir(path):
+        images, filenames = load_images_from_folder(path)
+    else:
+        print("Invalid path. Please provide a valid image file or directory.")
+        return
+
+    total_images = len(images)
+
+    if total_images == 0:
+        print("No images found.")
+        return
+
+    # Set up interactive plotting
+    setup_interactive_matplotlib()
+
+    fig, ax = plt.subplots()
+    fig.canvas.toolbar_visible = True
+    fig.canvas.header_visible = False
+    fig.canvas.footer_visible = True
+
+    # Display the first image initially
+    im_display = ax.imshow(images[0])
+    ax.set_title(f"Image: {filenames[0]}")
+    plt.tight_layout()
+
+    # Function to update the image when the slider changes (for multiple images)
+    def update_image(image_index):
+        im_display.set_data(images[image_index])
+        ax.set_title(f"Image: {filenames[image_index]}")
+        fig.canvas.draw()
+
+    # Function to show pixel information on click
+    def onclick(event):
+        if event.xdata is not None and event.ydata is not None:
+            col = int(event.xdata)
+            row = int(event.ydata)
+            pixel_value = images[current_image_index][
+                row, col
+            ]  # Use current image index
+            ax.set_title(
+                f"Image: {filenames[current_image_index]} - X: {col}, Y: {row}, Pixel Value: {pixel_value}"
+            )
+            fig.canvas.draw()
+
+    # Track the current image index (whether from slider or for single image)
+    current_image_index = 0
+
+    # Slider widget to choose between images (only if there is more than one image)
+    if total_images > 1:
+        slider = IntSlider(min=0, max=total_images - 1, step=1, description="Image")
+
+        def on_slider_change(change):
+            nonlocal current_image_index
+            current_image_index = change["new"]  # Update current image index
+            update_image(current_image_index)
+
+        slider.observe(on_slider_change, names="value")
+        fig.canvas.mpl_connect("button_press_event", onclick)
+        interact(update_image, image_index=slider)
+    else:
+        # If there's only one image, no need for a slider, just show pixel info on click
+        fig.canvas.mpl_connect("button_press_event", onclick)
+
+    # Show the plot
+    plt.show()
+
+
+def make_temp_dir(**kwargs) -> str:
+    """Create a temporary directory and return the path.
+
+    Returns:
+        str: The path to the temporary directory.
+    """
+    import tempfile
+
+    temp_dir = tempfile.mkdtemp(**kwargs)
+    return temp_dir
+
+
+def geotiff_to_jpg(geotiff_path: str, output_path: str) -> None:
+    """Convert a GeoTIFF file to a JPG file.
+
+    Args:
+        geotiff_path (str): The path to the input GeoTIFF file.
+        output_path (str): The path to the output JPG file.
+    """
+
+    from PIL import Image
+
+    # Open the GeoTIFF file
+    with rasterio.open(geotiff_path) as src:
+        # Read the first band (for grayscale) or all bands
+        array = src.read()
+
+        # If the array has more than 3 bands, reduce it to the first 3 (RGB)
+        if array.shape[0] >= 3:
+            array = array[:3, :, :]  # Select the first 3 bands (R, G, B)
+        elif array.shape[0] == 1:
+            # For single-band images, repeat the band to create a grayscale RGB
+            array = np.repeat(array, 3, axis=0)
+
+        # Transpose the array from (bands, height, width) to (height, width, bands)
+        array = np.transpose(array, (1, 2, 0))
+
+        # Normalize the array to 8-bit (0-255) range for JPG
+        array = array.astype(np.float32)
+        array -= array.min()
+        array /= array.max()
+        array *= 255
+        array = array.astype(np.uint8)
+
+        # Convert to a PIL Image and save as JPG
+        image = Image.fromarray(array)
+        image.save(output_path)
+
+
+def geotiff_to_jpg_batch(input_folder: str, output_folder: str = None) -> str:
+    """Convert all GeoTIFF files in a folder to JPG files.
+
+    Args:
+        input_folder (str): The path to the folder containing GeoTIFF files.
+        output_folder (str): The path to the folder to save the output JPG files.
+
+    Returns:
+        str: The path to the output folder containing the JPG files.
+    """
+
+    if output_folder is None:
+        output_folder = make_temp_dir()
+
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    geotiff_files = [
+        f for f in os.listdir(input_folder) if f.endswith(".tif") or f.endswith(".tiff")
+    ]
+
+    # Initialize tqdm progress bar
+    for filename in tqdm(geotiff_files, desc="Converting GeoTIFF to JPG"):
+        geotiff_path = os.path.join(input_folder, filename)
+        jpg_filename = os.path.splitext(filename)[0] + ".jpg"
+        output_path = os.path.join(output_folder, jpg_filename)
+        geotiff_to_jpg(geotiff_path, output_path)
+
+    return output_folder

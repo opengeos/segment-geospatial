@@ -1,6 +1,7 @@
 gdown
 geopandas
 huggingface_hub
+ipympl
 leafmap
 localtileserver
 matplotlib
