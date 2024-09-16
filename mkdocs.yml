@@ -61,6 +61,7 @@ nav:
           - examples/swimming_pools.ipynb
           - examples/arcgis.ipynb
           - examples/maxar_open_data.ipynb
+          - examples/sam2_automatic.ipynb
     - Workshops:
           - workshops/purdue.ipynb
           - workshops/cn_workshop.ipynb

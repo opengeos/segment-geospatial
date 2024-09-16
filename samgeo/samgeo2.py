@@ -248,8 +248,6 @@ class SamGeo2:
                 output, foreground, unique, erosion_kernel, mask_multiplier, **kwargs
             )
 
-        return masks
-
     def save_masks(
         self,
         output: Optional[str] = None,
@@ -1467,3 +1465,17 @@ class SamGeo2:
                     show_mask(mask, plt.gca(), obj_id=obj_id)
 
         plt.show()
+
+    def raster_to_vector(self, raster, vector, simplify_tolerance=None, **kwargs):
+        """Convert a raster image file to a vector dataset.
+
+        Args:
+            raster (str): The path to the raster image.
+            output (str): The path to the vector file.
+            simplify_tolerance (float, optional): The maximum allowed geometry displacement.
+                The higher this value, the smaller the number of vertices in the resulting geometry.
+        """
+
+        common.raster_to_vector(
+            raster, vector, simplify_tolerance=simplify_tolerance, **kwargs
+        )

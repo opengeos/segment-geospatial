@@ -1,3 +1,4 @@
+fiona
 gdown
 geopandas
 huggingface_hub
