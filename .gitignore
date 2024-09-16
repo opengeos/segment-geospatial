@@ -14,6 +14,10 @@ private/
 # **/*.png
 **/*.csv
 **/*.pt
+*.mp4
+docs/examples/segments/
+docs/examples/blended/
+
 docs/examples/*.geojson
 
 # C extensions
@@ -119,3 +123,4 @@ ENV/
 docs/examples/segment.cpg
 docs/examples/segment.prj
 docs/changelog_update.md
+docs/examples/landsat_ts.zip
