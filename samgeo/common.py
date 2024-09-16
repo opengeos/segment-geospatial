@@ -3433,3 +3433,83 @@ def show_image_gui(path: str) -> None:
 
     # Show the plot
     plt.show()
+
+
+def make_temp_dir(**kwargs) -> str:
+    """Create a temporary directory and return the path.
+
+    Returns:
+        str: The path to the temporary directory.
+    """
+    import tempfile
+
+    temp_dir = tempfile.mkdtemp(**kwargs)
+    return temp_dir
+
+
+def geotiff_to_jpg(geotiff_path: str, output_path: str) -> None:
+    """Convert a GeoTIFF file to a JPG file.
+
+    Args:
+        geotiff_path (str): The path to the input GeoTIFF file.
+        output_path (str): The path to the output JPG file.
+    """
+
+    from PIL import Image
+
+    # Open the GeoTIFF file
+    with rasterio.open(geotiff_path) as src:
+        # Read the first band (for grayscale) or all bands
+        array = src.read()
+
+        # If the array has more than 3 bands, reduce it to the first 3 (RGB)
+        if array.shape[0] >= 3:
+            array = array[:3, :, :]  # Select the first 3 bands (R, G, B)
+        elif array.shape[0] == 1:
+            # For single-band images, repeat the band to create a grayscale RGB
+            array = np.repeat(array, 3, axis=0)
+
+        # Transpose the array from (bands, height, width) to (height, width, bands)
+        array = np.transpose(array, (1, 2, 0))
+
+        # Normalize the array to 8-bit (0-255) range for JPG
+        array = array.astype(np.float32)
+        array -= array.min()
+        array /= array.max()
+        array *= 255
+        array = array.astype(np.uint8)
+
+        # Convert to a PIL Image and save as JPG
+        image = Image.fromarray(array)
+        image.save(output_path)
+
+
+def geotiff_to_jpg_batch(input_folder: str, output_folder: str = None) -> str:
+    """Convert all GeoTIFF files in a folder to JPG files.
+
+    Args:
+        input_folder (str): The path to the folder containing GeoTIFF files.
+        output_folder (str): The path to the folder to save the output JPG files.
+
+    Returns:
+        str: The path to the output folder containing the JPG files.
+    """
+
+    if output_folder is None:
+        output_folder = make_temp_dir()
+
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    geotiff_files = [
+        f for f in os.listdir(input_folder) if f.endswith(".tif") or f.endswith(".tiff")
+    ]
+
+    # Initialize tqdm progress bar
+    for filename in tqdm(geotiff_files, desc="Converting GeoTIFF to JPG"):
+        geotiff_path = os.path.join(input_folder, filename)
+        jpg_filename = os.path.splitext(filename)[0] + ".jpg"
+        output_path = os.path.join(output_folder, jpg_filename)
+        geotiff_to_jpg(geotiff_path, output_path)
+
+    return output_folder

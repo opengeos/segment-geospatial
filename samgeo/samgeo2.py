@@ -1071,7 +1071,6 @@ class SamGeo2:
             step (int, optional): The step size. Defaults to 1.
             frame_rate (Optional[int], optional): The frame rate. Defaults to None.
         """
-        import tempfile
 
         if isinstance(video_path, str):
             if video_path.startswith("http"):
@@ -1079,7 +1078,7 @@ class SamGeo2:
             if os.path.isfile(video_path):
 
                 if output_dir is None:
-                    output_dir = tempfile.mkdtemp()
+                    output_dir = common.make_temp_dir()
                     if not os.path.exists(output_dir):
                         os.makedirs(output_dir)
                 print(f"Output directory: {output_dir}")
@@ -1088,6 +1087,14 @@ class SamGeo2:
                 )
 
             elif os.path.isdir(video_path):
+                files = sorted(os.listdir(video_path))
+                if len(files) == 0:
+                    raise ValueError(f"No files found in {video_path}.")
+                elif files[0].endswith(".tif"):
+                    self._tif_source = os.path.join(video_path, files[0])
+                    self._tif_dir = video_path
+                    self._tif_names = files
+                    video_path = common.geotiff_to_jpg_batch(video_path)
                 output_dir = video_path
 
             if not os.path.exists(video_path):
@@ -1189,7 +1196,9 @@ class SamGeo2:
         """
         from PIL import Image
 
-        def save_image_from_dict(data, output_path="output_image.png"):
+        def save_image_from_dict(
+            data, output_path="output_image.png", crs_source=None, **kwargs
+        ):
             # Find the shape of the first array in the dictionary (assuming all arrays have the same shape)
             array_shape = next(iter(data.values())).shape[1:]
 
@@ -1201,26 +1210,40 @@ class SamGeo2:
                 # Assign the key value wherever the boolean array is True
                 output_array[array[0]] = key
 
-            # Convert the output array to a PIL image
-            image = Image.fromarray(output_array)
+            if crs_source is None:
+                # Convert the output array to a PIL image
+                image = Image.fromarray(output_array)
 
-            # Save the image
-            image.save(output_path)
-
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+                # Save the image
+                image.save(output_path)
+            else:
+                output_path = output_path.replace(".png", ".tif")
+                common.array_to_image(output_array, output_path, crs_source, **kwargs)
 
         num_frames = len(self.video_segments)
         num_digits = len(str(num_frames))
+
+        if hasattr(self, "_tif_source") and self._tif_source.endswith(".tif"):
+            crs_source = self._tif_source
+            filenames = self._tif_names
+        else:
+            crs_source = None
+            filenames = None
+
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
 
         # Initialize the tqdm progress bar
         for frame_idx, video_segment in tqdm(
             self.video_segments.items(), desc="Rendering frames", total=num_frames
         ):
-            output_path = os.path.join(
-                output_dir, f"{str(frame_idx).zfill(num_digits)}.{img_ext}"
-            )
-            save_image_from_dict(video_segment, output_path)
+            if filenames is None:
+                output_path = os.path.join(
+                    output_dir, f"{str(frame_idx).zfill(num_digits)}.{img_ext}"
+                )
+            else:
+                output_path = os.path.join(output_dir, filenames[frame_idx])
+            save_image_from_dict(video_segment, output_path, crs_source)
 
     def save_video_segments_blended(
         self,
@@ -1390,7 +1413,10 @@ class SamGeo2:
         prompts = self._convert_prompts(prompts)
         video_dir = self.video_path
         frame_names = self._frame_names
-        plt.figure(figsize=figsize)
+        fig = plt.figure(figsize=figsize)
+        fig.canvas.toolbar_visible = True
+        fig.canvas.header_visible = False
+        fig.canvas.footer_visible = True
         plt.title(f"frame {frame_idx}")
         plt.imshow(Image.open(os.path.join(video_dir, frame_names[frame_idx])))
 
@@ -1406,3 +1432,5 @@ class SamGeo2:
                     show_box(box, plt.gca())
                 if mask is not None:
                     show_mask(mask, plt.gca(), obj_id=obj_id)
+
+        plt.show()
