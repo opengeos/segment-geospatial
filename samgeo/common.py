@@ -3217,6 +3217,13 @@ def images_to_video(
             raise ValueError(f"The provided path {images} is not a valid directory.")
 
         # Get all image files in the directory (sorted by filename)
+
+        files = sorted(os.listdir(images))
+        if len(files) == 0:
+            raise ValueError(f"No image files found in the directory {images}")
+        elif files[0].endswith(".tif"):
+            images = geotiff_to_jpg_batch(images)
+
         images = [
             os.path.join(images, img)
             for img in sorted(os.listdir(images))
