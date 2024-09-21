@@ -16,9 +16,9 @@ jobs:
               uses: conda-incubator/setup-miniconda@v3
               with:
                   auto-activate-base: true
-                  python-version: "3.10"
+                  python-version: "3.12"
             - name: Install GDAL
-              run: conda install -c conda-forge gdal=3.4.0 --yes
+              run: conda install -c conda-forge gdal --yes
             - name: Test GDAL installation
               run: |
                   python -c "from osgeo import gdal"

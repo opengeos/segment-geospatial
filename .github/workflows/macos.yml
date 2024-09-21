@@ -15,28 +15,51 @@ jobs:
             fail-fast: false
             matrix:
                 config:
-                    - { os: macOS-latest, py: "3.11" }
+                    - { os: macOS-latest, py: "3.12" }
+        defaults:
+            run:
+                shell: bash -el {0}
         env:
             SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
         steps:
-            - name: CHECKOUT CODE
-              uses: actions/checkout@v4
-            - name: SETUP PYTHON
-              uses: actions/setup-python@v5
+            - uses: actions/checkout@v4
+
+            - name: Setup Python
+              uses: conda-incubator/setup-miniconda@v3
               with:
+                  auto-activate-base: true
                   python-version: ${{ matrix.config.py }}
-            # - name: Install GDAL
-            #   run: |
-            #       python -m pip install --upgrade pip
-            #       pip install --no-cache-dir Cython
-            #       pip install --find-links=https://girder.github.io/large_image_wheels --no-cache GDAL
-            # - name: Test GDAL installation
-            #   run: |
-            #       python -c "from osgeo import gdal"
-            #       gdalinfo --version
+                  channels: conda-forge,defaults
+                  channel-priority: true
+                  miniconda-version: latest
+
+            - name: Cache dependencies
+              uses: actions/cache@v4
+              with:
+                  path: ~/.cache/pip
+                  key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+                  restore-keys: |
+                      ${{ runner.os }}-pip-
+
+            - name: Testing conda
+              run: |
+                  conda info
+                  conda list
+
+            - name: Install GDAL
+              run: |
+                  conda install -c conda-forge mamba --yes
+                  mamba install -c conda-forge gdal pyproj --yes
+
+            - name: Test GDAL installation
+              run: |
+                  python -c "from osgeo import gdal"
+                  gdalinfo --version
+
             - name: Install dependencies
               run: |
-                  python -m pip install --upgrade pip
-                  pip install --no-cache-dir Cython
-                  pip install codespell -r requirements.txt
+                  pip install -r requirements.txt
                   pip install .
+
+            - name: Test import
+              run: python -c "import samgeo; print('samgeo import successful')"
