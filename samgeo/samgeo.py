@@ -222,11 +222,10 @@ class SamGeo:
         self.masks = masks  # Store the masks as a list of dictionaries
         self.batch = False
 
-        if output is not None:
-            # Save the masks to the output path. The output is either a binary mask or a mask of objects with unique values.
-            self.save_masks(
-                output, foreground, unique, erosion_kernel, mask_multiplier, **kwargs
-            )
+        # Save the masks to the output path. The output is either a binary mask or a mask of objects with unique values.
+        self.save_masks(
+            output, foreground, unique, erosion_kernel, mask_multiplier, **kwargs
+        )
 
     def save_masks(
         self,
