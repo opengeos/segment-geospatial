@@ -723,7 +723,7 @@ def vector_to_geojson(filename, output=None, **kwargs):
         dict: The geojson dictionary.
     """
 
-    if not filename.startswith("http"):
+    if filename.startswith("http"):
         filename = download_file(filename)
 
     gdf = gpd.read_file(filename, **kwargs)
