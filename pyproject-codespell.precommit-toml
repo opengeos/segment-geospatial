@@ -1,3 +1,0 @@
-[tool.codespell]
-ignore-words-list = "aci,acount,acounts,fallow,ges,hart,hist,nd,ned,ois,wqs,watermask,tre,pres"
-skip="*.csv,*.geojson,*.json,*.yml*.js,*.html,*cff,*.pdf"
