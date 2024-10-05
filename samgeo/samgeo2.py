@@ -293,8 +293,8 @@ class SamGeo2:
 
         # Generate a mask of objects with unique values
         if unique:
-            # Sort the masks by area in ascending order
-            sorted_masks = sorted(masks, key=(lambda x: x["area"]), reverse=False)
+            # Sort the masks by area in descending order
+            sorted_masks = sorted(masks, key=(lambda x: x["area"]), reverse=True)
 
             # Create an output image with the same size as the input image
             objects = np.zeros(
@@ -304,9 +304,10 @@ class SamGeo2:
                 )
             )
             # Assign a unique value to each object
+            count = len(sorted_masks)
             for index, ann in enumerate(sorted_masks):
                 m = ann["segmentation"]
-                objects[m] = index + 1
+                objects[m] = count - index
 
         # Generate a binary mask
         else:
