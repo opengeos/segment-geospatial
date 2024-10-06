@@ -192,6 +192,8 @@ class SamGeo2:
         erosion_kernel: Optional[Tuple[int, int]] = None,
         mask_multiplier: int = 255,
         unique: bool = True,
+        min_size: int = 0,
+        max_size: int = None,
         **kwargs: Any,
     ) -> List[Dict[str, Any]]:
         """
@@ -215,6 +217,8 @@ class SamGeo2:
                 Defaults to True.
                 The unique value increases from 1 to the number of objects. The
                 larger the number, the larger the object area.
+            min_size (int): The minimum size of the object. Defaults to 0.
+            max_size (int): The maximum size of the object. Defaults to None.
             **kwargs (Any): Additional keyword arguments.
 
         Returns:
@@ -241,11 +245,20 @@ class SamGeo2:
         mask_generator = self.mask_generator  # The automatic mask generator
         masks = mask_generator.generate(image)  # Segment the input image
         self.masks = masks  # Store the masks as a list of dictionaries
+        self._min_size = min_size
+        self._max_size = max_size
 
         if output is not None:
             # Save the masks to the output path. The output is either a binary mask or a mask of objects with unique values.
             self.save_masks(
-                output, foreground, unique, erosion_kernel, mask_multiplier, **kwargs
+                output,
+                foreground,
+                unique,
+                erosion_kernel,
+                mask_multiplier,
+                min_size,
+                max_size,
+                **kwargs,
             )
 
     def save_masks(
@@ -255,6 +268,8 @@ class SamGeo2:
         unique: bool = True,
         erosion_kernel: Optional[Tuple[int, int]] = None,
         mask_multiplier: int = 255,
+        min_size: int = 0,
+        max_size: int = None,
         **kwargs: Any,
     ) -> None:
         """Save the masks to the output path. The output is either a binary mask
@@ -275,6 +290,9 @@ class SamGeo2:
                 mask, which is usually a binary mask [0, 1]. You can use this
                 parameter to scale the mask to a larger range, for example
                 [0, 255]. Defaults to 255.
+            min_size (int, optional): The minimum size of the object. Defaults to 0.
+            max_size (int, optional): The maximum size of the object. Defaults to None.
+            **kwargs: Additional keyword arguments for common.array_to_image().
         """
 
         if self.masks is None:
@@ -307,6 +325,10 @@ class SamGeo2:
             count = len(sorted_masks)
             for index, ann in enumerate(sorted_masks):
                 m = ann["segmentation"]
+                if min_size > 0 and ann["area"] < min_size:
+                    continue
+                if max_size is not None and ann["area"] > max_size:
+                    continue
                 objects[m] = count - index
 
         # Generate a binary mask
@@ -318,6 +340,10 @@ class SamGeo2:
             resulting_borders = np.zeros((h, w), dtype=dtype)
 
             for m in masks:
+                if min_size > 0 and m["area"] < min_size:
+                    continue
+                if max_size is not None and m["area"] > max_size:
+                    continue
                 mask = (m["segmentation"] > 0).astype(dtype)
                 resulting_mask += mask
 
@@ -415,6 +441,14 @@ class SamGeo2:
         )
         img[:, :, 3] = 0
         for ann in sorted_anns:
+            if hasattr(self, "_min_size") and (ann["area"] < self._min_size):
+                continue
+            if (
+                hasattr(self, "_max_size")
+                and isinstance(self._max_size, int)
+                and ann["area"] > self._max_size
+            ):
+                continue
             m = ann["segmentation"]
             color_mask = np.concatenate([np.random.random(3), [alpha]])
             img[m] = color_mask
