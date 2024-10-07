@@ -11,7 +11,10 @@ patool
 pycocotools
 pyproj
 rasterio
+rioxarray
 sam2
+scikit-image
+scikit-learn
 segment-anything-hq
 segment-anything-py
 timm
