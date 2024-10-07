@@ -1523,6 +1523,7 @@ class SamGeo2:
         max_size: Optional[int] = None,
         threshold: Optional[int] = None,
         properties: Optional[List[str]] = None,
+        intensity_image: Optional[Union[str, "xr.DataArray", np.ndarray]] = None,
         out_csv: Optional[str] = None,
         out_vector: Optional[str] = None,
         out_image: Optional[str] = None,
@@ -1546,6 +1547,8 @@ class SamGeo2:
             properties (Optional[List[str]], optional): List of properties to measure.
                 See https://scikit-image.org/docs/stable/api/skimage.measure.html#skimage.measure.regionprops
                 Defaults to None.
+            intensity_image (Optional[Union[str, xr.DataArray, np.ndarray]], optional):
+                Intensity image to use for properties. Defaults to None.
             out_csv (Optional[str], optional): Path to save the properties as a CSV file.
                 Defaults to None.
             out_vector (Optional[str], optional): Path to save the vector file.
@@ -1563,6 +1566,7 @@ class SamGeo2:
             max_size=max_size,
             threshold=threshold,
             properties=properties,
+            intensity_image=intensity_image,
             out_csv=out_csv,
             out_vector=out_vector,
             out_image=out_image,

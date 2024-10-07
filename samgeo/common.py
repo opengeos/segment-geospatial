@@ -3529,6 +3529,7 @@ def region_groups(
     max_size: Optional[int] = None,
     threshold: Optional[int] = None,
     properties: Optional[List[str]] = None,
+    intensity_image: Optional[Union[str, "xr.DataArray", np.ndarray]] = None,
     out_csv: Optional[str] = None,
     out_vector: Optional[str] = None,
     out_image: Optional[str] = None,
@@ -3550,6 +3551,8 @@ def region_groups(
         properties (Optional[List[str]], optional): List of properties to measure.
             See https://scikit-image.org/docs/stable/api/skimage.measure.html#skimage.measure.regionprops
             Defaults to None.
+        intensity_image (Optional[Union[str, xr.DataArray, np.ndarray]], optional):
+            Intensity image to measure properties. Defaults to None.
         out_csv (Optional[str], optional): Path to save the properties as a CSV file.
             Defaults to None.
         out_vector (Optional[str], optional): Path to save the vector file.
@@ -3583,6 +3586,17 @@ def region_groups(
     if threshold is None:
         threshold = min_size
 
+    # Define a custom function to calculate median intensity
+    def intensity_median(region, intensity_image):
+        # Extract the intensity values for the region
+        return np.median(intensity_image[region])
+
+    # Add your custom function to the list of extra properties
+    if intensity_image is not None:
+        extra_props = (intensity_median,)
+    else:
+        extra_props = None
+
     if properties is None:
         properties = [
             "label",
@@ -3600,8 +3614,33 @@ def region_groups(
             "solidity",
         ]
 
+        if intensity_image is not None:
+
+            properties += [
+                "intensity_max",
+                "intensity_mean",
+                "intensity_min",
+                "intensity_std",
+            ]
+
+    if intensity_image is not None:
+        if isinstance(intensity_image, str):
+            ds = rxr.open_rasterio(intensity_image)
+            intensity_da = ds.sel(band=1)
+            intensity_image = intensity_da.values.squeeze()
+        elif isinstance(intensity_image, xr.DataArray):
+            intensity_image = intensity_image.values.squeeze()
+        elif isinstance(intensity_image, np.ndarray):
+            pass
+        else:
+            raise ValueError(
+                "The intensity_image must be a file path, xarray DataArray, or numpy array."
+            )
+
     label_image = measure.label(array, connectivity=connectivity)
-    props = measure.regionprops_table(label_image, properties=properties)
+    props = measure.regionprops_table(
+        label_image, properties=properties, intensity_image=intensity_image, **kwargs
+    )
 
     df = pd.DataFrame(props)
 
@@ -3654,7 +3693,13 @@ def region_groups(
     label_image, num_labels = measure.label(
         label_image, connectivity=connectivity, return_num=True
     )
-    props = measure.regionprops_table(label_image, properties=properties)
+    props = measure.regionprops_table(
+        label_image,
+        properties=properties,
+        intensity_image=intensity_image,
+        extra_properties=extra_props,
+        **kwargs,
+    )
 
     df = pd.DataFrame(props)
     df["elongation"] = df["axis_major_length"] / df["axis_minor_length"]
