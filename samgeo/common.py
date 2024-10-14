@@ -647,7 +647,7 @@ def tms_to_geotiff(
         gtiff.SetGeoTransform((min(xp0, xp1), pwidth, 0, max(yp0, yp1), 0, -pheight))
         gtiff.SetProjection(WKT_3857)
         for band in range(imgbands):
-            array = numpy.array(img.getdata(band), dtype="u8")
+            array = np.array(img.getdata(band), dtype="u8")
             array = array.reshape((img.size[1], img.size[0]))
             band = gtiff.GetRasterBand(band + 1)
             band.WriteArray(array)
