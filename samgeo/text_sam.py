@@ -15,6 +15,7 @@ from segment_anything import sam_model_registry
 from segment_anything import SamPredictor
 from huggingface_hub import hf_hub_download
 from .common import *
+from .samgeo2 import SamGeo2
 
 try:
     import rasterio
@@ -115,8 +116,11 @@ class LangSAM:
         """Initialize the LangSAM instance.
 
         Args:
-            model_type (str, optional): The model type. It can be one of the following: vit_h, vit_l, vit_b.
+            model_type (str, optional): The model type. It can be one of the SAM 1
+                models () vit_h, vit_l, vit_b) or SAM 2 models (sam2-hiera-tiny,
+                sam2-hiera-small, sam2-hiera-base-plus, sam2-hiera-large)
                 Defaults to 'vit_h'. See https://bit.ly/3VrpxUh for more details.
+            checkpoint_url (str, optional): The URL to the checkpoint file. Defaults to None
         """
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -135,19 +139,33 @@ class LangSAM:
         """Build the SAM model.
 
         Args:
-            model_type (str, optional): The model type. It can be one of the following: vit_h, vit_l, vit_b.
+            model_type (str, optional): The model type. It can be one of the SAM 1
+                models () vit_h, vit_l, vit_b) or SAM 2 models (sam2-hiera-tiny,
+                sam2-hiera-small, sam2-hiera-base-plus, sam2-hiera-large)
                 Defaults to 'vit_h'. See https://bit.ly/3VrpxUh for more details.
-            checkpoint_url:
+            checkpoint_url (str, optional): The URL to the checkpoint file. Defaults to None
         """
-        if checkpoint_url is not None:
-            sam = sam_model_registry[model_type](checkpoint=checkpoint_url)
-        else:
-            checkpoint_url = SAM_MODELS[model_type]
-            sam = sam_model_registry[model_type]()
-            state_dict = torch.hub.load_state_dict_from_url(checkpoint_url)
-            sam.load_state_dict(state_dict, strict=True)
-        sam.to(device=self.device)
-        self.sam = SamPredictor(sam)
+        sam1_models = ["vit_h", "vit_l", "vit_b"]
+        sam2_models = [
+            "sam2-hiera-tiny",
+            "sam2-hiera-small",
+            "sam2-hiera-base-plus",
+            "sam2-hiera-large",
+        ]
+        if model_type in sam1_models:
+            if checkpoint_url is not None:
+                sam = sam_model_registry[model_type](checkpoint=checkpoint_url)
+            else:
+                checkpoint_url = SAM_MODELS[model_type]
+                sam = sam_model_registry[model_type]()
+                state_dict = torch.hub.load_state_dict_from_url(checkpoint_url)
+                sam.load_state_dict(state_dict, strict=True)
+            sam.to(device=self.device)
+            self.sam = SamPredictor(sam)
+            self._sam_version = 1
+        elif model_type in sam2_models:
+            self.sam = SamGeo2(model_id=model_type, device=self.device, automatic=False)
+            self._sam_version = 2
 
     def build_groundingdino(self):
         """Build the GroundingDINO model."""
@@ -197,18 +215,29 @@ class LangSAM:
         Returns:
             Masks tensor.
         """
-        image_array = np.asarray(image)
-        self.sam.set_image(image_array)
-        transformed_boxes = self.sam.transform.apply_boxes_torch(
-            boxes, image_array.shape[:2]
-        )
-        masks, _, _ = self.sam.predict_torch(
-            point_coords=None,
-            point_labels=None,
-            boxes=transformed_boxes.to(self.sam.device),
-            multimask_output=False,
-        )
-        return masks.cpu()
+        if self._sam_version == 1:
+            image_array = np.asarray(image)
+            self.sam.set_image(image_array)
+            transformed_boxes = self.sam.transform.apply_boxes_torch(
+                boxes, image_array.shape[:2]
+            )
+            masks, _, _ = self.sam.predict_torch(
+                point_coords=None,
+                point_labels=None,
+                boxes=transformed_boxes.to(self.sam.device),
+                multimask_output=False,
+            )
+            return masks.cpu()
+        elif self._sam_version == 2:
+            self.sam.set_image(self.source)
+            self.sam.boxes = boxes.numpy().tolist()
+            masks, _, _ = self.sam.predict(
+                boxes=boxes.numpy().tolist(),
+                multimask_output=False,
+                return_results=True,
+            )
+            self.masks = masks
+            return masks
 
     def set_image(self, image):
         """Set the input image.
@@ -308,7 +337,8 @@ class LangSAM:
         masks = torch.tensor([])
         if len(boxes) > 0:
             masks = self.predict_sam(image_pil, boxes)
-            masks = masks.squeeze(1)
+            if 1 in masks.shape:
+                masks = masks.squeeze(1)
 
         if boxes.nelement() == 0:  # No "object" instances found
             print("No objects found in the image.")
@@ -563,6 +593,64 @@ class LangSAM:
             leafmap.Map: The map object.
         """
         return text_sam_gui(self, basemap=basemap, out_dir=out_dir, **kwargs)
+
+    def region_groups(
+        self,
+        image: Union[str, "xr.DataArray", np.ndarray],
+        connectivity: int = 1,
+        min_size: int = 10,
+        max_size: Optional[int] = None,
+        threshold: Optional[int] = None,
+        properties: Optional[List[str]] = None,
+        intensity_image: Optional[Union[str, "xr.DataArray", np.ndarray]] = None,
+        out_csv: Optional[str] = None,
+        out_vector: Optional[str] = None,
+        out_image: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Union[
+        Tuple[np.ndarray, "pd.DataFrame"], Tuple["xr.DataArray", "pd.DataFrame"]
+    ]:
+        """
+        Segment regions in an image and filter them based on size.
+
+        Args:
+            image (Union[str, xr.DataArray, np.ndarray]): Input image, can be a file
+                path, xarray DataArray, or numpy array.
+            connectivity (int, optional): Connectivity for labeling. Defaults to 1
+                for 4-connectivity. Use 2 for 8-connectivity.
+            min_size (int, optional): Minimum size of regions to keep. Defaults to 10.
+            max_size (Optional[int], optional): Maximum size of regions to keep.
+                Defaults to None.
+            threshold (Optional[int], optional): Threshold for filling holes.
+                Defaults to None, which is equal to min_size.
+            properties (Optional[List[str]], optional): List of properties to measure.
+                See https://scikit-image.org/docs/stable/api/skimage.measure.html#skimage.measure.regionprops
+                Defaults to None.
+            intensity_image (Optional[Union[str, xr.DataArray, np.ndarray]], optional):
+                Intensity image to use for properties. Defaults to None.
+            out_csv (Optional[str], optional): Path to save the properties as a CSV file.
+                Defaults to None.
+            out_vector (Optional[str], optional): Path to save the vector file.
+                Defaults to None.
+            out_image (Optional[str], optional): Path to save the output image.
+                Defaults to None.
+
+        Returns:
+            Union[Tuple[np.ndarray, pd.DataFrame], Tuple[xr.DataArray, pd.DataFrame]]: Labeled image and properties DataFrame.
+        """
+        return self.sam.region_groups(
+            image,
+            connectivity=connectivity,
+            min_size=min_size,
+            max_size=max_size,
+            threshold=threshold,
+            properties=properties,
+            intensity_image=intensity_image,
+            out_csv=out_csv,
+            out_vector=out_vector,
+            out_image=out_image,
+            **kwargs,
+        )
 
 
 def main():
