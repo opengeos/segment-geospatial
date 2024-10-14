@@ -64,6 +64,7 @@ nav:
           - examples/sam2_automatic.ipynb
           - examples/sam2_predictor.ipynb
           - examples/sam2_video.ipynb
+          - examples/sam2_box_prompts.ipynb
     - Workshops:
           - workshops/purdue.ipynb
           - workshops/cn_workshop.ipynb
