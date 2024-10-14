@@ -657,42 +657,21 @@ class SamGeo2:
         if isinstance(boxes, list) and (point_crs is not None):
             coords = common.bbox_to_xy(self.source, boxes, point_crs)
             input_boxes = np.array(coords)
-            if isinstance(coords[0], int):
-                input_boxes = input_boxes[None, :]
-            else:
-                input_boxes = torch.tensor(input_boxes, device=self.device)
-                input_boxes = predictor.transform.apply_boxes_torch(
-                    input_boxes, self.image.shape[:2]
-                )
+
         elif isinstance(boxes, list) and (point_crs is None):
             input_boxes = np.array(boxes)
-            if isinstance(boxes[0], int):
-                input_boxes = input_boxes[None, :]
 
         self.boxes = input_boxes
 
-        if (
-            boxes is None
-            or (len(boxes) == 1)
-            or (len(boxes) == 4 and isinstance(boxes[0], float))
-        ):
-            if isinstance(boxes, list) and isinstance(boxes[0], list):
-                boxes = boxes[0]
-            masks, scores, logits = predictor.predict(
-                point_coords,
-                point_labels,
-                input_boxes,
-                mask_input,
-                multimask_output,
-                return_logits,
-            )
-        else:
-            masks, scores, logits = predictor.predict_torch(
-                point_coords=point_coords,
-                point_labels=point_coords,
-                boxes=input_boxes,
-                multimask_output=True,
-            )
+        masks, scores, logits = predictor.predict(
+            point_coords=point_coords,
+            point_labels=point_labels,
+            box=input_boxes,
+            mask_input=mask_input,
+            multimask_output=multimask_output,
+            return_logits=return_logits,
+            normalize_coords=normalize_coords,
+        )
 
         self.masks = masks
         self.scores = scores
@@ -708,16 +687,6 @@ class SamGeo2:
 
         if return_results:
             return masks, scores, logits
-
-        return self.predictor.predict(
-            point_coords=point_coords,
-            point_labels=point_labels,
-            box=boxes,
-            mask_input=mask_input,
-            multimask_output=multimask_output,
-            return_logits=return_logits,
-            normalize_coords=normalize_coords,
-        )
 
     def predict_batch(
         self,
@@ -933,10 +902,11 @@ class SamGeo2:
         image_np = np.array(image_pil)
 
         if index is None:
-            index = 1
+            index = 0
 
         masks = masks[:, index, :, :]
-        masks = masks.squeeze(1)
+        if len(masks.shape) == 4 and masks.shape[1] == 1:
+            masks = masks.squeeze(1)
 
         if boxes is None or (len(boxes) == 0):  # No "object" instances found
             print("No objects found in the image.")
