@@ -14,8 +14,6 @@ import rasterio
 import geopandas as gpd
 import matplotlib.pyplot as plt
 
-os.environ["GOOGLE_MAPS_API_KEY"] = "API-KEY"
-
 
 def is_colab():
     """Tests if the code is being executed within Google Colab."""
