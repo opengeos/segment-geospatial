@@ -795,25 +795,38 @@ def geojson_to_coords(
 
 def coords_to_xy(
     src_fp: str,
-    coords: list,
+    coords: np.ndarray,
     coord_crs: str = "epsg:4326",
     return_out_of_bounds=False,
     **kwargs,
-) -> list:
-    """Converts a list of coordinates to pixel coordinates, i.e., (col, row) coordinates.
+) -> np.ndarray:
+    """Converts a list or array of coordinates to pixel coordinates, i.e., (col, row) coordinates.
 
     Args:
         src_fp: The source raster file path.
-        coords: A list of coordinates in the format of [[x1, y1], [x2, y2], ...]
+        coords: A 2D or 3D array of coordinates. Can be of shape [[x1, y1], [x2, y2], ...]
+                or [[[x1, y1]], [[x2, y2]], ...].
         coord_crs: The coordinate CRS of the input coordinates. Defaults to "epsg:4326".
-        return_out_of_bounds: Whether to return out of bounds coordinates. Defaults to False.
+        return_out_of_bounds: Whether to return out-of-bounds coordinates. Defaults to False.
         **kwargs: Additional keyword arguments to pass to rasterio.transform.rowcol.
 
     Returns:
-        A list of pixel coordinates in the format of [[x1, y1], [x2, y2], ...]
+        A 2D or 3D array of pixel coordinates in the same format as the input.
     """
-    out_of_bounds = []
+    from rasterio.warp import transform as transform_coords
 
+    out_of_bounds = []
+    if isinstance(coords, np.ndarray):
+        input_is_3d = coords.ndim == 3  # Check if the input is a 3D array
+    else:
+        input_is_3d = False
+
+    # Flatten the 3D array to 2D if necessary
+    if input_is_3d:
+        original_shape = coords.shape  # Store the original shape
+        coords = coords.reshape(-1, 2)  # Flatten to 2D
+
+    # Convert ndarray to a list if necessary
     if isinstance(coords, np.ndarray):
         coords = coords.tolist()
 
@@ -822,8 +835,9 @@ def coords_to_xy(
         width = src.width
         height = src.height
         if coord_crs != src.crs:
-            xs, ys = transform_coords(xs, ys, coord_crs, src.crs, **kwargs)
+            xs, ys = transform_coords(coord_crs, src.crs, xs, ys, **kwargs)
         rows, cols = rasterio.transform.rowcol(src.transform, xs, ys, **kwargs)
+
     result = [[col, row] for col, row in zip(cols, rows)]
 
     output = []
@@ -834,9 +848,12 @@ def coords_to_xy(
         else:
             out_of_bounds.append(i)
 
-    # output = [
-    #     [x, y] for x, y in result if x >= 0 and y >= 0 and x < width and y < height
-    # ]
+    # Convert the output back to the original shape if input was 3D
+    output = np.array(output)
+    if input_is_3d:
+        output = output.reshape(original_shape)
+
+    # Handle cases where no valid pixel coordinates are found
     if len(output) == 0:
         print("No valid pixel coordinates found.")
     elif len(output) < len(coords):

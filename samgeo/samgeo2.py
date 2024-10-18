@@ -43,7 +43,7 @@ class SamGeo2:
         min_mask_region_area: int = 0,
         output_mode: str = "binary_mask",
         use_m2m: bool = False,
-        multimask_output: bool = True,
+        multimask_output: bool = False,
         max_hole_area: float = 0.0,
         max_sprinkle_area: float = 0.0,
         **kwargs: Any,
@@ -100,6 +100,7 @@ class SamGeo2:
                 memory.
             use_m2m (bool): Whether to add a one step refinement using previous mask predictions.
             multimask_output (bool): Whether to output multimask at each point of the grid.
+                Defaults to False.
             max_hole_area (int): If max_hole_area > 0, we fill small holes in up to
                 the maximum area of max_hole_area in low_res_masks.
             max_sprinkle_area (int): If max_sprinkle_area > 0, we remove small sprinkles up to
@@ -546,7 +547,7 @@ class SamGeo2:
         point_labels: Optional[np.ndarray] = None,
         boxes: Optional[np.ndarray] = None,
         mask_input: Optional[np.ndarray] = None,
-        multimask_output: bool = True,
+        multimask_output: bool = False,
         return_logits: bool = False,
         normalize_coords: bool = True,
         point_crs: Optional[str] = None,
@@ -573,7 +574,7 @@ class SamGeo2:
                 to select the best mask. For non-ambiguous prompts, such as multiple
                 input prompts, multimask_output=False can give better results.
             multimask_output (bool, optional): Whether to output multimask at each
-                point of the grid. Defaults to True.
+                point of the grid. Defaults to False.
             return_logits (bool, optional): If true, returns un-thresholded masks logits
                 instead of a binary mask.
             normalize_coords (bool, optional): Whether to normalize the coordinates.
@@ -688,13 +689,142 @@ class SamGeo2:
         if return_results:
             return masks, scores, logits
 
+    def predict_by_points(
+        self,
+        point_coords_batch: List[np.ndarray] = None,
+        point_labels_batch: List[np.ndarray] = None,
+        box_batch: List[np.ndarray] = None,
+        mask_input_batch: List[np.ndarray] = None,
+        multimask_output: bool = False,
+        return_logits: bool = False,
+        normalize_coords=True,
+        point_crs: Optional[str] = None,
+        output: Optional[str] = None,
+        index: Optional[int] = None,
+        mask_multiplier: int = 255,
+        dtype: str = "float32",
+        return_results: bool = False,
+        **kwargs: Any,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Predict the mask for the input image.
+
+        Args:
+            point_coords (np.ndarray, optional): The point coordinates. Defaults to None.
+            point_labels (np.ndarray, optional): The point labels. Defaults to None.
+            boxes (list | np.ndarray, optional): A length 4 array given a box prompt to the
+                model, in XYXY format.
+            mask_input (np.ndarray, optional): A low resolution mask input to the model, typically
+                coming from a previous prediction iteration. Has form 1xHxW, where for SAM, H=W=256.
+                multimask_output (bool, optional): If true, the model will return three masks.
+                For ambiguous input prompts (such as a single click), this will often
+                produce better masks than a single prediction. If only a single
+                mask is needed, the model's predicted quality score can be used
+                to select the best mask. For non-ambiguous prompts, such as multiple
+                input prompts, multimask_output=False can give better results.
+            multimask_output (bool, optional): Whether to output multimask at each
+                point of the grid. Defaults to True.
+            return_logits (bool, optional): If true, returns un-thresholded masks logits
+                instead of a binary mask.
+            normalize_coords (bool, optional): Whether to normalize the coordinates.
+                Defaults to True.
+            point_crs (str, optional): The coordinate reference system (CRS) of the point prompts.
+            output (str, optional): The path to the output image. Defaults to None.
+            index (index, optional): The index of the mask to save. Defaults to None,
+                which will save the mask with the highest score.
+            mask_multiplier (int, optional): The mask multiplier for the output mask,
+                which is usually a binary mask [0, 1].
+            dtype (np.dtype, optional): The data type of the output image. Defaults to np.float32.
+            return_results (bool, optional): Whether to return the predicted masks,
+                scores, and logits. Defaults to False.
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray, np.ndarray]: The mask, the multimask,
+                and the logits.
+        """
+        import geopandas as gpd
+
+        if hasattr(self, "image_batch") and self.image_batch is not None:
+            pass
+        elif self.image is not None:
+            self.predictor.set_image_batch([self.image])
+            setattr(self, "image_batch", [self.image])
+        else:
+            raise ValueError("Please set the input image first using set_image().")
+
+        if isinstance(point_coords_batch, str) or isinstance(
+            point_coords_batch, gpd.GeoDataFrame
+        ):
+            if isinstance(point_coords_batch, str):
+                gdf = gpd.read_file(point_coords_batch)
+            else:
+                gdf = point_coords_batch
+            if gdf.crs is None and (point_crs is not None):
+                gdf.crs = point_crs
+
+            points = gdf.geometry.apply(lambda geom: [geom.x, geom.y])
+            coordinates_array = np.array([[point] for point in points])
+            points = common.coords_to_xy(self.source, coordinates_array, point_crs)
+            num_points = points.shape[0]
+            if point_labels_batch is None:
+                labels = np.array([[1] for i in range(num_points)])
+            else:
+                labels = point_labels_batch
+
+        elif isinstance(point_coords_batch, list):
+            points = point_coords_batch
+            num_points = points.shape[0]
+            if point_labels_batch is None:
+                labels = np.array([[1] for i in range(num_points)])
+            else:
+                labels = point_labels_batch
+        else:
+            raise ValueError("point_coords must be a list, a GeoDataFrame, or a path.")
+
+        predictor = self.predictor
+
+        masks_batch, scores_batch, logits_batch = predictor.predict_batch(
+            point_coords_batch=[points],
+            point_labels_batch=[labels],
+            box_batch=box_batch,
+            mask_input_batch=mask_input_batch,
+            multimask_output=multimask_output,
+            return_logits=return_logits,
+            normalize_coords=normalize_coords,
+        )
+
+        masks = masks_batch[0]
+        scores = scores_batch[0]
+        logits = logits_batch[0]
+
+        if multimask_output and (index is not None):
+            masks = masks[:, index, :, :]
+
+        if masks.ndim > 3:
+            masks = masks.squeeze()
+
+        output_masks = []
+        sums = np.sum(masks, axis=(1, 2))
+        for index, mask in enumerate(masks):
+            item = {"segmentation": mask.astype("bool"), "area": sums[index]}
+            output_masks.append(item)
+
+        self.masks = output_masks
+        self.scores = scores
+        self.logits = logits
+
+        if output is not None:
+            self.save_prediction(output, index, mask_multiplier, dtype, **kwargs)
+
+        if return_results:
+            return output_masks, scores, logits
+
     def predict_batch(
         self,
         point_coords_batch: List[np.ndarray] = None,
         point_labels_batch: List[np.ndarray] = None,
         box_batch: List[np.ndarray] = None,
         mask_input_batch: List[np.ndarray] = None,
-        multimask_output: bool = True,
+        multimask_output: bool = False,
         return_logits: bool = False,
         normalize_coords=True,
     ) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
@@ -710,7 +840,7 @@ class SamGeo2:
             mask_input_batch (Optional[List[np.ndarray]]): A batch of mask inputs.
                 Defaults to None.
             multimask_output (bool): Whether to output multimask at each point
-                of the grid. Defaults to True.
+                of the grid. Defaults to False.
             return_logits (bool): Whether to return the logits. Defaults to False.
             normalize_coords (bool): Whether to normalize the coordinates.
                 Defaults to True.
