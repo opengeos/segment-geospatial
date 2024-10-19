@@ -2308,7 +2308,7 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
         if change["new"]:
             segment_button.value = False
             reset_button.value = False
-            opacity_slider.value = 0.5
+            opacity_slider.value = 0.7
             rectangular.value = False
             colorpicker.value = "#ffff00"
             output.clear_output()
@@ -2501,7 +2501,7 @@ def text_sam_gui(
     box_threshold=0.25,
     text_threshold=0.25,
     cmap="viridis",
-    opacity=0.5,
+    opacity=0.7,
     **kwargs,
 ):
     """Display the SAM Map GUI.
@@ -2826,7 +2826,7 @@ def text_sam_gui(
             segment_button.value = False
             save_button.value = False
             reset_button.value = False
-            opacity_slider.value = 0.5
+            opacity_slider.value = 0.7
             box_slider.value = 0.25
             text_slider.value = 0.25
             cmap_dropdown.value = "viridis"
