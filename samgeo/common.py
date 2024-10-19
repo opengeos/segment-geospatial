@@ -1931,7 +1931,7 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
         description="Mask opacity:",
         min=0,
         max=1,
-        value=0.5,
+        value=0.7,
         readout=True,
         continuous_update=True,
         layout=widgets.Layout(width=widget_width, padding=padding),
@@ -2182,12 +2182,20 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
 
                         filename = f"masks_{random_string()}.tif"
                         filename = os.path.join(out_dir, filename)
-                        sam.predict(
-                            point_coords=point_coords,
-                            point_labels=point_labels,
-                            point_crs="EPSG:4326",
-                            output=filename,
-                        )
+                        if sam.model_version == "sam":
+                            sam.predict(
+                                point_coords=point_coords,
+                                point_labels=point_labels,
+                                point_crs="EPSG:4326",
+                                output=filename,
+                            )
+                        elif sam.model_version == "sam2":
+                            sam.predict_by_points(
+                                point_coords_batch=point_coords,
+                                point_labels_batch=point_labels,
+                                point_crs="EPSG:4326",
+                                output=filename,
+                            )
                         if m.find_layer("Masks") is not None:
                             m.remove_layer(m.find_layer("Masks"))
                         if m.find_layer("Regularized") is not None:
@@ -2200,18 +2208,16 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
                                 os.remove(sam.prediction_fp)
                             except:
                                 pass
-
                         # Skip the image layer if localtileserver is not available
                         try:
                             m.add_raster(
                                 filename,
                                 nodata=0,
-                                cmap="Blues",
+                                cmap="tab20",
                                 opacity=opacity_slider.value,
                                 layer_name="Masks",
                                 zoom_to_layer=False,
                             )
-
                             if rectangular.value:
                                 vector = filename.replace(".tif", ".gpkg")
                                 vector_rec = filename.replace(".tif", "_rect.gpkg")

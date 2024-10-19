@@ -133,6 +133,7 @@ class SamGeo2:
             hydra_overrides_extra = []
 
         self.model_id = model_id
+        self.model_version = "sam2"
         self.device = device
 
         if video:
@@ -701,8 +702,9 @@ class SamGeo2:
         point_crs: Optional[str] = None,
         output: Optional[str] = None,
         index: Optional[int] = None,
+        unique: bool = True,
         mask_multiplier: int = 255,
-        dtype: str = "float32",
+        dtype: str = "int32",
         return_results: bool = False,
         **kwargs: Any,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -733,7 +735,7 @@ class SamGeo2:
                 which will save the mask with the highest score.
             mask_multiplier (int, optional): The mask multiplier for the output mask,
                 which is usually a binary mask [0, 1].
-            dtype (np.dtype, optional): The data type of the output image. Defaults to np.float32.
+            dtype (np.dtype, optional): The data type of the output image. Defaults to np.int32.
             return_results (bool, optional): Whether to return the predicted masks,
                 scores, and logits. Defaults to False.
 
@@ -771,12 +773,28 @@ class SamGeo2:
                 labels = point_labels_batch
 
         elif isinstance(point_coords_batch, list):
-            points = point_coords_batch
-            num_points = points.shape[0]
+            if point_crs is not None:
+                point_coords_batch = common.coords_to_xy(
+                    self.source, point_coords_batch, point_crs
+                )
+            points = []
+            points.append([[point] for point in point_coords_batch])
+
+            num_points = len(points)
             if point_labels_batch is None:
                 labels = np.array([[1] for i in range(num_points)])
+            elif isinstance(point_labels_batch, list):
+                labels = []
+                labels.append([[label] for label in point_labels_batch])
             else:
                 labels = point_labels_batch
+
+            points = np.array(points[0])
+            labels = np.array(labels[0])
+
+        elif isinstance(point_coords_batch, np.ndarray):
+            points = point_coords_batch
+            labels = point_labels_batch
         else:
             raise ValueError("point_coords must be a list, a GeoDataFrame, or a path.")
 
@@ -813,7 +831,13 @@ class SamGeo2:
         self.logits = logits
 
         if output is not None:
-            self.save_prediction(output, index, mask_multiplier, dtype, **kwargs)
+            self.save_masks(
+                output,
+                foreground=True,
+                unique=unique,
+                mask_multiplier=mask_multiplier,
+                **kwargs,
+            )
 
         if return_results:
             return output_masks, scores, logits
