@@ -73,6 +73,7 @@ class SamGeo:
 
         self.checkpoint = checkpoint
         self.model_type = model_type
+        self.model_version = "sam"
         self.device = device
         self.sam_kwargs = sam_kwargs  # Optional arguments for fine-tuning the SAM model
         self.source = None  # Store the input image path
