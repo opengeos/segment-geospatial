@@ -792,6 +792,7 @@ class SamGeo2:
             elif isinstance(point_labels_batch, list):
                 labels = []
                 labels.append([[label] for label in point_labels_batch])
+                labels = labels[0]
             else:
                 labels = point_labels_batch
 
