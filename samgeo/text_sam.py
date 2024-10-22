@@ -342,7 +342,7 @@ class LangSAM:
             # If boxes = 1, the mask's shape will be [1, height, width] after squeezing.
             if masks.ndim == 4 and masks.shape[1] == 1:
                 masks = masks.squeeze(1)
-                
+
         if boxes.nelement() == 0:  # No "object" instances found
             print("No objects found in the image.")
             mask_overlay = np.zeros_like(
