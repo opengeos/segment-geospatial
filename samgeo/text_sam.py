@@ -342,8 +342,10 @@ class LangSAM:
 
         if boxes.nelement() == 0:  # No "object" instances found
             print("No objects found in the image.")
-            mask_overlay = np.zeros_like(image_np[..., 0], dtype=dtype)  # Create an empty mask overlay
-
+            mask_overlay = np.zeros_like(
+                image_np[..., 0], dtype=dtype
+            )  # Create an empty mask overlay
+        
         else:
             # Create an empty image to store the mask overlays
             mask_overlay = np.zeros_like(
