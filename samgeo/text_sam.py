@@ -345,7 +345,7 @@ class LangSAM:
             mask_overlay = np.zeros_like(
                 image_np[..., 0], dtype=dtype
             )  # Create an empty mask overlay
-        
+
         else:
             # Create an empty image to store the mask overlays
             mask_overlay = np.zeros_like(
