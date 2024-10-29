@@ -2,8 +2,12 @@ FROM jupyter/base-notebook:latest
 LABEL maintainer="Qiusheng Wu"
 LABEL repo="https://github.com/opengeos/segment-geospatial"
 
+USER root
+RUN apt-get update -y && apt-get install libgl1 -y
+
+USER 1000
 RUN mamba install -c conda-forge leafmap localtileserver segment-geospatial -y && \
-    pip install -U segment-geospatial jupyter-server-proxy && \
+    pip install -U segment-geospatial jupyter-server-proxy backports.tarfile && \
     jupyter server extension enable --sys-prefix jupyter_server_proxy && \
     fix-permissions "${CONDA_DIR}" && \
     fix-permissions "/home/${NB_USER}"
