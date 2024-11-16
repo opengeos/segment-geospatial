@@ -11,10 +11,11 @@ repos:
           - id: check-added-large-files
             args: ["--maxkb=500"]
 
-    - repo: https://github.com/psf/black
-      rev: 24.10.0
+    - repo: https://github.com/astral-sh/ruff-pre-commit
+      rev: v0.7.4
       hooks:
-          - id: black-jupyter
+         - id: ruff
+           types_or: [pyi, jupyter]
 
     - repo: https://github.com/codespell-project/codespell
       rev: v2.3.0
