@@ -229,7 +229,12 @@ class LangSAM:
             )
             return masks.cpu()
         elif self._sam_version == 2:
-            self.sam.set_image(self.source)
+
+            if isinstance(self.source, str):
+                self.sam.set_image(self.source)
+            # If no source is set provide PIL image
+            if self.source is None:
+                self.sam.set_image(image)
             self.sam.boxes = boxes.numpy().tolist()
             masks, _, _ = self.sam.predict(
                 boxes=boxes.numpy().tolist(),
