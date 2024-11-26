@@ -7,9 +7,9 @@ RUN apt-get update -y && apt-get install libgl1 -y
 
 USER 1000
 RUN mamba install -c conda-forge leafmap localtileserver segment-geospatial sam2==0.4.1 -y && \
-    mamba update -c conda-forge sqlite -y && \
     pip install -U segment-geospatial jupyter-server-proxy && \
     jupyter server extension enable --sys-prefix jupyter_server_proxy && \
+    mamba update -c conda-forge sqlite -y && \
     fix-permissions "${CONDA_DIR}" && \
     fix-permissions "/home/${NB_USER}"
 
