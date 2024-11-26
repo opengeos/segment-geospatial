@@ -3,7 +3,7 @@ LABEL maintainer="Qiusheng Wu"
 LABEL repo="https://github.com/opengeos/segment-geospatial"
 
 USER root
-RUN apt-get update -y && apt-get install libgl1 -y
+RUN apt-get update -y && apt-get install libgl1 sqlite3 -y
 
 USER 1000
 RUN mamba install -c conda-forge leafmap localtileserver segment-geospatial sam2==0.4.1 -y && \
