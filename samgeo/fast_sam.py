@@ -227,9 +227,9 @@ class SamGeo(FastSAM):
         Returns:
             np.ndarray: The mask of the image.
         """
-
-        target_height = self.image.shape[0]
-        target_width = self.image.shape[1]
+        image = self.prompt_process.img
+        target_height = image.shape[0]
+        target_width = image.shape[1]
         annotations = self.annotations
         annotation = np.array(annotations.cpu())
 
