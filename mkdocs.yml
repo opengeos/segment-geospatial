@@ -72,6 +72,7 @@ nav:
           - workshops/purdue.ipynb
           - workshops/cn_workshop.ipynb
           - workshops/IPPN_2024.ipynb
+          - workshops/AIforGood_2025.ipynb
     - API Reference:
           - common module: common.md
           - samgeo module: samgeo.md
