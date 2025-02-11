@@ -2879,6 +2879,35 @@ def regularize(source, output=None, crs="EPSG:4326", **kwargs):
         return result
 
 
+def simplify(source, tolerance=0.01, output=None, **kwargs):
+    """Simplify a polygon GeoDataFrame.
+
+    Args:
+        source (str | gpd.GeoDataFrame): The input file path or a GeoDataFrame.
+        tolerance (float, optional): The tolerance value for simplification. Defaults to 0.01.
+        output (str, optional): The output file path. Defaults to None.
+
+    Returns:
+        gpd.GeoDataFrame: The output GeoDataFrame.
+    """
+    if isinstance(source, str):
+        gdf = gpd.read_file(source)
+    elif isinstance(source, gpd.GeoDataFrame):
+        gdf = source
+    else:
+        raise ValueError("The input source must be a GeoDataFrame or a file path.")
+
+    polygons = gdf.geometry.apply(
+        lambda geom: geom.simplify(tolerance, preserve_topology=True, **kwargs)
+    )
+    result = gpd.GeoDataFrame(geometry=polygons, data=gdf.drop("geometry", axis=1))
+
+    if output is not None:
+        result.to_file(output)
+    else:
+        return result
+
+
 def split_raster(filename, out_dir, tile_size=256, overlap=0):
     """Split a raster into tiles.
 
