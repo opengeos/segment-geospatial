@@ -1,3 +1,0 @@
-# FER module
-
-::: samgeo.fer
