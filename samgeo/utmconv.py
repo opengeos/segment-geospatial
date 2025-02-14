@@ -1,5 +1,5 @@
 """The module is used to convert between lat/lon and UTM coordinates.
-The source is adapted from https://doi.org/10.6084/m9.figshare.25347187.
+The source code is adapted from https://doi.org/10.6084/m9.figshare.25347187.
 Credits to the original authors Yang et al. (2024).
 Reference: https://doi.org/10.1080/10106049.2024.2370322
 """
