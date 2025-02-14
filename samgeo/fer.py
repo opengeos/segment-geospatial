@@ -1,13 +1,13 @@
-"""The module is used to regularize building footprints.
+"""The module is used to regularize building footprints using the feature
+edge reconstruction algorithm (FER).
 The source code is adapted from https://doi.org/10.6084/m9.figshare.25347187.
 Credits to the original authors Yang et al. (2024).
 Reference: https://doi.org/10.1080/10106049.2024.2370322
 """
 
-import os, shutil, time
+import os, time, shutil
 import math
-from datetime import datetime
-from shapely.geometry import Point, Polygon, LineString, MultiPolygon
+from shapely.geometry import Point, Polygon, LineString
 from shapely.ops import polygonize, unary_union
 from utmconv import latlon2utmxy, deg2rad, utmxy2latlon, rad2deg
 from osgeo import gdal, ogr, osr
@@ -103,13 +103,28 @@ def CheckFileExists(filePath):
 
 
 def ReadVectorLayer(strVectorFile):
+    SUPPORTED_FORMATS = {
+        ".shp": "ESRI Shapefile",
+        ".geojson": "GeoJSON",
+        ".kml": "KML",
+        ".gml": "GML",
+        ".gpkg": "GPKG",
+        ".sqlite": "SQLite",
+        ".csv": "CSV",
+    }
 
-    driver = ogr.GetDriverByName("ESRI Shapefile")
+    ext = os.path.splitext(strVectorFile)[1].lower()
+    driver_name = SUPPORTED_FORMATS.get(ext)
+    if not driver_name:
+        print(f"Unsupported file format: {ext}")
+        return None
+
+    driver = ogr.GetDriverByName(driver_name)
     ds = driver.Open(strVectorFile, 0)
-    if ds == None:
-        print(f"fail!{strVectorFile}")
-        return 0
-    print(f"success!{strVectorFile}")
+    if ds is None:
+        print(f"Failed to open file: {strVectorFile}")
+        return None
+    print(f"Successfully opened file: {strVectorFile}")
     return ds
 
 
@@ -135,16 +150,33 @@ def ReadVectorMessage(ds):
 
 
 def CreateVectorFile(strVectorFile, sourceData):
+    SUPPORTED_FORMATS = {
+        ".shp": "ESRI Shapefile",
+        ".geojson": "GeoJSON",
+        ".kml": "KML",
+        ".gml": "GML",
+        ".gpkg": "GPKG",
+        ".sqlite": "SQLite",
+        ".csv": "CSV",
+    }
+
+    ext = os.path.splitext(strVectorFile)[1].lower()
+    driver_name = SUPPORTED_FORMATS.get(ext)
+    if not driver_name:
+        print(f"Unsupported file format: {ext}")
+        return None
 
     gdal.SetConfigOption("GDAL_FILENAME_IS_UTF8", "YES")
     gdal.SetConfigOption("SHAPE_ENCODING", "UTF-8")
     spatialref, geomtype, fieldlist = sourceData
 
-    driver = ogr.GetDriverByName("ESRI Shapefile")
+    driver = ogr.GetDriverByName(driver_name)
     DeleteVectorFile(driver, strVectorFile)
     ds = driver.CreateDataSource(strVectorFile)
     layer = ds.CreateLayer(
-        os.path.basename(strVectorFile)[:-4], srs=spatialref, geom_type=geomtype
+        os.path.basename(strVectorFile).replace(ext, ""),
+        srs=spatialref,
+        geom_type=geomtype,
     )
     for fd in fieldlist:
         field = ogr.FieldDefn(fd["name"], fd["type"])
@@ -318,7 +350,7 @@ def RecSimilar(polygon):
 
     try:
         minRect = npolygon.minimum_rotated_rectangle
-        print("Minimum rotated rectangle calculated.")
+        # print("Minimum rotated rectangle calculated.")
     except Exception as e:
         print("Error while calculating minimum rotated rectangle:")
         print(e)
@@ -869,17 +901,35 @@ def TranformPrj(igeom, target_srs=None):
     return geom_clone
 
 
-def ReconstructGeom(inputPath, outputPath, tempath, prjFlag):
-    minLength = 6
-    ids = ReadVectorLayer(inputPath)
-    print(ids)
+def regularize(
+    filepath, output, tempath=None, prj_flag=False, min_length=6, min_area=6
+):
+    """
+    Regularize building footprints from a vector file.
+
+    Args:
+        filepath (str): Path to the input vector file.
+        output (str): Path to the output vector file.
+        tempath (str, optional): Path to the temporary directory. Defaults to None.
+        prj_flag (bool, optional): Flag to indicate if projection transformation is needed. Defaults to False.
+        min_length (int, optional): Minimum length for regularization. Defaults to 6.
+        min_area (int, optional): Minimum area for regularization. Defaults to 6.
+
+    Returns:
+        None
+    """
+    ids = ReadVectorLayer(filepath)
     idsMessage = ReadVectorMessage(ids)
     ilayer = ids.GetLayer(0)
-    minArea = 6
     ilayerDefn = ilayer.GetLayerDefn()
     ifeatureCount = ilayer.GetFeatureCount()
     delepolygon = ogr.Geometry(ogr.wkbPolygon)
     r = 0
+
+    if tempath is None:
+        tempath = os.path.join(os.path.dirname(output), "temp")
+    if not os.path.exists(tempath):
+        os.makedirs(tempath)
 
     for i in range(0, ifeatureCount):
 
@@ -894,11 +944,11 @@ def ReconstructGeom(inputPath, outputPath, tempath, prjFlag):
         attrList = GetAttribute(ifeature)
 
         igeom = ifeature.GetGeometryRef()
-        if not prjFlag:
+        if not prj_flag:
             igeom = TranformPrj(igeom)
 
-        aa = igeom.Area()
-        if igeom.Area() < minArea or igeom is None:
+        # aa = igeom.Area()
+        if igeom.Area() < min_area or igeom is None:
             continue
 
         iringCount = igeom.GetGeometryCount()
@@ -911,7 +961,7 @@ def ReconstructGeom(inputPath, outputPath, tempath, prjFlag):
             delepolygon.AddGeometry(iring)
             iringpts = Ring2Pts(iring)
 
-            if delepolygon.Area() < minArea:
+            if delepolygon.Area() < min_area:
                 if oupolygon.GetGeometryCount() > 0:
                     new = 1
                 delepolygon.Empty()
@@ -985,7 +1035,7 @@ def ReconstructGeom(inputPath, outputPath, tempath, prjFlag):
 
             m = 0.5
             rring = sring
-            while m <= minLength:
+            while m <= min_length:
                 svList = FeatureLine(svList, vx, 20, m, averageLength)
 
                 if len(svList) < 4:
@@ -1027,7 +1077,7 @@ def ReconstructGeom(inputPath, outputPath, tempath, prjFlag):
 
     ods.Destroy()
 
-    eds = CreateVectorFile(outputPath, idsMessage)
+    eds = CreateVectorFile(output, idsMessage)
     elayer = eds.GetLayer(0)
     ifeatureList = []
     files = os.listdir(tempath)
@@ -1051,7 +1101,7 @@ def ReconstructGeom(inputPath, outputPath, tempath, prjFlag):
                 oring = ogr.Geometry(ogr.wkbLinearRing)
                 ptCount = iring.GetPointCount()
                 for i in range(ptCount):
-                    if prjFlag:
+                    if prj_flag:
                         x, y = utmxy2latlon(iring.GetX(i), iring.GetY(i), 50, False)
                         x, y = rad2deg(x), rad2deg(y)
                     else:
@@ -1068,17 +1118,15 @@ def ReconstructGeom(inputPath, outputPath, tempath, prjFlag):
         ifileDs.Destroy()
     eds.Destroy()
 
-
-def sim_main(inputPath, outputPath, tempath, prjFlag):
-    ReconstructGeom(inputPath, outputPath, tempath, prjFlag)
+    shutil.rmtree(tempath)
 
 
 if __name__ == "__main__":
     time_begin = time.time()
-    input_path = "/home/qiusheng/Downloads/25347187/building_3857.shp"
-    result_path = "/home/qiusheng/Downloads/25347187/output4.shp"
-    tempath = "/home/qiusheng/Downloads/25347187/temp"
+    input_path = "data/building_vector.geojson"
+    result_path = "data/building_vector_result.gpkg"
+    tempath = "data/temp"
     prjFlag = 0
-    sim_main(input_path, result_path, tempath, prjFlag)
+    regularize(input_path, result_path, tempath, prjFlag)
     time_end = time.time()
     print("Time:%s" % time_interval(time_end, time_begin))

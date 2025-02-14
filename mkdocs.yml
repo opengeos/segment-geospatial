@@ -80,3 +80,4 @@ nav:
           - fast_sam module: fast_sam.md
           - hq_sam module: hq_sam.md
           - text_sam module: text_sam.md
+          - fer module: fer.md
