@@ -18,16 +18,16 @@ repos:
            types_or: [pyi, jupyter]
 
     - repo: https://github.com/codespell-project/codespell
-      rev: v2.3.0
+      rev: v2.4.1
       hooks:
           - id: codespell
             args:
                 [
-                    "--ignore-words-list=aci,acount,acounts,fallow,ges,hart,hist,nd,ned,ois,wqs,watermask,tre,pres",
+                    "--ignore-words-list=aci,acount,acounts,fallow,ges,hart,hist,nd,ned,ois,wqs,watermask,tre,pres,sring",
                     "--skip=*.csv,*.geojson,*.json,*.yml*.js,*.html,*cff,*.pdf",
                 ]
 
     - repo: https://github.com/kynan/nbstripout
-      rev: 0.8.0
+      rev: 0.8.1
       hooks:
           - id: nbstripout
