@@ -12,7 +12,7 @@ pycocotools
 pyproj
 rasterio
 rioxarray
-sam2
+# sam2
 scikit-image
 scikit-learn
 segment-anything-hq

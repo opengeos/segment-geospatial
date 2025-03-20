@@ -6,9 +6,13 @@ import matplotlib.pyplot as plt
 from PIL.Image import Image
 from tqdm import tqdm
 from typing import Any, Dict, List, Optional, Tuple, Union
-from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
-from sam2.sam2_image_predictor import SAM2ImagePredictor
-from sam2.sam2_video_predictor import SAM2VideoPredictor
+
+try:
+    from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
+    from sam2.sam2_image_predictor import SAM2ImagePredictor
+    from sam2.sam2_video_predictor import SAM2VideoPredictor
+except ImportError:
+    print("Please install sam2 using `pip install sam2`.")
 
 from . import common
 

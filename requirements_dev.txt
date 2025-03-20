@@ -1,3 +1,4 @@
 groundingdino-py
 rio-cogeo
+sam2
 segment-anything-fast
