@@ -12,11 +12,12 @@ pycocotools
 pyproj
 rasterio
 rioxarray
-# sam2
+sam2
 scikit-image
 scikit-learn
 segment-anything-hq
 segment-anything-py
+setuptools>=62.3.0,<75.9
 timm
 tqdm
 xarray
