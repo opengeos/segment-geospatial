@@ -28,6 +28,8 @@ jobs:
               uses: actions/setup-python@v5
               with:
                   python-version: ${{ matrix.config.py }}
+            - name: Set CUDA_HOME
+              run: echo "CUDA_HOME=/usr/local/cuda" >> $GITHUB_ENV
             - name: Install GDAL
               run: |
                   python -m pip install --upgrade pip
