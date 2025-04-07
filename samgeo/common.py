@@ -1894,6 +1894,16 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
         layout=widgets.Layout(width=widget_width, padding=padding),
     )
 
+    def on_radio_button_click(change):
+        # Set a flag to indicate UI interaction is happening
+        m._ui_interaction = True
+        # Use a small delay to reset the flag after the event is processed
+        import threading
+
+        threading.Timer(0.1, lambda: setattr(m, "_ui_interaction", False)).start()
+
+    radio_buttons.observe(on_radio_button_click, "value")
+
     fg_count = widgets.IntText(
         value=0,
         description="Foreground #:",
@@ -2110,6 +2120,9 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
     def handle_map_interaction(**kwargs):
         try:
             if kwargs.get("type") == "click":
+                # Skip if we're interacting with UI
+                if hasattr(m, "_ui_interaction") and m._ui_interaction:
+                    return
                 latlon = kwargs.get("coordinates")
                 if radio_buttons.value == "Foreground":
                     if is_colab():
