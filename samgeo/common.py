@@ -1893,12 +1893,14 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
         style=style,
         layout=widgets.Layout(width=widget_width, padding=padding),
     )
+
     def on_radio_button_click(change):
-     # Set a flag to indicate UI interaction is happening
-     m._ui_interaction = True
-     # Use a small delay to reset the flag after the event is processed
-     import threading
-     threading.Timer(0.1, lambda: setattr(m, "_ui_interaction", False)).start()
+        # Set a flag to indicate UI interaction is happening
+        m._ui_interaction = True
+        # Use a small delay to reset the flag after the event is processed
+        import threading
+
+        threading.Timer(0.1, lambda: setattr(m, "_ui_interaction", False)).start()
 
     radio_buttons.observe(on_radio_button_click, "value")
 
