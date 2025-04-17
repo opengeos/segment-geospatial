@@ -456,11 +456,11 @@ class SamGeo2:
             img[m] = color_mask
         ax.imshow(img)
 
-        if "dpi" not in kwargs:
-            kwargs["dpi"] = 100
+        # if "dpi" not in kwargs:
+        #     kwargs["dpi"] = 100
 
-        if "bbox_inches" not in kwargs:
-            kwargs["bbox_inches"] = "tight"
+        # if "bbox_inches" not in kwargs:
+        #     kwargs["bbox_inches"] = "tight"
 
         plt.axis(axis)
 
@@ -473,7 +473,7 @@ class SamGeo2:
                 )
             else:
                 array = self.annotations
-            common.array_to_image(array, output, self.source)
+            common.array_to_image(array, output, self.source, **kwargs)
 
     @torch.no_grad()
     def set_image(
