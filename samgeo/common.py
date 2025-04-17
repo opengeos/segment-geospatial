@@ -1458,12 +1458,16 @@ def array_to_image(
         array = cv2.imread(array)
         array = cv2.cvtColor(array, cv2.COLOR_BGR2RGB)
 
-    if output.endswith(".tif") and source is not None:
-        with rasterio.open(source) as src:
-            crs = src.crs
-            transform = src.transform
-            if compress is None:
-                compress = src.compression
+    if output.endswith(".tif"):
+        if source is not None:
+            with rasterio.open(source) as src:
+                crs = src.crs
+                transform = src.transform
+                if compress is None:
+                    compress = src.compression
+        else:
+            crs = kwargs.get("crs", None)
+            transform = kwargs.get("transform", None)
 
         # Determine the minimum and maximum values in the array
 
