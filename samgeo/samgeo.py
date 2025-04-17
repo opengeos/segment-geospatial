@@ -425,11 +425,11 @@ class SamGeo:
             img[m] = color_mask
         ax.imshow(img)
 
-        if "dpi" not in kwargs:
-            kwargs["dpi"] = 100
+        # if "dpi" not in kwargs:
+        #     kwargs["dpi"] = 100
 
-        if "bbox_inches" not in kwargs:
-            kwargs["bbox_inches"] = "tight"
+        # if "bbox_inches" not in kwargs:
+        #     kwargs["bbox_inches"] = "tight"
 
         plt.axis(axis)
 
@@ -442,7 +442,7 @@ class SamGeo:
                 )
             else:
                 array = self.annotations
-            array_to_image(array, output, self.source)
+            array_to_image(array, output, self.source, **kwargs)
 
     def set_image(self, image, image_format="RGB"):
         """Set the input image as a numpy array.
