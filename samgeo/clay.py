@@ -70,32 +70,24 @@ DEFAULT_METADATA = {
 }
 
 
+
 def normalize_timestamp(date):
-    """Normalize timestamp to week and hour components for Clay model."""
-    if isinstance(date, str):
-        date = datetime.datetime.fromisoformat(date.replace('Z', '+00:00'))
-    elif not isinstance(date, datetime.datetime):
-        date = datetime.datetime.now()
-    
-    # Get day of year and hour
-    day_of_year = date.timetuple().tm_yday
-    hour = date.hour
-    
-    # Normalize to [-1, 1] range
-    week_norm = 2 * (day_of_year - 1) / 365 - 1
-    hour_norm = 2 * hour / 24 - 1
-    
-    return [week_norm, hour_norm]
+    """Normaize the timestamp for clay. Taken from https://github.com/Clay-foundation/stacchip/blob/main/stacchip/processors/prechip.py"""
+    week = date.isocalendar().week * 2 * np.pi / 52
+    hour = date.hour * 2 * np.pi / 24
+
+    return (math.sin(week), math.cos(week)), (math.sin(hour), math.cos(hour))
 
 
-def normalize_latlon(lat: float, lon: float) -> Tuple[List[float], List[float]]:
-    lat_rad = lat * np.pi / 180
-    lon_rad = lon * np.pi / 180
-    
-    lat_norm = [math.sin(lat_rad), math.cos(lat_rad)]
-    lon_norm = [math.sin(lon_rad), math.cos(lon_rad)]
-    
-    return lat_norm, lon_norm
+def normalize_latlon(bounds):
+    """Normalize latitude and longitude for clay. Taken from https://github.com/Clay-foundation/stacchip/blob/main/stacchip/processors/prechip.py"""
+    lon = bounds[0] + (bounds[2] - bounds[0]) / 2
+    lat = bounds[1] + (bounds[3] - bounds[1]) / 2
+
+    lat = lat * np.pi / 180
+    lon = lon * np.pi / 180
+
+    return (math.sin(lat), math.cos(lat)), (math.sin(lon), math.cos(lon))
 
 
 class Clay:
@@ -111,6 +103,7 @@ class Clay:
     def __init__(
         self,
         checkpoint_path: str,
+        model_size: str = 'large',
         metadata_path: Optional[str] = None,
         device: str = "auto",
     ):
@@ -149,6 +142,13 @@ class Clay:
             if metadata_path:
                 warnings.warn(f"Metadata file not found: {metadata_path}. Using defaults.")
         
+        
+        self.model_size = model_size
+        if self.model_size not in ['tiny','small','base','large']:
+            raise ValueError(f"model_size must be one of: {['tiny','small','base','large']}")
+
+        
+
         # Load model
         self._load_model()
         
@@ -162,13 +162,15 @@ class Clay:
         """Load the Clay model from checkpoint."""
         try:
             torch.set_default_device(self.device)
-            self.model = ClayMAEModule.load_from_checkpoint(
-                self.checkpoint_path,
+            self.module = ClayMAEModule.load_from_checkpoint(
+                checkpoint_path=self.checkpoint_path,
+                model_size=self.model_size,
+                dolls=[16, 32, 64, 128, 256, 768, 1024],
+                doll_weights=[1, 1, 1, 1, 1, 1, 1],
+                mask_ratio=0.0,
                 shuffle=False,
-                mask_ratio=0.0
             )
-            self.model.eval()
-            self.model = self.model.to(self.device)
+            self.module.eval()
         except Exception as e:
             raise RuntimeError(f"Failed to load Clay model: {e}")
     
@@ -440,7 +442,7 @@ class Clay:
             )
             
             with torch.no_grad():
-                encoded_patches, _, _, _ = self.model.model.encoder(datacube)
+                encoded_patches, _, _, _ = self.module.model.encoder(datacube)
                 # Extract class token (global embedding)
                 embedding = encoded_patches[:, 0, :].cpu().numpy()
             
@@ -474,7 +476,7 @@ class Clay:
                     
                     # Generate embedding
                     with torch.no_grad():
-                        encoded_patches, _, _, _ = self.model.model.encoder(datacube)
+                        encoded_patches, _, _, _ = self.module.model.encoder(datacube)
                         embedding = encoded_patches[:, 0, :].cpu().numpy()
                     
                     embeddings.append(embedding)
