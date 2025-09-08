@@ -22,7 +22,7 @@ jobs:
         env:
             SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
 
             - name: Setup Python
               uses: conda-incubator/setup-miniconda@v3
