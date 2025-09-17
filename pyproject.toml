@@ -74,13 +74,13 @@ fer = [
 hq = [
     "segment_anything",
     "segment_anything_hq",
-    "python-opencv-headless",
+    "opencv-python-headless",
     "torch",
     "numpy",
     "matplotlib", # some functions require matplotlib for visualization
     ]
 samgeo = [
-    "python-opencv-headless",
+    "opencv-python-headless",
     "geopandas",
     "numpy",
     "torch",
@@ -88,7 +88,7 @@ samgeo = [
     "matplotlib", # some functions require matplotlib for visualization
 ]
 samgeo2 = [
-    "python-opencv-headless",
+    "opencv-python-headless",
     "Pillow",
     "torch",
     "numpy",
@@ -102,7 +102,7 @@ text = [
     "huggingface_hub",
     "Pillow",
     "segment_anything",
-    "python-opencv-headless",
+    "opencv-python-headless",
     "Pillow",
     "torch",
     "numpy",
