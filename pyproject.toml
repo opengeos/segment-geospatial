@@ -89,6 +89,7 @@ samgeo = [
 ]
 samgeo2 = [
     "opencv-python-headless",
+    "segment_anything",
     "Pillow",
     "torch",
     "numpy",
