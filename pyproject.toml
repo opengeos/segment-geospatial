@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "segment-geospatial"
-version = "0.12.6"
+version = "0.13.0"
 dynamic = [
     "dependencies",
 ]
@@ -26,7 +26,92 @@ classifiers = [
 authors = [{name = "Qiusheng Wu", email = "giswqs@gmail.com"}]
 
 [project.optional-dependencies]
-all = ["groundingdino-py"]
+all = ["leafmap",
+    "rasterio",
+    "geopandas",
+    "shapely>=2.1.1",
+    "fiona",
+    "tqdm",
+    "numpy",
+    "torch",
+    "torchvision",
+    "Pillow",
+    "matplotlib",
+    "scikit-image",
+    "scipy",
+    "opencv-python-headless",
+    "pyproj>=3.7.2",
+    "segment-anything-fast",
+    "gdal",
+    "segment_anything",
+    "segment_anything_hq",
+    "sam2",
+    "matplotlib", # some functions require matplotlib for visualization
+    "huggingface_hub",
+    "groundingdino-py"
+    ]
+core = [
+    "rasterio",
+    "geopandas",
+    "shapely>=2.1.1",
+    "fiona",
+    "tqdm",
+    "numpy",
+    "torch",
+    "torchvision",
+    "Pillow",
+    "matplotlib",
+    "scikit-image",
+    "scipy",
+    "opencv-python-headless",
+    "pyproj>=3.7.2",
+    "segment-anything-fast"
+]
+fer = [
+    "gdal",
+    "shapely>=2.1.1",
+    ]
+hq = [
+    "segment_anything",
+    "segment_anything_hq",
+    "python-opencv-headless",
+    "torch",
+    "numpy",
+    "matplotlib", # some functions require matplotlib for visualization
+    ]
+samgeo = [
+    "python-opencv-headless",
+    "geopandas",
+    "numpy",
+    "torch",
+    "segment_anything",
+    "matplotlib", # some functions require matplotlib for visualization
+]
+samgeo2 = [
+    "python-opencv-headless",
+    "Pillow",
+    "torch",
+    "numpy",
+    "tqdm",
+    "sam2",
+    "matplotlib", # some functions require matplotlib for visualization
+]
+text = [
+    "numpy",
+    "torch",
+    "huggingface_hub",
+    "Pillow",
+    "segment_anything",
+    "python-opencv-headless",
+    "Pillow",
+    "torch",
+    "numpy",
+    "tqdm",
+    "sam2",
+    "rasterio",
+    "groundingdino-py",
+    "matplotlib", # some functions require matplotlib for visualization
+]
 
 [tool]
 [tool.setuptools.packages.find]
@@ -41,7 +126,7 @@ dependencies = {file = ["requirements.txt"]}
 universal = true
 
 [tool.bumpversion]
-current_version = "0.12.6"
+current_version = "0.13.0"
 commit = true
 tag = true
 

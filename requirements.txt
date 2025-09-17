@@ -3,8 +3,8 @@ gdown
 geopandas
 huggingface_hub
 ipympl
-leafmap
-localtileserver
+# leafmap
+# localtileserver
 matplotlib
 opencv-python-headless
 patool
@@ -20,4 +20,4 @@ segment-anything-py
 timm
 tqdm
 xarray
-xyzservices
+# xyzservices
