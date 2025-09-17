@@ -1,6 +1,6 @@
 # fiona
 # gdown
-# geopandas
+geopandas
 # huggingface_hub
 # ipympl
 # leafmap
@@ -10,7 +10,7 @@
 # patool
 # pycocotools
 # pyproj
-# rasterio
+rasterio
 # rioxarray
 # sam2
 # scikit-image
@@ -18,6 +18,6 @@
 # segment-anything-hq
 # segment-anything-py
 # timm
-# tqdm
+tqdm
 # xarray
 # xyzservices
