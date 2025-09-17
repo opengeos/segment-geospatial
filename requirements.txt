@@ -1,16 +1,18 @@
+geopandas
+numpy
+opencv-python-headless
+rasterio
+tqdm
 # fiona
 # gdown
-geopandas
 # huggingface_hub
 # ipympl
 # leafmap
 # localtileserver
 # matplotlib
-# opencv-python-headless
 # patool
 # pycocotools
 # pyproj
-rasterio
 # rioxarray
 # sam2
 # scikit-image
@@ -18,6 +20,5 @@ rasterio
 # segment-anything-hq
 # segment-anything-py
 # timm
-tqdm
 # xarray
 # xyzservices

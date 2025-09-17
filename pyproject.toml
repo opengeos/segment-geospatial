@@ -26,7 +26,7 @@ classifiers = [
 authors = [{name = "Qiusheng Wu", email = "giswqs@gmail.com"}]
 
 [project.optional-dependencies]
-all = ["leafmap",
+all_deps = ["leafmap",
     "rasterio",
     "geopandas",
     "shapely>=2.1.1",
@@ -50,6 +50,14 @@ all = ["leafmap",
     "huggingface_hub",
     "groundingdino-py"
     ]
+all = [
+    "leafmap",
+    "segment-geospatial[fast, hq, fer, samgeo, samgeo2, text]",
+    "localtileserver",
+    "ipykernel",
+    "fiona",
+    "matplotlib", # some functions require matplotlib for visualization
+    ]
 core = [
     "rasterio",
     "geopandas",
@@ -65,8 +73,13 @@ core = [
     "scipy",
     "opencv-python-headless",
     "pyproj>=3.7.2",
-    "segment-anything-fast"
 ]
+fast = [
+    "opencv-python-headless",
+    "numpy",
+    "torch",
+    "segment-anything-fast",
+    ]
 fer = [
     "gdal",
     "shapely>=2.1.1",
@@ -77,7 +90,6 @@ hq = [
     "opencv-python-headless",
     "torch",
     "numpy",
-    "matplotlib", # some functions require matplotlib for visualization
     ]
 samgeo = [
     "opencv-python-headless",
@@ -85,33 +97,21 @@ samgeo = [
     "numpy",
     "torch",
     "segment_anything",
-    "matplotlib", # some functions require matplotlib for visualization
+    "huggingface_hub",
 ]
 samgeo2 = [
-    "opencv-python-headless",
-    "segment_anything",
+    "segment_geospatial[samgeo]",
     "Pillow",
-    "torch",
-    "numpy",
-    "tqdm",
     "sam2",
-    "matplotlib", # some functions require matplotlib for visualization
+    "huggingface_hub",
+    "xarray",
+    "rioxarray",
+    "scikit-image",
+    "scipy",
 ]
 text = [
-    "numpy",
-    "torch",
-    "huggingface_hub",
-    "Pillow",
-    "segment_anything",
-    "opencv-python-headless",
-    "Pillow",
-    "torch",
-    "numpy",
-    "tqdm",
-    "sam2",
-    "rasterio",
+    "segment_geospatial[samgeo2]",
     "groundingdino-py",
-    "matplotlib", # some functions require matplotlib for visualization
 ]
 
 [tool]
