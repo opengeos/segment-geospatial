@@ -11,3 +11,4 @@ segment_anything
 shapely
 torch
 tqdm
+xyzservices
