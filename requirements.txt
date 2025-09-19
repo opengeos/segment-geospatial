@@ -1,24 +1,12 @@
+gdown
 geopandas
 numpy
 opencv-python-headless
+patool
+Pillow
+pyproj>=3.7.2
 rasterio
+segment_anything
+shapely
+torch
 tqdm
-# fiona
-# gdown
-# huggingface_hub
-# ipympl
-# leafmap
-# localtileserver
-# matplotlib
-# patool
-# pycocotools
-# pyproj
-# rioxarray
-# sam2
-# scikit-image
-# scikit-learn
-# segment-anything-hq
-# segment-anything-py
-# timm
-# xarray
-# xyzservices

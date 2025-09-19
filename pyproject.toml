@@ -26,84 +26,42 @@ classifiers = [
 authors = [{name = "Qiusheng Wu", email = "giswqs@gmail.com"}]
 
 [project.optional-dependencies]
-all_deps = ["leafmap",
-    "rasterio",
-    "geopandas",
-    "shapely>=2.1.1",
-    "fiona",
-    "tqdm",
-    "numpy",
-    "torch",
-    "torchvision",
-    "Pillow",
-    "matplotlib",
-    "scikit-image",
-    "scipy",
-    "opencv-python-headless",
-    "pyproj>=3.7.2",
-    "segment-anything-fast",
-    "gdal",
-    "segment_anything",
-    "segment_anything_hq",
-    "sam2",
-    "matplotlib", # some functions require matplotlib for visualization
-    "huggingface_hub",
-    "groundingdino-py"
-    ]
-all = [
-    "leafmap",
-    "segment-geospatial[fast, hq, fer, samgeo, samgeo2, text]",
-    "localtileserver",
-    "ipykernel",
-    "fiona",
-    "matplotlib", # some functions require matplotlib for visualization
-    ]
 core = [
-    "rasterio",
+    "gdown",
     "geopandas",
-    "shapely>=2.1.1",
-    "fiona",
-    "tqdm",
     "numpy",
-    "torch",
-    "torchvision",
-    "Pillow",
-    "matplotlib",
-    "scikit-image",
-    "scipy",
     "opencv-python-headless",
+    "patool",
+    "Pillow",
     "pyproj>=3.7.2",
+    "rasterio",
+    "segment_anything",
+    "shapely",
+    "torch",
+    "tqdm",
 ]
 fast = [
-    "opencv-python-headless",
-    "numpy",
-    "torch",
+    "segment_geospatial[core]",
     "segment-anything-fast",
+    "sam2",
     ]
 fer = [
+    "segment_geospatial[core]",
     "gdal",
-    "shapely>=2.1.1",
     ]
 hq = [
-    "segment_anything",
+    "segment_geospatial[core]",
     "segment_anything_hq",
-    "opencv-python-headless",
-    "torch",
-    "numpy",
+    "sam2",
+    "timm",
     ]
 samgeo = [
-    "opencv-python-headless",
-    "geopandas",
-    "numpy",
-    "torch",
-    "segment_anything",
+    "segment_geospatial[core]",
     "huggingface_hub",
 ]
 samgeo2 = [
     "segment_geospatial[samgeo]",
-    "Pillow",
     "sam2",
-    "huggingface_hub",
     "xarray",
     "rioxarray",
     "scikit-image",
@@ -112,6 +70,17 @@ samgeo2 = [
 text = [
     "segment_geospatial[samgeo2]",
     "groundingdino-py",
+]
+all = [
+    "segment-geospatial[fast, hq, fer, samgeo, samgeo2, text]",
+]
+extra = [
+    "leafmap",
+    "segment-geospatial[all]",
+    "localtileserver",
+    "ipykernel",
+    "fiona",
+    "matplotlib",
 ]
 
 [tool]
