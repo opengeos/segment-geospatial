@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "segment-geospatial"
-version = "0.13.0"
+version = "0.12.6"
 dynamic = [
     "dependencies",
 ]
@@ -42,7 +42,7 @@ core = [
 ]
 fast = [
     "segment_geospatial[core]",
-    "segment-anything-fast",
+    "segment-anything-fast@git+https://github.com/guillemc23/FastSAM#egg=d55a7b1cf8c04deff4bd2498c3fd61d1357f47d3",
     "sam2",
     ]
 fer = [
@@ -96,7 +96,7 @@ dependencies = {file = ["requirements.txt"]}
 universal = true
 
 [tool.bumpversion]
-current_version = "0.13.0"
+current_version = "0.12.6"
 commit = true
 tag = true
 
