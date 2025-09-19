@@ -5,7 +5,7 @@ numpy
 opencv-python-headless
 patool
 Pillow
-pyproj>=3.7.2
+pyproj
 rasterio
 segment_anything
 shapely
