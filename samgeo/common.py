@@ -4,25 +4,22 @@ The source code is adapted from https://github.com/aliaksandr960/segment-anythin
 
 import os
 import tempfile
+from typing import Any, List, Optional, Tuple, Union
+
 import cv2
+import geopandas as gpd
 import numpy as np
-from tqdm import tqdm
-from typing import List, Optional, Union, Tuple, Any
-import shapely
 import pyproj
 import rasterio
-import geopandas as gpd
-import matplotlib.pyplot as plt
+import shapely
+from tqdm import tqdm
 
 
 def is_colab():
     """Tests if the code is being executed within Google Colab."""
     import sys
 
-    if "google.colab" in sys.modules:
-        return True
-    else:
-        return False
+    return "google.colab" in sys.modules
 
 
 def check_file_path(file_path, make_dirs=True):
@@ -330,7 +327,7 @@ def reproject(
 
     """
     import rasterio as rio
-    from rasterio.warp import calculate_default_transform, reproject, Resampling
+    from rasterio.warp import Resampling, calculate_default_transform, reproject
 
     if isinstance(resampling, str):
         resampling = getattr(Resampling, resampling)
@@ -404,11 +401,11 @@ def tms_to_geotiff(
 
     """
 
-    import re
-    import io
-    import math
-    import itertools
     import concurrent.futures
+    import io
+    import itertools
+    import math
+    import re
 
     from PIL import Image
 
@@ -1382,6 +1379,7 @@ def get_xyz_dict(free_only=True):
         dict: A dictionary of xyz services.
     """
     import collections
+
     import xyzservices.providers as xyz
 
     def _unpack_sub_parameters(var, param):
@@ -1535,6 +1533,8 @@ def array_to_image(
 def show_image(
     source, figsize=(12, 10), cmap=None, axis="off", fig_args={}, show_args={}, **kwargs
 ):
+    import matplotlib.pyplot as plt
+
     if isinstance(source, str):
         if source.startswith("http"):
             source = download_file(source)
@@ -1552,6 +1552,8 @@ def show_image(
 
 
 def show_mask(mask, random_color=False):
+    import matplotlib.pyplot as plt
+
     ax = plt.gca()
     if random_color:
         color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
@@ -1573,6 +1575,8 @@ def show_points(
     mask=None,
     **kwargs,
 ):
+    import matplotlib.pyplot as plt
+
     if isinstance(image, str):
         if image.startswith("http"):
             image = download_file(image)
@@ -1613,6 +1617,8 @@ def show_points(
 
 
 def show_box(box, ax):
+    import matplotlib.pyplot as plt
+
     ax = plt.gca()
     x0, y0 = box[0], box[1]
     w, h = box[2] - box[0], box[3] - box[1]
@@ -1643,7 +1649,9 @@ def overlay_images(
 
     """
     import sys
+
     import matplotlib
+    import matplotlib.pyplot as plt
     import matplotlib.widgets as mpwidgets
 
     if "google.colab" in sys.modules:
@@ -1755,6 +1763,8 @@ def blend_images(
         array_to_image(blend_img, output, img2)
 
     if show:
+        import matplotlib.pyplot as plt
+
         plt.figure(figsize=figsize)
         plt.imshow(blend_img)
         plt.axis(axis)
@@ -1821,14 +1831,15 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
     try:
         import shutil
         import tempfile
-        import leafmap
-        import ipyleaflet
+
         import ipyevents
+        import ipyleaflet
         import ipywidgets as widgets
+        import leafmap
         from ipyfilechooser import FileChooser
     except ImportError:
         raise ImportError(
-            "The sam_map function requires the leafmap package. Please install it first."
+            "The sam_map function requires the leafmap package. Please install it first or install the full samgeo package with: pip install segment-geospatial[all]."
         )
 
     if out_dir is None:
@@ -2532,10 +2543,11 @@ def text_sam_gui(
     try:
         import shutil
         import tempfile
-        import leafmap
-        import ipyleaflet
+
         import ipyevents
+        import ipyleaflet
         import ipywidgets as widgets
+        import leafmap
         import leafmap.colormaps as cm
         from ipyfilechooser import FileChooser
     except ImportError:
@@ -3323,6 +3335,7 @@ def images_to_video(
         height, width, _ = frame.shape
         video_size = (width, height)
 
+    # TODO: This video codec is giving me some problems, not sure if it's the correct one
     fourcc = cv2.VideoWriter_fourcc(*"avc1")  # Define the codec for mp4
     video_writer = cv2.VideoWriter(output_video, fourcc, fps, video_size)
 
@@ -3416,14 +3429,20 @@ def show_image_gui(path: str) -> None:
     """
 
     from PIL import Image
-    from ipywidgets import interact, IntSlider
-    import matplotlib
+
+    try:
+        import matplotlib
+        from ipywidgets import IntSlider, interact
+    except ImportError as e:
+        print(
+            f"There was an error importing {e.name}, which is a dependency of leafmap. Install it with pip install leafmap or pip install segment-geospatial[all]"
+        )
 
     def setup_interactive_matplotlib():
         """Sets up ipympl backend for interactive plotting in Jupyter."""
         # Use the ipympl backend for interactive plotting
         try:
-            import ipympl
+            import ipympl  # noqa: F401
 
             matplotlib.use("module://ipympl.backend_nbagg")
         except ImportError:
@@ -3465,6 +3484,8 @@ def show_image_gui(path: str) -> None:
         return
 
     # Set up interactive plotting
+    import matplotlib.pyplot as plt
+
     setup_interactive_matplotlib()
 
     fig, ax = plt.subplots()
@@ -3640,11 +3661,11 @@ def region_groups(
     Returns:
         Union[Tuple[np.ndarray, pd.DataFrame], Tuple[xr.DataArray, pd.DataFrame]]: Labeled image and properties DataFrame.
     """
+    import pandas as pd
     import rioxarray as rxr
+    import scipy.ndimage as ndi
     import xarray as xr
     from skimage import measure
-    import pandas as pd
-    import scipy.ndimage as ndi
 
     if isinstance(image, str):
         ds = rxr.open_rasterio(image)
@@ -3692,7 +3713,6 @@ def region_groups(
         ]
 
         if intensity_image is not None:
-
             properties += [
                 "intensity_max",
                 "intensity_mean",
@@ -3828,10 +3848,10 @@ def orthogonalize(filepath, output=None, maxAngleChange=15, skewTolerance=15):
                             house.
     """
 
-    from shapely.geometry import Polygon
-    from shapely.geometry import MultiPolygon
     import math
     import statistics
+
+    from shapely.geometry import MultiPolygon, Polygon
 
     def calculate_initial_compass_bearing(pointA, pointB):
         """
@@ -3839,7 +3859,7 @@ def orthogonalize(filepath, output=None, maxAngleChange=15, skewTolerance=15):
 
         The formulae used is the following:
             θ = atan2(sin(Δlong).cos(lat2),
-                    cos(lat1).sin(lat2) − sin(lat1).cos(lat2).cos(Δlong))
+                    cos(lat1).sin(lat2) - sin(lat1).cos(lat2).cos(Δlong))
 
         :Parameters:
         - `pointA: The tuple representing the latitude/longitude for the
@@ -3853,7 +3873,7 @@ def orthogonalize(filepath, output=None, maxAngleChange=15, skewTolerance=15):
         :Returns Type:
         float
         """
-        if (type(pointA) != tuple) or (type(pointB) != tuple):
+        if (not isinstance(pointA, tuple)) or (not isinstance(pointB, tuple)):
             raise TypeError("Only tuples are supported as arguments")
 
         lat1 = math.radians(pointA[0])
@@ -3942,9 +3962,9 @@ def orthogonalize(filepath, output=None, maxAngleChange=15, skewTolerance=15):
             limit[dirAngle[i]] = (
                 maxAngleChange  # Set angle limit for the current direction
             )
-            limit[(dirAngle[i] + 1) % 4] = (
-                -maxAngleChange
-            )  # Extend the angles for the adjacent directions
+            limit[
+                (dirAngle[i] + 1) % 4
+            ] = -maxAngleChange  # Extend the angles for the adjacent directions
             limit[(dirAngle[i] - 1) % 4] = -maxAngleChange
 
         return orgAngle, corAngle, dirAngle
@@ -4011,7 +4031,6 @@ def orthogonalize(filepath, output=None, maxAngleChange=15, skewTolerance=15):
 
         polyOrthog = []
         for polySimple in rings:
-
             # Get angles from cardinal directions of all segments
             orgAngle, corAngle, dirAngle = calculate_segment_angles(polySimple)
 
@@ -4066,9 +4085,7 @@ def orthogonalize(filepath, output=None, maxAngleChange=15, skewTolerance=15):
             # Adjust points coordinates by taking the average of points in segment
             dirAngle.append(dirAngle[0])  # Append dummy value
             orgAngle.append(orgAngle[0])  # Append dummy value
-            segmentBuffer = (
-                []
-            )  # Buffer for determining which segments are part of one large straight line
+            segmentBuffer = []  # Buffer for determining which segments are part of one large straight line
 
             for i in range(0, len(dirAngle) - 1):
                 # Preserving skewed walls: Leave walls that are obviously meant to be skewed 45˚+/- tolerance˚ (e.g.angle 30-60 degrees) off main walls as untouched
@@ -4140,7 +4157,6 @@ def orthogonalize(filepath, output=None, maxAngleChange=15, skewTolerance=15):
         return polyOrthog
 
     if isinstance(filepath, str):
-
         buildings = gpd.read_file(filepath)
     elif isinstance(filepath, gpd.GeoDataFrame):
         buildings = filepath
@@ -4163,7 +4179,6 @@ def orthogonalize(filepath, output=None, maxAngleChange=15, skewTolerance=15):
             # buildings.loc[i, 'geometry'] = MultiPolygon(multipolygon)   # Does not work
 
         else:  # Polygons
-
             buildOrtho = orthogonalize_polygon(build)
 
             buildings.loc[i, "geometry"] = buildOrtho

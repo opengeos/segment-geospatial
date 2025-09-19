@@ -5,16 +5,24 @@ Credits to the original authors Yang et al. (2024).
 Reference: https://doi.org/10.1080/10106049.2024.2370322
 """
 
-import os, time, shutil
 import math
-from shapely.geometry import Point, Polygon, LineString
-from shapely.ops import polygonize, unary_union
-from utmconv import latlon2utmxy, deg2rad, utmxy2latlon, rad2deg
-from osgeo import gdal, ogr, osr
+import os
+import shutil
+import time
+
+try:
+    from osgeo import gdal, ogr, osr
+    from shapely.geometry import LineString, Point, Polygon
+    from shapely.ops import polygonize, unary_union
+except ImportError as e:
+    print(
+        f"There was an error importing {e.name}. To use FER, install it as:\n\tpip install segment-geospatial[fer]"
+    )
+
+from samgeo.utmconv import deg2rad, latlon2utmxy, rad2deg, utmxy2latlon
 
 
 class Point:
-
     x = 0.0
     y = 0.0
     index = 0
@@ -66,7 +74,6 @@ class Vector:
         return True
 
     def equals(self, v):
-
         if self.x1 != v.x1 and self.y1 != v.y1 and self.x1 != v.x1 and self.y1 != v.y1:
             return False
         return True
@@ -95,7 +102,6 @@ def time_interval(time_end, time_start):
 
 
 def CheckFileExists(filePath):
-
     if os.path.exists(filePath):
         return 1
     print(f"not exut！{filePath}")
@@ -129,7 +135,6 @@ def ReadVectorLayer(strVectorFile):
 
 
 def ReadVectorMessage(ds):
-
     layer = ds.GetLayer(0)
     lydefn = layer.GetLayerDefn()
     spatialref = layer.GetSpatialRef()
@@ -190,7 +195,6 @@ def CreateVectorFile(strVectorFile, sourceData):
 
 
 def CreatePtVectorFile(strVectorFile, sourceData):
-
     gdal.SetConfigOption("GDAL_FILENAME_IS_UTF8", "YES")
     gdal.SetConfigOption("SHAPE_ENCODING", "UTF-8")
     spatialref, geomtype, fieldlist = sourceData
@@ -206,7 +210,6 @@ def CreatePtVectorFile(strVectorFile, sourceData):
 
 
 def DeleteVectorFile(driver, strVectorFile):
-
     try:
         if os.path.exists(strVectorFile):
             driver.DeleteDataSource(strVectorFile)
@@ -538,7 +541,6 @@ def Smooth(vList, vx, angleDif, lengthDif):
             angle = v1.cos(v2)
 
             if min([angle, math.fabs(180 - angle)]) < angleDif:
-
                 v = Vector(v1.x1, v1.y1, v2.x2, v2.y2, v1.index)
                 vList.remove(v1)
                 vList.remove(v2)
@@ -552,7 +554,6 @@ def Smooth(vList, vx, angleDif, lengthDif):
                 and v1.length() < lengthDif
                 and v2.length() < lengthDif
             ):
-
                 v1Angle = v1.cos(vx)
                 v2Angle = v2.cos(vx)
 
@@ -712,7 +713,6 @@ def LocalResc(vList, vx, angleDiff, lengthdiff1, lengthdiff2, area):
                 break
 
             if aV.domain == 901:
-
                 x, y = line_intersection(
                     ((v1.x1, v1.y1), (v1.x2, v1.y2)), ((v2.x1, v2.y1), (v2.x2, v2.y2))
                 )
@@ -785,7 +785,7 @@ def AreaControl(iring, oring):
 
 
 def TopoControl(ipolygon, ifeatureOid, olayer):
-    if ipolygon == None:
+    if ipolygon is None:
         return ipolygon
     buffergeom = ipolygon.Buffer(0.1)
     olayer.SetSpatialFilter(buffergeom)
@@ -796,7 +796,7 @@ def TopoControl(ipolygon, ifeatureOid, olayer):
         if ifeatureOid != ovalue:
             ogeom = ofeat.GetGeometryRef()
             diffGeom = ipolygon.Difference(ogeom)
-            if diffGeom == None:
+            if diffGeom is None:
                 return ipolygon
             ipolygon = diffGeom
         ofeat = olayer.GetNextFeature()
@@ -821,7 +821,7 @@ def SelfIntersection(ring):
                 area = parea
                 opoly = i
 
-        if opoly == None:
+        if opoly is None:
             return ring, 0
         for x, y in opoly.exterior.coords:
             oring.AddPoint(x, y)
@@ -932,7 +932,6 @@ def regularize(
         os.makedirs(tempath)
 
     for i in range(0, ifeatureCount):
-
         ifeature = ilayer.GetFeature(i)
         ifeatureOid = ifeature.GetFID()
         if r == 0 or r % 3000 == 0:
@@ -985,8 +984,7 @@ def regularize(
 
             dpolygon, dring = Pts2Polygon(dringpts)
 
-            if dpolygon.Boundary() == None:
-
+            if dpolygon.Boundary() is None:
                 continue
 
             averageLength = (
@@ -1047,7 +1045,6 @@ def regularize(
                 oring, selfInsect = SelfIntersection(oring)
 
                 if m == 0.5:
-
                     if not AreaControl(sring, oring):
                         oupolygon.AddGeometry(sring)
                         new = 1
@@ -1092,7 +1089,7 @@ def regularize(
             ifeature = ifileLayer.GetFeature(j)
             igeom = ifeature.GetGeometryRef()
             ogeom = ogr.Geometry(ogr.wkbPolygon)
-            if igeom == None:
+            if igeom is None:
                 print(0)
                 j = j + 1
                 continue
