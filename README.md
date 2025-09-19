@@ -60,7 +60,7 @@ Additionally, these other two optional imports are defined:
 Simply running the following should install the dependencies for each use case:
 
 ```bash
-pip install segment-geospatial[samgeo2] # Or any other choice of the above 
+pip install segment-geospatial[samgeo2] # Or any other choice of the above
 ```
 To see more in detail what packages come with each choice, please refer to `pyproject.toml`.
 
