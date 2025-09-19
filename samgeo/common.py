@@ -3962,9 +3962,9 @@ def orthogonalize(filepath, output=None, maxAngleChange=15, skewTolerance=15):
             limit[dirAngle[i]] = (
                 maxAngleChange  # Set angle limit for the current direction
             )
-            limit[
-                (dirAngle[i] + 1) % 4
-            ] = -maxAngleChange  # Extend the angles for the adjacent directions
+            limit[(dirAngle[i] + 1) % 4] = (
+                -maxAngleChange
+            )  # Extend the angles for the adjacent directions
             limit[(dirAngle[i] - 1) % 4] = -maxAngleChange
 
         return orgAngle, corAngle, dirAngle
@@ -4085,7 +4085,9 @@ def orthogonalize(filepath, output=None, maxAngleChange=15, skewTolerance=15):
             # Adjust points coordinates by taking the average of points in segment
             dirAngle.append(dirAngle[0])  # Append dummy value
             orgAngle.append(orgAngle[0])  # Append dummy value
-            segmentBuffer = []  # Buffer for determining which segments are part of one large straight line
+            segmentBuffer = (
+                []
+            )  # Buffer for determining which segments are part of one large straight line
 
             for i in range(0, len(dirAngle) - 1):
                 # Preserving skewed walls: Leave walls that are obviously meant to be skewed 45˚+/- tolerance˚ (e.g.angle 30-60 degrees) off main walls as untouched
