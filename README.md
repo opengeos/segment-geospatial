@@ -42,11 +42,28 @@ The **segment-geospatial** package draws its inspiration from [segment-anything-
 
 ### Install from PyPI
 
-**segment-geospatial** is available on [PyPI](https://pypi.org/project/segment-geospatial/). To install **segment-geospatial**, run this command in your terminal:
+**segment-geospatial** is available on [PyPI](https://pypi.org/project/segment-geospatial/) and can be installed in several ways so that its dependencies can be controlled more granularly. This reduces package size for CI environments, since not every time all of the models will be used.
+
+Depending on what tools you need to use, you might want to do:
+* `segment-geospatial` or `segment-geospatial[samgeo]`: Installs only the minimum required dependencies to run SAMGeo
+* `segment-geospatial[samgeo2]`: Installs the dependencies to run SAMGeo 2
+* `segment-geospatial[fast]`: Installs the dependencies to run Fast SAM
+* `segment-geospatial[hq]`: Installs the dependencies to run HQ-SAM
+* `segment-geospatial[text]`: Installs Grounding DINO to use SAMGeo 1 and 2 with text prompts
+* `segment-geospatial[fer]`: Installs the dependencies to run the feature
+edge reconstruction algorithm
+
+Additionally, these other two optional imports are defined:
+* `segment-geospatial[all]`: Installs the dependencies to run all of the SAMGeo models
+* `segment-geospatial[extra]`: Installs the dependencies to run all of the SAMGeo models and other utilities to run the examples like Jupyter notebook support, `leafmap`, etc.
+
+Simply running the following should install the dependencies for each use case:
 
 ```bash
-pip install segment-geospatial
+pip install segment-geospatial[samgeo2] # Or any other choice of the above
 ```
+To see more in detail what packages come with each choice, please refer to `pyproject.toml`.
+
 
 ### Install from conda-forge
 
