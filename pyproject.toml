@@ -42,7 +42,7 @@ core = [
 ]
 fast = [
     "segment_geospatial[core]",
-    "segment-anything-fast,
+    "segment-anything-fast",
     "sam2",
     ]
 fer = [
