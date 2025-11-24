@@ -58,7 +58,7 @@ nav:
           - examples/text_prompts.ipynb
           - examples/text_prompts_batch.ipynb
           - examples/fast_sam.ipynb
-          - examples/swimming_pools.ipynb
+          - examples/text_swimming_pools.ipynb
           - examples/arcgis.ipynb
           - examples/maxar_open_data.ipynb
           - examples/sam2_automatic.ipynb
