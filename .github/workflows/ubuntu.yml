@@ -28,11 +28,16 @@ jobs:
               uses: actions/setup-python@v6
               with:
                   python-version: ${{ matrix.config.py }}
-            - name: Install GDAL
+            - name: Install GDAL system dependencies
+              run: sudo apt-get update && sudo apt-get install -y gdal-bin libgdal-dev
+
+            - name: Set GDAL version environment variables (optional, adapts to GDAL version)
               run: |
-                  python -m pip install --upgrade pip
-                  pip install --no-cache-dir Cython
-                  pip install --find-links=https://girder.github.io/large_image_wheels --no-cache GDAL
+                    export CPLUS_INCLUDE_PATH=/usr/include/gdal
+                    export C_INCLUDE_PATH=/usr/include/gdal
+
+            - name: Install GDAL Python bindings
+              run: pip install --upgrade pip && pip install GDAL
             - name: Test GDAL installation
               run: |
                   python -c "from osgeo import gdal"
