@@ -10,15 +10,21 @@ name: Windows build
 jobs:
     test-windows:
         runs-on: windows-latest
+        defaults:
+            run:
+                shell: bash -el {0}
         steps:
-            - uses: actions/checkout@v5
-            - name: Install miniconda
-              uses: conda-incubator/setup-miniconda@v3
+            - uses: actions/checkout@v6
+            - name: Setup micromamba
+              uses: mamba-org/setup-micromamba@v2
               with:
-                  auto-activate-base: true
-                  python-version: "3.12"
-            - name: Install GDAL
-              run: conda install -c conda-forge gdal --yes
+                  environment-name: test-env
+                  create-args: >-
+                      python=3.12
+                      gdal
+                      pyproj
+                      -c conda-forge
+                  cache-environment: true
             - name: Test GDAL installation
               run: |
                   python -c "from osgeo import gdal"
