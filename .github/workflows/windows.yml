@@ -11,7 +11,7 @@ jobs:
     test-windows:
         runs-on: windows-latest
         steps:
-            - uses: actions/checkout@v5
+            - uses: actions/checkout@v6
             - name: Install miniconda
               uses: conda-incubator/setup-miniconda@v3
               with:
