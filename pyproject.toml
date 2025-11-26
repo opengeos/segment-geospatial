@@ -67,6 +67,10 @@ samgeo2 = [
     "scikit-image",
     "scipy",
 ]
+samgeo3 = [
+    "segment_geospatial[core]",
+    "sam3",
+]
 text = [
     "segment_geospatial[samgeo2]",
     "groundingdino-py",
