@@ -119,7 +119,7 @@ class SamGeo3:
         elif isinstance(image, np.ndarray):
             self.image = image
             self.source = None
-        elif isinstance(image, Image):
+        elif isinstance(image, Image.Image):
             self.image = np.array(image)
             self.source = None
         else:
