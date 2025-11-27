@@ -271,107 +271,142 @@ class SamGeo3:
     def save_masks(
         self,
         output: Optional[str] = None,
-        foreground: bool = True,
         unique: bool = True,
-        erosion_kernel: Optional[Tuple[int, int]] = None,
-        mask_multiplier: int = 255,
         min_size: int = 0,
         max_size: Optional[int] = None,
+        dtype: str = "uint8",
+        save_scores: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
-        """Save the masks to the output path.
+        """Save the generated masks to a file.
+
+        If the input image is a GeoTIFF, the output will be saved as a GeoTIFF
+        with the same georeferencing information. Otherwise, it will be saved as PNG.
 
         Args:
-            output (str, optional): The path to the output image.
-            foreground (bool): Whether to generate the foreground mask.
-            unique (bool): Whether to assign a unique value to each object.
-            erosion_kernel (tuple, optional): The erosion kernel for filtering.
-            mask_multiplier (int): The mask multiplier for the output mask.
-            min_size (int): The minimum size of the object.
-            max_size (int): The maximum size of the object.
-            **kwargs: Additional keyword arguments for common.array_to_image().
+            output (str, optional): The path to the output file. If None, will use
+                'mask.tif' or 'mask.png' depending on input format.
+            unique (bool): If True, each mask gets a unique value (1, 2, 3, ...).
+                If False, all masks are combined into a binary mask (0 or 255).
+            min_size (int): Minimum mask size in pixels. Masks smaller than this
+                will be filtered out.
+            max_size (int, optional): Maximum mask size in pixels. Masks larger than
+                this will be filtered out.
+            dtype (str): Data type for the output array.
+            save_scores (str, optional): If provided, saves a confidence score map
+                to this path. Each pixel will have the confidence score of its mask.
+                The output format (GeoTIFF or PNG) follows the same logic as the mask output.
+            **kwargs: Additional keyword arguments passed to common.array_to_image().
         """
-
         if self.masks is None or len(self.masks) == 0:
-            # Create empty mask if no masks found
-            h, w, _ = self.image.shape
-            objects = np.zeros((h, w), dtype=np.uint8)
-            self.objects = objects
-            if output is not None:
-                common.array_to_image(self.objects, output, self.source, **kwargs)
+            raise ValueError("No masks found. Please run generate_masks() first.")
+
+        if save_scores is not None and self.scores is None:
+            raise ValueError("No scores found. Cannot save scores.")
+
+        # Determine output path if not provided
+        if output is None:
+            if self.source and self.source.lower().endswith(('.tif', '.tiff')):
+                output = 'mask.tif'
+            else:
+                output = 'mask.png'
+
+        # Create empty array for combined masks
+        mask_array = np.zeros(
+            (self.image_height, self.image_width),
+            dtype=np.uint32 if unique else np.uint8
+        )
+
+        # Create empty array for scores if requested
+        if save_scores is not None:
+            scores_array = np.zeros(
+                (self.image_height, self.image_width),
+                dtype=np.float32
+            )
+
+        # Process each mask
+        valid_mask_count = 0
+        mask_index = 0
+        for mask in self.masks:
+            # Convert mask to numpy array if it's a tensor
+            if hasattr(mask, 'cpu'):
+                mask_np = mask.squeeze().cpu().numpy()
+            elif hasattr(mask, 'numpy'):
+                mask_np = mask.squeeze().numpy()
+            else:
+                mask_np = mask.squeeze() if hasattr(mask, 'squeeze') else mask
+
+            # Ensure mask is 2D
+            if mask_np.ndim > 2:
+                mask_np = mask_np[0]
+
+            # Convert to boolean
+            mask_bool = mask_np > 0
+
+            # Calculate mask size
+            mask_size = np.sum(mask_bool)
+
+            # Filter by size
+            if mask_size < min_size:
+                mask_index += 1
+                continue
+            if max_size is not None and mask_size > max_size:
+                mask_index += 1
+                continue
+
+            # Get confidence score for this mask
+            if save_scores is not None:
+                if hasattr(self.scores[mask_index], 'item'):
+                    score = self.scores[mask_index].item()
+                else:
+                    score = float(self.scores[mask_index])
+
+            # Add mask to array
+            if unique:
+                # Assign unique value to each mask (starting from 1)
+                mask_value = valid_mask_count + 1
+                mask_array[mask_bool] = mask_value
+            else:
+                # Binary mask: all foreground pixels are 255
+                mask_array[mask_bool] = 255
+
+            # Add score to scores array
+            if save_scores is not None:
+                scores_array[mask_bool] = score
+
+            valid_mask_count += 1
+            mask_index += 1
+
+        if valid_mask_count == 0:
+            print("No masks met the size criteria.")
             return
 
-        h, w, _ = self.image.shape
-        masks = self.masks
-
-        # Set output image data type based on the number of objects
-        if len(masks) < 255:
-            dtype = np.uint8
-        elif len(masks) < 65535:
-            dtype = np.uint16
+        # Convert to requested dtype
+        if dtype == "uint8":
+            if unique and valid_mask_count > 255:
+                print(f"Warning: {valid_mask_count} masks found, but uint8 can only represent 255 unique values. Consider using dtype='uint16'.")
+            mask_array = mask_array.astype(np.uint8)
+        elif dtype == "uint16":
+            mask_array = mask_array.astype(np.uint16)
+        elif dtype == "int32":
+            mask_array = mask_array.astype(np.int32)
         else:
-            dtype = np.uint32
+            mask_array = mask_array.astype(dtype)
 
-        # Generate a mask of objects with unique values
-        if unique:
-            # Sort the masks by area in descending order
-            sorted_masks = sorted(masks, key=(lambda x: x["area"]), reverse=True)
+        # Store the mask array for visualization
+        self.objects = mask_array
 
-            # Create an output image with the same size as the input image
-            objects = np.zeros((h, w))
-            # Assign a unique value to each object
-            count = len(sorted_masks)
-            for index, ann in enumerate(sorted_masks):
-                m = ann["segmentation"]
-                if min_size > 0 and ann["area"] < min_size:
-                    continue
-                if max_size is not None and ann["area"] > max_size:
-                    continue
-                # Ensure mask dimensions match image dimensions
-                if m.shape[0] != h or m.shape[1] != w:
-                    # Resize mask to match image dimensions
-                    m_resized = cv2.resize(
-                        m.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST
-                    )
-                    m = m_resized.astype(bool)
-                objects[m] = count - index
+        # Save using common utility which handles GeoTIFF georeferencing
+        common.array_to_image(mask_array, output, self.source, dtype=dtype, **kwargs)
 
-        # Generate a binary mask
-        else:
-            if foreground:  # Extract foreground objects only
-                resulting_mask = np.zeros((h, w), dtype=dtype)
-            else:
-                resulting_mask = np.ones((h, w), dtype=dtype)
-            resulting_borders = np.zeros((h, w), dtype=dtype)
+        print(f"Saved {valid_mask_count} mask(s) to {output}")
 
-            for m in masks:
-                if min_size > 0 and m["area"] < min_size:
-                    continue
-                if max_size is not None and m["area"] > max_size:
-                    continue
-                mask = (m["segmentation"] > 0).astype(dtype)
-                # Ensure mask dimensions match image dimensions
-                if mask.shape[0] != h or mask.shape[1] != w:
-                    mask = cv2.resize(mask, (w, h), interpolation=cv2.INTER_NEAREST)
-                resulting_mask += mask
-
-                # Apply erosion to the mask
-                if erosion_kernel is not None:
-                    mask_erode = cv2.erode(mask, erosion_kernel, iterations=1)
-                    mask_erode = (mask_erode > 0).astype(dtype)
-                    edge_mask = mask - mask_erode
-                    resulting_borders += edge_mask
-
-            resulting_mask = (resulting_mask > 0).astype(dtype)
-            resulting_borders = (resulting_borders > 0).astype(dtype)
-            objects = resulting_mask - resulting_borders
-            objects = objects * mask_multiplier
-
-        objects = objects.astype(dtype)
-        self.objects = objects
-
-        if output is not None:  # Save the output image
-            common.array_to_image(self.objects, output, self.source, **kwargs)
+        # Save scores if requested
+        if save_scores is not None:
+            common.array_to_image(
+                scores_array, save_scores, self.source, dtype="float32", **kwargs
+            )
+            print(f"Saved confidence scores to {save_scores}")
 
     def save_prediction(
         self,
@@ -414,7 +449,6 @@ class SamGeo3:
         figsize: Tuple[int, int] = (12, 10),
         cmap: str = "binary_r",
         axis: str = "off",
-        foreground: bool = True,
         **kwargs: Any,
     ) -> None:
         """Show the binary mask or the mask of objects with unique values.
@@ -423,14 +457,13 @@ class SamGeo3:
             figsize (tuple): The figure size.
             cmap (str): The colormap.
             axis (str): Whether to show the axis.
-            foreground (bool): Whether to show the foreground mask only.
             **kwargs: Other arguments for save_masks().
         """
 
         import matplotlib.pyplot as plt
 
         if self.objects is None:
-            self.save_masks(foreground=foreground, **kwargs)
+            self.save_masks(**kwargs)
 
         plt.figure(figsize=figsize)
         plt.imshow(self.objects, cmap=cmap)
