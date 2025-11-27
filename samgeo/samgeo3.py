@@ -44,16 +44,17 @@ class SamGeo3:
         Initializes the SamGeo3 class.
 
         Args:
-        bpe_path: Path to the BPE tokenizer vocabulary
-        device: Device to load the model on ('cuda' or 'cpu')
-        eval_mode: Whether to set the model to evaluation mode
-        checkpoint_path: Optional path to model checkpoint
-        enable_segmentation: Whether to enable segmentation head
-        enable_inst_interactivity: Whether to enable instance interactivity (SAM 1 task)
-        compile_mode: To enable compilation, set to "default"
-        resolution: Resolution of the image
-        confidence_threshold: Confidence threshold for the model
-        **kwargs (Any): Additional keyword arguments.
+            bpe_path (str, optional): Path to the BPE tokenizer vocabulary.
+            device (str, optional): Device to load the model on ('cuda' or 'cpu').
+            eval_mode (bool, optional): Whether to set the model to evaluation mode.
+            checkpoint_path (str, optional): Optional path to model checkpoint.
+            load_from_HF (bool, optional): Whether to load the model from HuggingFace.
+            enable_segmentation (bool, optional): Whether to enable segmentation head.
+            enable_inst_interactivity (bool, optional): Whether to enable instance interactivity (SAM 1 task).
+            compile_mode (bool, optional): To enable compilation, set to "default".
+            resolution (int, optional): Resolution of the image.
+            confidence_threshold (float, optional): Confidence threshold for the model.
+            **kwargs: Additional keyword arguments.
         """
 
         if device is None:
