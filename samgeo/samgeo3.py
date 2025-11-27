@@ -3,22 +3,20 @@ https://github.com/facebookresearch/sam3
 """
 
 import os
-import sys
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
-import torch
 from PIL import Image
-from skimage.color import lab2rgb, rgb2lab
-from sklearn.cluster import KMeans
-from matplotlib.colors import to_rgb
-import matplotlib.patches as patches
 
 try:
     from sam3.model_builder import build_sam3_image_model
     from sam3.model.sam3_image_processor import Sam3Processor
+    from skimage.color import lab2rgb, rgb2lab
+    from sklearn.cluster import KMeans
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import to_rgb
+    import matplotlib.patches as patches
 except ImportError as e:
     print(f"Please install sam3 as:\n\tpip install segment-geospatial[samgeo3]")
 
@@ -429,9 +427,14 @@ class SamGeo3:
         Args:
             figsize (tuple): The figure size.
             axis (str): Whether to show the axis.
-            alpha (float): The alpha value for the annotations.
-            output (str, optional): The path to the output image.
-            blend (bool): Whether to show the input image.
+            alpha (float): The alpha value for the annotations. Currently not used,
+                masks are displayed with fixed 0.5 alpha.
+            output (str, optional): The path to the output image. If provided, the
+                figure will be saved instead of displayed.
+            blend (bool): Whether to show the input image as background. If False,
+                only annotations will be shown on a white background.
+            **kwargs: Additional keyword arguments passed to plt.savefig() when
+                output is provided (e.g., dpi, bbox_inches, pad_inches).
         """
 
         if self.image is None:
@@ -451,9 +454,16 @@ class SamGeo3:
         # Convert numpy array to PIL Image to match SAM3's plot_results expectations
         img_pil = Image.fromarray(self.image)
 
-        # Call the plot_results function with PIL Image
-        plt.figure(figsize=figsize)
-        plt.imshow(img_pil)
+        # Create figure
+        fig = plt.figure(figsize=figsize)
+
+        if blend:
+            # Show image as background
+            plt.imshow(img_pil)
+        else:
+            # Create white background with same dimensions
+            white_background = np.ones_like(self.image) * 255
+            plt.imshow(white_background)
 
         nb_objects = len(results["scores"])
         print(f"found {nb_objects} object(s)")
@@ -481,7 +491,21 @@ class SamGeo3:
             )
 
         plt.axis(axis)
-        plt.show()
+
+        if output is not None:
+            # Save the figure
+            save_kwargs = {
+                "bbox_inches": "tight",
+                "pad_inches": 0.1,
+                "dpi": 100,
+            }
+            save_kwargs.update(kwargs)
+            plt.savefig(output, **save_kwargs)
+            print(f"Saved annotations to {output}")
+            plt.close(fig)
+        else:
+            # Display the figure
+            plt.show()
 
         # sorted_anns = sorted(anns, key=(lambda x: x["area"]), reverse=True)
 
