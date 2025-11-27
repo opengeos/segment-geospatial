@@ -278,14 +278,14 @@ class SamGeo3:
         save_scores: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
-        """Save the generated masks to a file.
+        """Save the generated masks to a file or generate mask array for visualization.
 
         If the input image is a GeoTIFF, the output will be saved as a GeoTIFF
         with the same georeferencing information. Otherwise, it will be saved as PNG.
 
         Args:
-            output (str, optional): The path to the output file. If None, will use
-                'mask.tif' or 'mask.png' depending on input format.
+            output (str, optional): The path to the output file. If None, only generates
+                the mask array in memory (self.objects) without saving to disk.
             unique (bool): If True, each mask gets a unique value (1, 2, 3, ...).
                 If False, all masks are combined into a binary mask (0 or 255).
             min_size (int): Minimum mask size in pixels. Masks smaller than this
@@ -303,13 +303,6 @@ class SamGeo3:
 
         if save_scores is not None and self.scores is None:
             raise ValueError("No scores found. Cannot save scores.")
-
-        # Determine output path if not provided
-        if output is None:
-            if self.source and self.source.lower().endswith((".tif", ".tiff")):
-                output = "mask.tif"
-            else:
-                output = "mask.png"
 
         # Create empty array for combined masks
         mask_array = np.zeros(
@@ -397,17 +390,20 @@ class SamGeo3:
         # Store the mask array for visualization
         self.objects = mask_array
 
-        # Save using common utility which handles GeoTIFF georeferencing
-        common.array_to_image(mask_array, output, self.source, dtype=dtype, **kwargs)
-
-        print(f"Saved {valid_mask_count} mask(s) to {output}")
-
-        # Save scores if requested
-        if save_scores is not None:
+        # Only save to file if output path is provided
+        if output is not None:
+            # Save using common utility which handles GeoTIFF georeferencing
             common.array_to_image(
-                scores_array, save_scores, self.source, dtype="float32", **kwargs
+                mask_array, output, self.source, dtype=dtype, **kwargs
             )
-            print(f"Saved confidence scores to {save_scores}")
+            print(f"Saved {valid_mask_count} mask(s) to {output}")
+
+            # Save scores if requested
+            if save_scores is not None:
+                common.array_to_image(
+                    scores_array, save_scores, self.source, dtype="float32", **kwargs
+                )
+                print(f"Saved confidence scores to {save_scores}")
 
     def save_prediction(
         self,
@@ -448,27 +444,36 @@ class SamGeo3:
     def show_masks(
         self,
         figsize: Tuple[int, int] = (12, 10),
-        cmap: str = "binary_r",
+        cmap: str = "tab20",
         axis: str = "off",
+        unique: bool = True,
         **kwargs: Any,
     ) -> None:
         """Show the binary mask or the mask of objects with unique values.
 
         Args:
             figsize (tuple): The figure size.
-            cmap (str): The colormap.
+            cmap (str): The colormap. Default is "tab20" for showing unique objects.
+                Use "binary_r" for binary masks when unique=False.
+                Other good options: "viridis", "nipy_spectral", "rainbow".
             axis (str): Whether to show the axis.
-            **kwargs: Other arguments for save_masks().
+            unique (bool): If True, each mask gets a unique color value. If False, binary mask.
+            **kwargs: Additional keyword arguments passed to save_masks() for filtering
+                (e.g., min_size, max_size, dtype).
         """
 
-        import matplotlib.pyplot as plt
+        # Always regenerate mask array to ensure it matches the unique parameter
+        # This prevents showing stale cached binary masks when unique=True is requested
+        self.save_masks(output=None, unique=unique, **kwargs)
 
         if self.objects is None:
-            self.save_masks(**kwargs)
+            # save_masks would have printed a message if no masks met criteria
+            return
 
         plt.figure(figsize=figsize)
-        plt.imshow(self.objects, cmap=cmap)
+        plt.imshow(self.objects, cmap=cmap, interpolation="nearest")
         plt.axis(axis)
+
         plt.show()
 
     def show_anns(
