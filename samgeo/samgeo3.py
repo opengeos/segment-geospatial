@@ -95,7 +95,7 @@ class SamGeo3:
 
     def set_image(
         self,
-        image: Union[str, np.ndarray, Image],
+        image: Union[str, np.ndarray],
         state=None,
     ) -> None:
         """Set the input image as a numpy array.
