@@ -306,22 +306,21 @@ class SamGeo3:
 
         # Determine output path if not provided
         if output is None:
-            if self.source and self.source.lower().endswith(('.tif', '.tiff')):
-                output = 'mask.tif'
+            if self.source and self.source.lower().endswith((".tif", ".tiff")):
+                output = "mask.tif"
             else:
-                output = 'mask.png'
+                output = "mask.png"
 
         # Create empty array for combined masks
         mask_array = np.zeros(
             (self.image_height, self.image_width),
-            dtype=np.uint32 if unique else np.uint8
+            dtype=np.uint32 if unique else np.uint8,
         )
 
         # Create empty array for scores if requested
         if save_scores is not None:
             scores_array = np.zeros(
-                (self.image_height, self.image_width),
-                dtype=np.float32
+                (self.image_height, self.image_width), dtype=np.float32
             )
 
         # Process each mask
@@ -329,12 +328,12 @@ class SamGeo3:
         mask_index = 0
         for mask in self.masks:
             # Convert mask to numpy array if it's a tensor
-            if hasattr(mask, 'cpu'):
+            if hasattr(mask, "cpu"):
                 mask_np = mask.squeeze().cpu().numpy()
-            elif hasattr(mask, 'numpy'):
+            elif hasattr(mask, "numpy"):
                 mask_np = mask.squeeze().numpy()
             else:
-                mask_np = mask.squeeze() if hasattr(mask, 'squeeze') else mask
+                mask_np = mask.squeeze() if hasattr(mask, "squeeze") else mask
 
             # Ensure mask is 2D
             if mask_np.ndim > 2:
@@ -356,7 +355,7 @@ class SamGeo3:
 
             # Get confidence score for this mask
             if save_scores is not None:
-                if hasattr(self.scores[mask_index], 'item'):
+                if hasattr(self.scores[mask_index], "item"):
                     score = self.scores[mask_index].item()
                 else:
                     score = float(self.scores[mask_index])
@@ -384,7 +383,9 @@ class SamGeo3:
         # Convert to requested dtype
         if dtype == "uint8":
             if unique and valid_mask_count > 255:
-                print(f"Warning: {valid_mask_count} masks found, but uint8 can only represent 255 unique values. Consider using dtype='uint16'.")
+                print(
+                    f"Warning: {valid_mask_count} masks found, but uint8 can only represent 255 unique values. Consider using dtype='uint16'."
+                )
             mask_array = mask_array.astype(np.uint8)
         elif dtype == "uint16":
             mask_array = mask_array.astype(np.uint16)
