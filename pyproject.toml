@@ -70,6 +70,8 @@ samgeo2 = [
 samgeo3 = [
     "segment_geospatial[core]",
     "sam3",
+    "scikit-learn",
+    "scikit-image",
 ]
 text = [
     "segment_geospatial[samgeo2]",
