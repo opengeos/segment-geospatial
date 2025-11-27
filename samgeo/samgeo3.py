@@ -104,6 +104,7 @@ class SamGeo3:
         Args:
             image (Union[str, np.ndarray, Image]): The input image as a path,
                 a numpy array, or an Image.
+            state (optional): An optional state object to pass to the processor's set_image method.
         """
         if isinstance(image, str):
             if image.startswith("http"):
