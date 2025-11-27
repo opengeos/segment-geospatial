@@ -145,6 +145,8 @@ class SamGeo3:
         """
         Generate masks for the input image using SAM3.
 
+        Args:
+            prompt (str): The text prompt describing the objects to segment.
 
         Returns:
             List[Dict[str, Any]]: A list of dictionaries containing the generated masks.
