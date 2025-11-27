@@ -93,6 +93,18 @@ class SamGeo3:
             device=device,
             confidence_threshold=confidence_threshold,
         )
+        self.predictor = None
+        self.masks = None
+        self.boxes = None
+        self.scores = None
+        self.logits = None
+        self.objects = None
+        self.prediction = None
+        self.source = None
+        self.image = None
+        self.image_height = None
+        self.image_width = None
+        self.inference_state = None
 
     def set_image(
         self,
@@ -160,6 +172,14 @@ class SamGeo3:
         self.masks = output["masks"]
         self.boxes = output["boxes"]
         self.scores = output["scores"]
+
+        num_objects = len(self.masks)
+        if num_objects == 0:
+            print("No objects found. Please try a different prompt.")
+        elif num_objects == 1:
+            print("Found one object.")
+        else:
+            print(f"Found {num_objects} objects.")
 
     def predict(
         self,
@@ -421,9 +441,11 @@ class SamGeo3:
         self,
         figsize: Tuple[int, int] = (12, 10),
         axis: str = "off",
-        alpha: float = 0.35,
+        show_bbox: bool = True,
+        show_score: bool = True,
         output: Optional[str] = None,
         blend: bool = True,
+        alpha: float = 0.5,
         **kwargs: Any,
     ) -> None:
         """Show the annotations (objects with random color) on the input image.
@@ -431,12 +453,13 @@ class SamGeo3:
         Args:
             figsize (tuple): The figure size.
             axis (str): Whether to show the axis.
-            alpha (float): The alpha value for the annotations. Currently not used,
-                masks are displayed with fixed 0.5 alpha.
+            show_bbox (bool): Whether to show the bounding box.
+            show_score (bool): Whether to show the score.
             output (str, optional): The path to the output image. If provided, the
                 figure will be saved instead of displayed.
             blend (bool): Whether to show the input image as background. If False,
                 only annotations will be shown on a white background.
+            alpha (float): The alpha value for the annotations.
             **kwargs: Additional keyword arguments passed to plt.savefig() when
                 output is provided (e.g., dpi, bbox_inches, pad_inches).
         """
@@ -470,7 +493,6 @@ class SamGeo3:
             plt.imshow(white_background)
 
         nb_objects = len(results["scores"])
-        print(f"found {nb_objects} object(s)")
 
         # Use original dimensions from inference_state (boxes are scaled to these)
         if self.inference_state and "original_width" in self.inference_state:
@@ -484,17 +506,22 @@ class SamGeo3:
 
         for i in range(nb_objects):
             color = COLORS[i % len(COLORS)]
-            plot_mask(results["masks"][i].squeeze(0).cpu(), color=color)
-            prob = results["scores"][i].item()
-            plot_bbox(
-                h,
-                w,
-                results["boxes"][i].cpu(),
-                text=f"(id={i}, {prob=:.2f})",
-                box_format="XYXY",
-                color=color,
-                relative_coords=False,
-            )
+            plot_mask(results["masks"][i].squeeze(0).cpu(), color=color, alpha=alpha)
+            if show_bbox:
+                if show_score:
+                    prob = results["scores"][i].item()
+                    text = f"(id={i}, {prob=:.2f})"
+                else:
+                    text = f"(id={i})"
+                plot_bbox(
+                    h,
+                    w,
+                    results["boxes"][i].cpu(),
+                    text=text,
+                    box_format="XYXY",
+                    color=color,
+                    relative_coords=False,
+                )
 
         plt.axis(axis)
 
@@ -512,46 +539,6 @@ class SamGeo3:
         else:
             # Display the figure
             plt.show()
-
-        # sorted_anns = sorted(anns, key=(lambda x: x["area"]), reverse=True)
-
-        # ax = plt.gca()
-        # ax.set_autoscale_on(False)
-
-        # img = np.ones(
-        #     (
-        #         sorted_anns[0]["segmentation"].shape[0],
-        #         sorted_anns[0]["segmentation"].shape[1],
-        #         4,
-        #     )
-        # )
-        # img[:, :, 3] = 0
-        # for ann in sorted_anns:
-        #     if hasattr(self, "_min_size") and (ann["area"] < self._min_size):
-        #         continue
-        #     if (
-        #         hasattr(self, "_max_size")
-        #         and isinstance(self._max_size, int)
-        #         and ann["area"] > self._max_size
-        #     ):
-        #         continue
-        #     m = ann["segmentation"]
-        #     color_mask = np.concatenate([np.random.random(3), [alpha]])
-        #     img[m] = color_mask
-        # ax.imshow(img)
-
-        # plt.axis(axis)
-
-        # self.annotations = (img[:, :, 0:3] * 255).astype(np.uint8)
-
-        # if output is not None:
-        #     if blend:
-        #         array = common.blend_images(
-        #             self.annotations, self.image, alpha=alpha, show=False
-        #         )
-        #     else:
-        #         array = self.annotations
-        #     common.array_to_image(array, output, self.source, **kwargs)
 
     def raster_to_vector(
         self,
@@ -655,6 +642,19 @@ def plot_bbox(
     text=None,
     ax=None,
 ):
+    """Plot the bounding box on the image.
+
+    Args:
+        img_height (int): The height of the image.
+        img_width (int): The width of the image.
+        box (np.ndarray): The bounding box.
+        box_format (str): The format of the bounding box.
+        relative_coords (bool): Whether the coordinates are relative to the image.
+        color (str): The color of the bounding box.
+        linestyle (str): The line style of the bounding box.
+        text (str): The text to display in the bounding box.
+        ax (matplotlib.axes.Axes, optional): The axis to plot the bounding box on.
+    """
     # Convert box to numpy array if it's a tensor
     if hasattr(box, "numpy"):
         box = box.numpy()
@@ -705,11 +705,19 @@ def plot_bbox(
         )
 
 
-def plot_mask(mask, color="r", ax=None):
+def plot_mask(mask, color="r", alpha=0.5, ax=None):
+    """Plot the mask on the image.
+
+    Args:
+        mask (np.ndarray): The mask to plot.
+        color (str): The color of the mask.
+        ax (matplotlib.axes.Axes, optional): The axis to plot the mask on.
+        alpha (float): The alpha value for the mask.
+    """
     im_h, im_w = mask.shape
     mask_img = np.zeros((im_h, im_w, 4), dtype=np.float32)
     mask_img[..., :3] = to_rgb(color)
-    mask_img[..., 3] = mask * 0.5
+    mask_img[..., 3] = mask * alpha
     # Use the provided ax or the current axis
     if ax is None:
         ax = plt.gca()
