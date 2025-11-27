@@ -78,7 +78,7 @@ text = [
     "groundingdino-py",
 ]
 all = [
-    "segment-geospatial[fast, hq, fer, samgeo, samgeo2, text]",
+    "segment-geospatial[fast, hq, fer, samgeo, samgeo2, samgeo3, text]",
 ]
 extra = [
     "leafmap",

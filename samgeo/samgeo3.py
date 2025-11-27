@@ -476,6 +476,8 @@ class SamGeo3:
             # Fallback to image dimensions
             w, h = img_pil.size
 
+        COLORS = generate_colors(n_colors=128, n_samples=5000)
+
         for i in range(nb_objects):
             color = COLORS[i % len(COLORS)]
             plot_mask(results["masks"][i].squeeze(0).cpu(), color=color)
@@ -636,9 +638,6 @@ def generate_colors(n_colors=256, n_samples=5000):
     colors_rgb = lab2rgb(centers_lab.reshape(1, -1, 3)).reshape(-1, 3)
     colors_rgb = np.clip(colors_rgb, 0, 1)
     return colors_rgb
-
-
-COLORS = generate_colors(n_colors=128, n_samples=5000)
 
 
 def plot_bbox(
