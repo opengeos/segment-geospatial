@@ -177,7 +177,7 @@ class SamGeo3:
         dtype: str = "float32",
         return_results: bool = False,
         **kwargs: Any,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
         """Predict the mask for the input image using interactive prompts.
 
         Args:
