@@ -256,7 +256,7 @@ class SamGeo3:
         erosion_kernel: Optional[Tuple[int, int]] = None,
         mask_multiplier: int = 255,
         min_size: int = 0,
-        max_size: int = None,
+        max_size: Optional[int] = None,
         **kwargs: Any,
     ) -> None:
         """Save the masks to the output path.
