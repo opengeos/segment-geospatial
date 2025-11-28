@@ -7,3 +7,4 @@ __version__ = "0.13.0"
 
 from .samgeo import *  # noqa: F403
 from .samgeo2 import *  # noqa: F403
+from .samgeo3 import *  # noqa: F403

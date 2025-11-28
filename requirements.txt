@@ -1,6 +1,7 @@
 gdown
 geopandas
 huggingface_hub
+matplotlib
 numpy
 opencv-python-headless
 patool

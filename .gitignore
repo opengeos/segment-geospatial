@@ -15,8 +15,10 @@ private/
 **/*.csv
 **/*.pt
 *.mp4
+samgeo/assets/
 docs/examples/segments/
 docs/examples/blended/
+docs/examples/*.png
 
 docs/examples/*.geojson
 
