@@ -12,6 +12,7 @@ from PIL import Image
 try:
     from sam3.model_builder import build_sam3_image_model
     from sam3.model.sam3_image_processor import Sam3Processor as MetaSam3Processor
+
     SAM3_META_AVAILABLE = True
 except ImportError:
     SAM3_META_AVAILABLE = False
@@ -19,6 +20,7 @@ except ImportError:
 try:
     from transformers import Sam3Model, Sam3Processor as TransformersSam3Processor
     import torch
+
     SAM3_TRANSFORMERS_AVAILABLE = True
 except ImportError:
     SAM3_TRANSFORMERS_AVAILABLE = False
@@ -30,7 +32,9 @@ try:
     from matplotlib.colors import to_rgb
     import matplotlib.patches as patches
 except ImportError as e:
-    print(f"Please install required dependencies as:\n\tpip install segment-geospatial[samgeo3]")
+    print(
+        f"Please install required dependencies as:\n\tpip install segment-geospatial[samgeo3]"
+    )
 
 from samgeo import common
 
@@ -197,7 +201,9 @@ class SamGeo3:
         """
         self.confidence_threshold = threshold
         if self.backend == "meta":
-            self.inference_state = self.processor.set_confidence_threshold(threshold, state)
+            self.inference_state = self.processor.set_confidence_threshold(
+                threshold, state
+            )
         # For transformers backend, the threshold is stored and used during generate_masks
 
     def set_image(
@@ -443,9 +449,7 @@ class SamGeo3:
 
             # Prepare inputs with boxes
             inputs = self.processor(
-                images=self.pil_image,
-                input_boxes=input_boxes,
-                return_tensors="pt"
+                images=self.pil_image, input_boxes=input_boxes, return_tensors="pt"
             ).to(self.device)
 
             # Get original sizes for post-processing
@@ -936,7 +940,11 @@ class SamGeo3:
         nb_objects = len(results["scores"])
 
         # Use original dimensions from inference_state (boxes are scaled to these)
-        if self.backend == "meta" and self.inference_state and "original_width" in self.inference_state:
+        if (
+            self.backend == "meta"
+            and self.inference_state
+            and "original_width" in self.inference_state
+        ):
             w = self.inference_state["original_width"]
             h = self.inference_state["original_height"]
         else:
