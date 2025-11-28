@@ -11,14 +11,26 @@ from PIL import Image
 
 try:
     from sam3.model_builder import build_sam3_image_model
-    from sam3.model.sam3_image_processor import Sam3Processor
+    from sam3.model.sam3_image_processor import Sam3Processor as MetaSam3Processor
+    SAM3_META_AVAILABLE = True
+except ImportError:
+    SAM3_META_AVAILABLE = False
+
+try:
+    from transformers import Sam3Model, Sam3Processor as TransformersSam3Processor
+    import torch
+    SAM3_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    SAM3_TRANSFORMERS_AVAILABLE = False
+
+try:
     from skimage.color import lab2rgb, rgb2lab
     from sklearn.cluster import KMeans
     import matplotlib.pyplot as plt
     from matplotlib.colors import to_rgb
     import matplotlib.patches as patches
 except ImportError as e:
-    print(f"Please install sam3 as:\n\tpip install segment-geospatial[samgeo3]")
+    print(f"Please install required dependencies as:\n\tpip install segment-geospatial[samgeo3]")
 
 from samgeo import common
 
@@ -28,6 +40,8 @@ class SamGeo3:
 
     def __init__(
         self,
+        backend="meta",
+        model_id="facebook/sam3",
         bpe_path=None,
         device=None,
         eval_mode=True,
@@ -38,29 +52,105 @@ class SamGeo3:
         compile_mode=False,
         resolution=1008,
         confidence_threshold=0.5,
+        mask_threshold=0.5,
         **kwargs: Any,
     ) -> None:
         """
         Initializes the SamGeo3 class.
 
         Args:
-            bpe_path (str, optional): Path to the BPE tokenizer vocabulary.
+            backend (str): Backend to use ('meta' or 'transformers'). Default is 'meta'.
+            model_id (str): Model ID for Transformers backend (e.g., 'facebook/sam3').
+                Only used when backend='transformers'.
+            bpe_path (str, optional): Path to the BPE tokenizer vocabulary (Meta backend only).
             device (str, optional): Device to load the model on ('cuda' or 'cpu').
-            eval_mode (bool, optional): Whether to set the model to evaluation mode.
-            checkpoint_path (str, optional): Optional path to model checkpoint.
-            load_from_HF (bool, optional): Whether to load the model from HuggingFace.
-            enable_segmentation (bool, optional): Whether to enable segmentation head.
-            enable_inst_interactivity (bool, optional): Whether to enable instance interactivity (SAM 1 task).
-            compile_mode (bool, optional): To enable compilation, set to "default".
-            resolution (int, optional): Resolution of the image.
+            eval_mode (bool, optional): Whether to set the model to evaluation mode (Meta backend only).
+            checkpoint_path (str, optional): Optional path to model checkpoint (Meta backend only).
+            load_from_HF (bool, optional): Whether to load the model from HuggingFace (Meta backend only).
+            enable_segmentation (bool, optional): Whether to enable segmentation head (Meta backend only).
+            enable_inst_interactivity (bool, optional): Whether to enable instance interactivity (SAM 1 task) (Meta backend only).
+            compile_mode (bool, optional): To enable compilation, set to "default" (Meta backend only).
+            resolution (int, optional): Resolution of the image (Meta backend only).
             confidence_threshold (float, optional): Confidence threshold for the model.
+            mask_threshold (float, optional): Mask threshold for post-processing (Transformers backend only).
             **kwargs: Additional keyword arguments.
         """
+
+        if backend not in ["meta", "transformers"]:
+            raise ValueError(
+                f"Invalid backend '{backend}'. Choose 'meta' or 'transformers'."
+            )
+
+        if backend == "meta" and not SAM3_META_AVAILABLE:
+            raise ImportError(
+                "Meta SAM3 is not available. Please install it as:\n\tpip install segment-geospatial[samgeo3]"
+            )
+
+        if backend == "transformers" and not SAM3_TRANSFORMERS_AVAILABLE:
+            raise ImportError(
+                "Transformers SAM3 is not available. Please install it as:\n\tpip install transformers torch"
+            )
 
         if device is None:
             device = common.get_device()
 
         print(f"Using device: {device}")
+        print(f"Using backend: {backend}")
+
+        self.backend = backend
+        self.device = device
+        self.confidence_threshold = confidence_threshold
+        self.mask_threshold = mask_threshold
+        self.model_id = model_id
+
+        # Initialize backend-specific components
+        if backend == "meta":
+            self._init_meta_backend(
+                bpe_path=bpe_path,
+                device=device,
+                eval_mode=eval_mode,
+                checkpoint_path=checkpoint_path,
+                load_from_HF=load_from_HF,
+                enable_segmentation=enable_segmentation,
+                enable_inst_interactivity=enable_inst_interactivity,
+                compile_mode=compile_mode,
+                resolution=resolution,
+                confidence_threshold=confidence_threshold,
+            )
+        else:  # transformers
+            self._init_transformers_backend(
+                model_id=model_id,
+                device=device,
+            )
+
+        # Common attributes
+        self.predictor = None
+        self.masks = None
+        self.boxes = None
+        self.scores = None
+        self.logits = None
+        self.objects = None
+        self.prediction = None
+        self.source = None
+        self.image = None
+        self.image_height = None
+        self.image_width = None
+        self.inference_state = None
+
+    def _init_meta_backend(
+        self,
+        bpe_path,
+        device,
+        eval_mode,
+        checkpoint_path,
+        load_from_HF,
+        enable_segmentation,
+        enable_inst_interactivity,
+        compile_mode,
+        resolution,
+        confidence_threshold,
+    ):
+        """Initialize Meta SAM3 backend."""
         if bpe_path is None:
             current_dir = os.path.dirname(os.path.abspath(__file__))
             bpe_path = os.path.abspath(
@@ -86,33 +176,29 @@ class SamGeo3:
         # Ensure the model is on the correct device
         model = model.to(device)
 
-        self.device = device
-        self.processor = Sam3Processor(
+        self.model = model
+        self.processor = MetaSam3Processor(
             model,
             resolution=resolution,
             device=device,
             confidence_threshold=confidence_threshold,
         )
-        self.predictor = None
-        self.masks = None
-        self.boxes = None
-        self.scores = None
-        self.logits = None
-        self.objects = None
-        self.prediction = None
-        self.source = None
-        self.image = None
-        self.image_height = None
-        self.image_width = None
-        self.inference_state = None
+
+    def _init_transformers_backend(self, model_id, device):
+        """Initialize Transformers SAM3 backend."""
+        self.model = Sam3Model.from_pretrained(model_id).to(device)
+        self.processor = TransformersSam3Processor.from_pretrained(model_id)
 
     def set_confidence_threshold(self, threshold: float, state=None):
         """Sets the confidence threshold for the masks.
         Args:
             threshold (float): The confidence threshold.
-            state (optional): An optional state object to pass to the processor's set_confidence_threshold method.
+            state (optional): An optional state object to pass to the processor's set_confidence_threshold method (Meta backend only).
         """
-        self.inference_state = self.processor.set_confidence_threshold(threshold, state)
+        self.confidence_threshold = threshold
+        if self.backend == "meta":
+            self.inference_state = self.processor.set_confidence_threshold(threshold, state)
+        # For transformers backend, the threshold is stored and used during generate_masks
 
     def set_image(
         self,
@@ -124,7 +210,7 @@ class SamGeo3:
         Args:
             image (Union[str, np.ndarray, Image]): The input image as a path,
                 a numpy array, or an Image.
-            state (optional): An optional state object to pass to the processor's set_image method.
+            state (optional): An optional state object to pass to the processor's set_image method (Meta backend only).
         """
         if isinstance(image, str):
             if image.startswith("http"):
@@ -150,13 +236,20 @@ class SamGeo3:
 
         self.image_height, self.image_width = self.image.shape[:2]
 
-        # Convert to PIL Image for the processor to ensure correct dimension extraction
-        # SAM3's processor expects PIL Image or tensor with (C, H, W) format
-        # Numpy arrays from cv2 have (H, W, C) format which causes incorrect dimension extraction
+        # Convert to PIL Image for processing
         image_for_processor = Image.fromarray(self.image)
-        self.inference_state = self.processor.set_image(
-            image_for_processor, state=state
-        )
+
+        # Set image based on backend
+        if self.backend == "meta":
+            # SAM3's processor expects PIL Image or tensor with (C, H, W) format
+            # Numpy arrays from cv2 have (H, W, C) format which causes incorrect dimension extraction
+            self.inference_state = self.processor.set_image(
+                image_for_processor, state=state
+            )
+        else:  # transformers
+            # For Transformers backend, we just store the PIL image
+            # Processing will happen during generate_masks
+            self.pil_image = image_for_processor
 
     def generate_masks(
         self,
@@ -172,14 +265,47 @@ class SamGeo3:
         Returns:
             List[Dict[str, Any]]: A list of dictionaries containing the generated masks.
         """
-        self.processor.reset_all_prompts(self.inference_state)
-        output = self.processor.set_text_prompt(
-            state=self.inference_state, prompt=prompt
-        )
+        if self.backend == "meta":
+            self.processor.reset_all_prompts(self.inference_state)
+            output = self.processor.set_text_prompt(
+                state=self.inference_state, prompt=prompt
+            )
 
-        self.masks = output["masks"]
-        self.boxes = output["boxes"]
-        self.scores = output["scores"]
+            self.masks = output["masks"]
+            self.boxes = output["boxes"]
+            self.scores = output["scores"]
+        else:  # transformers
+            if not hasattr(self, "pil_image"):
+                raise ValueError("No image set. Please call set_image() first.")
+
+            # Prepare inputs
+            inputs = self.processor(
+                images=self.pil_image, text=prompt, return_tensors="pt"
+            ).to(self.device)
+
+            # Get original sizes for post-processing
+            original_sizes = inputs.get("original_sizes")
+            if original_sizes is not None:
+                original_sizes = original_sizes.tolist()
+            else:
+                original_sizes = [[self.image_height, self.image_width]]
+
+            # Run inference
+            with torch.no_grad():
+                outputs = self.model(**inputs)
+
+            # Post-process results
+            results = self.processor.post_process_instance_segmentation(
+                outputs,
+                threshold=self.confidence_threshold,
+                mask_threshold=self.mask_threshold,
+                target_sizes=original_sizes,
+            )[0]
+
+            # Convert results to match Meta backend format
+            self.masks = results["masks"]
+            self.boxes = results["boxes"]
+            self.scores = results["scores"]
 
         num_objects = len(self.masks)
         if num_objects == 0:
@@ -224,8 +350,12 @@ class SamGeo3:
             boxes = [[-122.5, 37.7, -122.4, 37.8]]  # [lon_min, lat_min, lon_max, lat_max]
             sam.generate_masks_by_boxes(boxes, box_crs="EPSG:4326")
         """
-        if self.inference_state is None:
-            raise ValueError("No image set. Please call set_image() first.")
+        if self.backend == "meta":
+            if self.inference_state is None:
+                raise ValueError("No image set. Please call set_image() first.")
+        else:  # transformers
+            if not hasattr(self, "pil_image"):
+                raise ValueError("No image set. Please call set_image() first.")
 
         if box_labels is None:
             box_labels = [True] * len(boxes)
@@ -274,32 +404,73 @@ class SamGeo3:
         width = self.image_width
         height = self.image_height
 
-        # Reset all prompts
-        self.processor.reset_all_prompts(self.inference_state)
+        if self.backend == "meta":
+            # Reset all prompts
+            self.processor.reset_all_prompts(self.inference_state)
 
-        # Process each box
-        for box, label in zip(boxes, box_labels):
-            # Convert XYXY to CxCyWH format
-            xmin, ymin, xmax, ymax = box
-            w = xmax - xmin
-            h = ymax - ymin
-            cx = xmin + w / 2
-            cy = ymin + h / 2
+            # Process each box
+            for box, label in zip(boxes, box_labels):
+                # Convert XYXY to CxCyWH format
+                xmin, ymin, xmax, ymax = box
+                w = xmax - xmin
+                h = ymax - ymin
+                cx = xmin + w / 2
+                cy = ymin + h / 2
 
-            # Normalize to [0, 1] range
-            norm_box = [cx / width, cy / height, w / width, h / height]
+                # Normalize to [0, 1] range
+                norm_box = [cx / width, cy / height, w / width, h / height]
 
-            # Add geometric prompt
-            self.inference_state = self.processor.add_geometric_prompt(
-                state=self.inference_state, box=norm_box, label=label
-            )
+                # Add geometric prompt
+                self.inference_state = self.processor.add_geometric_prompt(
+                    state=self.inference_state, box=norm_box, label=label
+                )
 
-        # Get the masks from the inference state
-        output = self.inference_state
+            # Get the masks from the inference state
+            output = self.inference_state
 
-        self.masks = output["masks"]
-        self.boxes = output["boxes"]
-        self.scores = output["scores"]
+            self.masks = output["masks"]
+            self.boxes = output["boxes"]
+            self.scores = output["scores"]
+        else:  # transformers
+            # For Transformers backend, process boxes with the processor
+            # Convert boxes to the format expected by Transformers
+            # Transformers expects boxes in XYXY format with 3 levels of nesting:
+            # [image level, box level, box coordinates]
+            # Also convert numpy types to Python native types
+            input_boxes = [
+                [[float(coord) for coord in box] for box in boxes]
+            ]  # Wrap in list for image level and convert to float
+
+            # Prepare inputs with boxes
+            inputs = self.processor(
+                images=self.pil_image,
+                input_boxes=input_boxes,
+                return_tensors="pt"
+            ).to(self.device)
+
+            # Get original sizes for post-processing
+            original_sizes = inputs.get("original_sizes")
+            if original_sizes is not None:
+                original_sizes = original_sizes.tolist()
+            else:
+                original_sizes = [[self.image_height, self.image_width]]
+
+            # Run inference
+            with torch.no_grad():
+                outputs = self.model(**inputs)
+
+            # Post-process results
+            results = self.processor.post_process_instance_segmentation(
+                outputs,
+                threshold=self.confidence_threshold,
+                mask_threshold=self.mask_threshold,
+                target_sizes=original_sizes,
+            )[0]
+
+            # Convert results to match Meta backend format
+            self.masks = results["masks"]
+            self.boxes = results["boxes"]
+            self.scores = results["scores"]
 
         num_objects = len(self.masks)
         if num_objects == 0:
@@ -423,6 +594,8 @@ class SamGeo3:
     ) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
         """Predict the mask for the input image using interactive prompts.
 
+        Note: This method is only available for the Meta backend with inst_interactivity=True.
+
         Args:
             point_coords (np.ndarray, optional): The point coordinates. Defaults to None.
             point_labels (np.ndarray, optional): The point labels. Defaults to None.
@@ -442,6 +615,12 @@ class SamGeo3:
         Returns:
             Tuple of masks, scores, and logits.
         """
+
+        if self.backend == "transformers":
+            raise NotImplementedError(
+                "Interactive prediction is not supported for Transformers backend. "
+                "Use generate_masks() or generate_masks_by_boxes() instead."
+            )
 
         if self.predictor is None:
             raise ValueError(
@@ -757,7 +936,7 @@ class SamGeo3:
         nb_objects = len(results["scores"])
 
         # Use original dimensions from inference_state (boxes are scaled to these)
-        if self.inference_state and "original_width" in self.inference_state:
+        if self.backend == "meta" and self.inference_state and "original_width" in self.inference_state:
             w = self.inference_state["original_width"]
             h = self.inference_state["original_height"]
         else:
@@ -768,17 +947,38 @@ class SamGeo3:
 
         for i in range(nb_objects):
             color = COLORS[i % len(COLORS)]
-            plot_mask(results["masks"][i].squeeze(0).cpu(), color=color, alpha=alpha)
+
+            # Handle both tensor and numpy array formats
+            mask = results["masks"][i]
+            if hasattr(mask, "cpu"):
+                mask = mask.squeeze(0).cpu()
+            elif hasattr(mask, "squeeze"):
+                mask = mask.squeeze(0)
+
+            plot_mask(mask, color=color, alpha=alpha)
+
             if show_bbox:
+                # Handle score extraction
+                score = results["scores"][i]
+                if hasattr(score, "item"):
+                    prob = score.item()
+                else:
+                    prob = float(score)
+
                 if show_score:
-                    prob = results["scores"][i].item()
                     text = f"(id={i}, {prob=:.2f})"
                 else:
                     text = f"(id={i})"
+
+                # Handle box extraction
+                box = results["boxes"][i]
+                if hasattr(box, "cpu"):
+                    box = box.cpu()
+
                 plot_bbox(
                     h,
                     w,
-                    results["boxes"][i].cpu(),
+                    box,
                     text=text,
                     box_format="XYXY",
                     color=color,
