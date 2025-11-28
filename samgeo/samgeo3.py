@@ -106,6 +106,14 @@ class SamGeo3:
         self.image_width = None
         self.inference_state = None
 
+    def set_confidence_threshold(self, threshold: float, state=None):
+        """Sets the confidence threshold for the masks.
+        Args:
+            threshold (float): The confidence threshold.
+            state (optional): An optional state object to pass to the processor's set_confidence_threshold method.
+        """
+        self.inference_state = self.processor.set_confidence_threshold(threshold, state)
+
     def set_image(
         self,
         image: Union[str, np.ndarray],
@@ -180,6 +188,221 @@ class SamGeo3:
             print("Found one object.")
         else:
             print(f"Found {num_objects} objects.")
+
+    def generate_masks_by_boxes(
+        self,
+        boxes: List[List[float]],
+        box_labels: Optional[List[bool]] = None,
+        box_crs: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """
+        Generate masks using bounding box prompts.
+
+        Args:
+            boxes (List[List[float]]): List of bounding boxes in XYXY format
+                [[xmin, ymin, xmax, ymax], ...].
+                If box_crs is None: pixel coordinates.
+                If box_crs is specified: coordinates in the given CRS (e.g., "EPSG:4326").
+            box_labels (List[bool], optional): List of boolean labels for each box.
+                True for positive prompt (include), False for negative prompt (exclude).
+                If None, all boxes are treated as positive prompts.
+            box_crs (str, optional): Coordinate reference system for box coordinates
+                (e.g., "EPSG:4326" for lat/lon). Only used if the source image is a GeoTIFF.
+                If None, boxes are assumed to be in pixel coordinates.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing masks, boxes, and scores.
+
+        Example:
+            # For pixel coordinates:
+            boxes = [[100, 200, 300, 400]]
+            sam.generate_masks_by_boxes(boxes)
+
+            # For geographic coordinates (GeoTIFF):
+            boxes = [[-122.5, 37.7, -122.4, 37.8]]  # [lon_min, lat_min, lon_max, lat_max]
+            sam.generate_masks_by_boxes(boxes, box_crs="EPSG:4326")
+        """
+        if self.inference_state is None:
+            raise ValueError("No image set. Please call set_image() first.")
+
+        if box_labels is None:
+            box_labels = [True] * len(boxes)
+
+        if len(boxes) != len(box_labels):
+            raise ValueError(
+                f"Number of boxes ({len(boxes)}) must match number of labels ({len(box_labels)})"
+            )
+
+        # Transform boxes from CRS to pixel coordinates if needed
+        if box_crs is not None and self.source is not None:
+            pixel_boxes = []
+            for box in boxes:
+                xmin, ymin, xmax, ymax = box
+
+                # Transform min corner
+                min_coords = np.array([[xmin, ymin]])
+                min_xy, _ = common.coords_to_xy(
+                    self.source, min_coords, box_crs, return_out_of_bounds=True
+                )
+
+                # Transform max corner
+                max_coords = np.array([[xmax, ymax]])
+                max_xy, _ = common.coords_to_xy(
+                    self.source, max_coords, box_crs, return_out_of_bounds=True
+                )
+
+                # Convert to pixel coordinates and ensure correct min/max order
+                # (geographic y increases north, pixel y increases down)
+                x1_px = min_xy[0][0]
+                y1_px = min_xy[0][1]
+                x2_px = max_xy[0][0]
+                y2_px = max_xy[0][1]
+
+                # Ensure we have correct min/max values
+                x_min_px = min(x1_px, x2_px)
+                y_min_px = min(y1_px, y2_px)
+                x_max_px = max(x1_px, x2_px)
+                y_max_px = max(y1_px, y2_px)
+
+                pixel_boxes.append([x_min_px, y_min_px, x_max_px, y_max_px])
+
+            boxes = pixel_boxes
+
+        # Get image dimensions
+        width = self.image_width
+        height = self.image_height
+
+        # Reset all prompts
+        self.processor.reset_all_prompts(self.inference_state)
+
+        # Process each box
+        for box, label in zip(boxes, box_labels):
+            # Convert XYXY to CxCyWH format
+            xmin, ymin, xmax, ymax = box
+            w = xmax - xmin
+            h = ymax - ymin
+            cx = xmin + w / 2
+            cy = ymin + h / 2
+
+            # Normalize to [0, 1] range
+            norm_box = [cx / width, cy / height, w / width, h / height]
+
+            # Add geometric prompt
+            self.inference_state = self.processor.add_geometric_prompt(
+                state=self.inference_state, box=norm_box, label=label
+            )
+
+        # Get the masks from the inference state
+        output = self.inference_state
+
+        self.masks = output["masks"]
+        self.boxes = output["boxes"]
+        self.scores = output["scores"]
+
+        num_objects = len(self.masks)
+        if num_objects == 0:
+            print("No objects found. Please check your box prompts.")
+        elif num_objects == 1:
+            print("Found one object.")
+        else:
+            print(f"Found {num_objects} objects.")
+
+    def show_boxes(
+        self,
+        boxes: List[List[float]],
+        box_labels: Optional[List[bool]] = None,
+        box_crs: Optional[str] = None,
+        figsize: Tuple[int, int] = (12, 10),
+        axis: str = "off",
+        positive_color: Tuple[int, int, int] = (0, 255, 0),
+        negative_color: Tuple[int, int, int] = (255, 0, 0),
+        thickness: int = 3,
+    ) -> None:
+        """
+        Visualize bounding boxes on the image.
+
+        Args:
+            boxes (List[List[float]]): List of bounding boxes in XYXY format
+                [[xmin, ymin, xmax, ymax], ...].
+                If box_crs is None: pixel coordinates.
+                If box_crs is specified: coordinates in the given CRS.
+            box_labels (List[bool], optional): List of boolean labels for each box.
+                True (positive) shown in green, False (negative) shown in red.
+                If None, all boxes shown in green.
+            box_crs (str, optional): Coordinate reference system for box coordinates
+                (e.g., "EPSG:4326"). If None, boxes are in pixel coordinates.
+            figsize (Tuple[int, int]): Figure size for display.
+            axis (str): Whether to show axis ("on" or "off").
+            positive_color (Tuple[int, int, int]): RGB color for positive boxes.
+            negative_color (Tuple[int, int, int]): RGB color for negative boxes.
+            thickness (int): Line thickness for box borders.
+        """
+        if self.image is None:
+            raise ValueError("No image set. Please call set_image() first.")
+
+        if box_labels is None:
+            box_labels = [True] * len(boxes)
+
+        # Transform boxes from CRS to pixel coordinates if needed
+        if box_crs is not None and self.source is not None:
+            pixel_boxes = []
+            for box in boxes:
+                xmin, ymin, xmax, ymax = box
+
+                # Transform min corner
+                min_coords = np.array([[xmin, ymin]])
+                min_xy, _ = common.coords_to_xy(
+                    self.source, min_coords, box_crs, return_out_of_bounds=True
+                )
+
+                # Transform max corner
+                max_coords = np.array([[xmax, ymax]])
+                max_xy, _ = common.coords_to_xy(
+                    self.source, max_coords, box_crs, return_out_of_bounds=True
+                )
+
+                # Convert to pixel coordinates and ensure correct min/max order
+                # (geographic y increases north, pixel y increases down)
+                x1_px = min_xy[0][0]
+                y1_px = min_xy[0][1]
+                x2_px = max_xy[0][0]
+                y2_px = max_xy[0][1]
+
+                # Ensure we have correct min/max values
+                x_min_px = min(x1_px, x2_px)
+                y_min_px = min(y1_px, y2_px)
+                x_max_px = max(x1_px, x2_px)
+                y_max_px = max(y1_px, y2_px)
+
+                pixel_boxes.append([x_min_px, y_min_px, x_max_px, y_max_px])
+
+            boxes = pixel_boxes
+
+        # Convert image to PIL if needed
+        if isinstance(self.image, np.ndarray):
+            img = Image.fromarray(self.image)
+        else:
+            img = self.image
+
+        # Draw each box
+        for box, label in zip(boxes, box_labels):
+            # Convert XYXY to XYWH for drawing
+            xmin, ymin, xmax, ymax = box
+            box_xywh = [xmin, ymin, xmax - xmin, ymax - ymin]
+
+            # Choose color based on label
+            color = positive_color if label else negative_color
+
+            # Draw box
+            img = draw_box_on_image(img, box_xywh, color=color, thickness=thickness)
+
+        # Display
+        plt.figure(figsize=figsize)
+        plt.imshow(img)
+        plt.axis(axis)
+        plt.show()
 
     def predict(
         self,
@@ -742,6 +965,37 @@ def plot_bbox(
             fontsize=8,
             bbox={"facecolor": facecolor, "alpha": 0.75, "pad": 2},
         )
+
+
+def draw_box_on_image(image, box, color=(0, 255, 0), thickness=2):
+    """Draw a bounding box on an image.
+
+    Args:
+        image (PIL.Image.Image or np.ndarray): The image to draw on.
+        box (List[float]): Bounding box in XYWH format [x, y, width, height].
+        color (Tuple[int, int, int]): RGB color for the box. Default is green.
+        thickness (int): Line thickness in pixels.
+
+    Returns:
+        PIL.Image.Image: Image with box drawn.
+    """
+    from PIL import ImageDraw
+
+    # Convert numpy array to PIL Image if needed
+    if isinstance(image, np.ndarray):
+        image = Image.fromarray(image)
+
+    # Make a copy to avoid modifying the original
+    image_copy = image.copy()
+    draw = ImageDraw.Draw(image_copy)
+
+    # Extract box coordinates (XYWH format)
+    x, y, w, h = box
+
+    # Draw rectangle
+    draw.rectangle([x, y, x + w, y + h], outline=color, width=thickness)
+
+    return image_copy
 
 
 def plot_mask(mask, color="r", alpha=0.5, ax=None):
