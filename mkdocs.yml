@@ -68,6 +68,7 @@ nav:
           - examples/sam2_point_prompts.ipynb
           - examples/sam2_text_prompts.ipynb
           - examples/tree_mapping.ipynb
+          - examples/sam3_image_segmentation.ipynb
     - Workshops:
           - workshops/purdue.ipynb
           - workshops/cn_workshop.ipynb

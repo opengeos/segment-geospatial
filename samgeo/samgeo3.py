@@ -98,8 +98,7 @@ class SamGeo3:
         if device is None:
             device = common.get_device()
 
-        print(f"Using device: {device}")
-        print(f"Using backend: {backend}")
+        print(f"Using {device} device and {backend} backend")
 
         self.backend = backend
         self.device = device
@@ -1081,7 +1080,16 @@ class SamGeo3:
         return fg_points, bg_points
 
 
-def generate_colors(n_colors=256, n_samples=5000):
+def generate_colors(n_colors: int = 256, n_samples: int = 5000) -> np.ndarray:
+    """Generate colors for the masks.
+
+    Args:
+        n_colors (int, optional): The number of colors to generate. Defaults to 256.
+        n_samples (int, optional): The number of samples to generate. Defaults to 5000.
+
+    Returns:
+        np.ndarray: The generated colors in RGB format.
+    """
     # Step 1: Random RGB samples
     np.random.seed(42)
     rgb = np.random.rand(n_samples, 3)
