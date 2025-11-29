@@ -105,6 +105,7 @@ class SamGeo3:
         self.confidence_threshold = confidence_threshold
         self.mask_threshold = mask_threshold
         self.model_id = model_id
+        self.model_version = "sam3"
 
         # Initialize backend-specific components
         if backend == "meta":
@@ -1029,23 +1030,26 @@ class SamGeo3:
 
     def show_map(
         self,
-        basemap: str = "SATELLITE",
-        repeat_mode: bool = True,
-        out_dir: Optional[str] = None,
-        **kwargs: Any,
-    ) -> Any:
+        basemap="Esri.WorldImagery",
+        out_dir=None,
+        **kwargs,
+    ):
         """Show the interactive map.
 
         Args:
-            basemap (str): The basemap type.
-            repeat_mode (bool): Whether to use repeat mode for draw control.
-            out_dir (Optional[str]): The path to the output directory.
+            basemap (str, optional): The basemap. It can be one of the following: SATELLITE, ROADMAP, TERRAIN, HYBRID.
+            out_dir (str, optional): The path to the output directory. Defaults to None.
 
         Returns:
-            The map object.
+            leafmap.Map: The map object.
         """
-        return common.sam_map_gui(
-            self, basemap=basemap, repeat_mode=repeat_mode, out_dir=out_dir, **kwargs
+        return common.text_sam_gui(
+            self,
+            basemap=basemap,
+            out_dir=out_dir,
+            box_threshold=self.confidence_threshold,
+            text_threshold=self.mask_threshold,
+            **kwargs,
         )
 
     def show_canvas(
