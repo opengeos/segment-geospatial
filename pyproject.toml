@@ -67,12 +67,19 @@ samgeo2 = [
     "scikit-image",
     "scipy",
 ]
+samgeo3 = [
+    "segment_geospatial[core]",
+    "sam3",
+    "scikit-learn",
+    "scikit-image",
+    "transformers",
+]
 text = [
     "segment_geospatial[samgeo2]",
     "groundingdino-py",
 ]
 all = [
-    "segment-geospatial[fast, hq, fer, samgeo, samgeo2, text]",
+    "segment-geospatial[fast, hq, fer, samgeo, samgeo2, samgeo3, text]",
 ]
 extra = [
     "leafmap",
