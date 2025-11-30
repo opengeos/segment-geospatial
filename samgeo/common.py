@@ -4227,10 +4227,10 @@ def orthogonalize(
             df_clone["cy"] = (df_clone["y1"] + df_clone["y2"]) / 2.0
 
         # Apply orthogonal alignment
-        df_clone["x1"] = df_clone["cx"] - ((df_clone["len"] / 2) * np.cos(df["angle"]))
-        df_clone["x2"] = df_clone["cx"] + ((df_clone["len"] / 2) * np.cos(df["angle"]))
-        df_clone["y1"] = df_clone["cy"] - ((df_clone["len"] / 2) * np.sin(df["angle"]))
-        df_clone["y2"] = df_clone["cy"] + ((df_clone["len"] / 2) * np.sin(df["angle"]))
+        df_clone["x1"] = df_clone["cx"] - ((df_clone["len"] / 2) * np.cos(df_clone["angle"]))
+        df_clone["x2"] = df_clone["cx"] + ((df_clone["len"] / 2) * np.cos(df_clone["angle"]))
+        df_clone["y1"] = df_clone["cy"] - ((df_clone["len"] / 2) * np.sin(df_clone["angle"]))
+        df_clone["y2"] = df_clone["cy"] + ((df_clone["len"] / 2) * np.sin(df_clone["angle"]))
 
         return df_clone
 
