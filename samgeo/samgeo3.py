@@ -1037,7 +1037,7 @@ class SamGeo3:
         """Show the interactive map.
 
         Args:
-            basemap (str, optional): The basemap. It can be one of the following: SATELLITE, ROADMAP, TERRAIN, HYBRID.
+            basemap (str, optional): The basemap. Valid options include "Esri.WorldImagery", "OpenStreetMap", "HYBRID", "ROADMAP", "TERRAIN", etc. See the leafmap documentation for a full list of supported basemaps.
             out_dir (str, optional): The path to the output directory. Defaults to None.
 
         Returns:
