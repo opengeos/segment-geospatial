@@ -3884,6 +3884,10 @@ def orthogonalize(
         Any: A GeoDataFrame containing the orthogonalized features.
     """
 
+    import math
+    import pandas as pd
+    from shapely.geometry import Polygon
+    from rasterio import features
     from functools import partial
 
     def orthogonalize_ring(ring, epsilon=0.2, min_segments=4):
