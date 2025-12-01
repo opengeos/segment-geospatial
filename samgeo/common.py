@@ -4133,7 +4133,7 @@ def orthogonalize(
             float: Orientation angle in radians
         """
         box = cv2.minAreaRect(contour.astype(int))
-        (cx, cy), (w, h), angle = box
+        (cx, cy), (w, _), angle = box
         return math.radians(angle)
 
     def simplify(contour, eps=0.2):
