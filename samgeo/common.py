@@ -2872,10 +2872,11 @@ def text_sam_gui(
             save_button.value = False
             reset_button.value = False
             opacity_slider.value = 0.7
-            if sam.model_version == "sam2":
+            model_version = getattr(sam, 'model_version', 'sam2')
+            if model_version == "sam2":
                 box_slider.value = 0.25
                 text_slider.value = 0.25
-            elif sam.model_version == "sam3":
+            elif model_version == "sam3":
                 box_slider.value = 0.5
                 text_slider.value = 0.5
             cmap_dropdown.value = "viridis"
