@@ -2775,7 +2775,9 @@ def text_sam_gui(
                             sam.generate_masks(prompt=text_prompt.value)
                             sam.save_masks(output=filename)
                         else:
-                            print(f"Unknown or unsupported model_version: {getattr(sam, 'model_version', None)}. Please set sam.model_version to 'sam2' or 'sam3'.")
+                            print(
+                                f"Unknown or unsupported model_version: {getattr(sam, 'model_version', None)}. Please set sam.model_version to 'sam2' or 'sam3'."
+                            )
                             return
                         sam.output = filename
                         if m.find_layer(layer_name) is not None:
