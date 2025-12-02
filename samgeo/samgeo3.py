@@ -263,7 +263,7 @@ class SamGeo3:
 
     def set_image_batch(
         self,
-        images: List[Union[str, np.ndarray]],
+        images: List[Union[str, np.ndarray, Image.Image]],
         state: Optional[Dict] = None,
     ) -> Dict[str, Any]:
         """Set multiple images for batch processing.
