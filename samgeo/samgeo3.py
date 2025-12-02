@@ -785,7 +785,7 @@ class SamGeo3:
                 valid_mask_count += 1
 
             if valid_mask_count == 0:
-                print(f"No valid masks for image {i} after filtering.")
+                print(f"No valid masks for image {i + 1} after filtering.")
                 continue
 
             # Convert dtype
