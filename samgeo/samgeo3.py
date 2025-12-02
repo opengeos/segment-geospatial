@@ -342,7 +342,6 @@ class SamGeo3:
         prompt: str,
         min_size: int = 0,
         max_size: Optional[int] = None,
-        **kwargs: Any,
     ) -> List[Dict[str, Any]]:
         """
         Generate masks for all images in the batch using SAM3.
