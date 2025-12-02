@@ -70,6 +70,7 @@ nav:
           - examples/tree_mapping.ipynb
           - examples/sam3_image_segmentation.ipynb
           - examples/sam3_image_segmentation_jpg.ipynb
+          - examples/sam3_interactive.ipynb
     - Workshops:
           - workshops/purdue.ipynb
           - workshops/cn_workshop.ipynb

@@ -73,6 +73,7 @@ samgeo3 = [
     "scikit-learn",
     "scikit-image",
     "transformers",
+    "buildingregulariser"
 ]
 text = [
     "segment_geospatial[samgeo2]",

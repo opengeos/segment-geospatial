@@ -145,6 +145,7 @@ class LangSAM:
         self.phrases = None
         self.logits = None
         self.prediction = None
+        self.model_version = "sam2"
 
     def build_sam(self, model_type, checkpoint_url=None):
         """Build the SAM model.

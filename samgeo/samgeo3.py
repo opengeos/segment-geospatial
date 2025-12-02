@@ -32,9 +32,7 @@ try:
     from matplotlib.colors import to_rgb
     import matplotlib.patches as patches
 except ImportError as e:
-    print(
-        f"Please install required dependencies as:\n\tpip install segment-geospatial[samgeo3]"
-    )
+    print(f"To use SamGeo 3, install it as:\n\tpip install segment-geospatial[samgeo3]")
 
 from samgeo import common
 
@@ -105,6 +103,7 @@ class SamGeo3:
         self.confidence_threshold = confidence_threshold
         self.mask_threshold = mask_threshold
         self.model_id = model_id
+        self.model_version = "sam3"
 
         # Initialize backend-specific components
         if backend == "meta":
@@ -259,6 +258,8 @@ class SamGeo3:
     def generate_masks(
         self,
         prompt: str,
+        min_size: int = 0,
+        max_size: Optional[int] = None,
         **kwargs: Any,
     ) -> List[Dict[str, Any]]:
         """
@@ -266,6 +267,10 @@ class SamGeo3:
 
         Args:
             prompt (str): The text prompt describing the objects to segment.
+            min_size (int): Minimum mask size in pixels. Masks smaller than this
+                will be filtered out. Defaults to 0.
+            max_size (int, optional): Maximum mask size in pixels. Masks larger than
+                this will be filtered out. Defaults to None (no maximum).
 
         Returns:
             List[Dict[str, Any]]: A list of dictionaries containing the generated masks.
@@ -312,6 +317,13 @@ class SamGeo3:
             self.boxes = results["boxes"]
             self.scores = results["scores"]
 
+        # Convert tensors to numpy to free GPU memory
+        self._convert_results_to_numpy()
+
+        # Filter masks by size if min_size or max_size is specified
+        if min_size > 0 or max_size is not None:
+            self._filter_masks_by_size(min_size, max_size)
+
         num_objects = len(self.masks)
         if num_objects == 0:
             print("No objects found. Please try a different prompt.")
@@ -325,6 +337,8 @@ class SamGeo3:
         boxes: List[List[float]],
         box_labels: Optional[List[bool]] = None,
         box_crs: Optional[str] = None,
+        min_size: int = 0,
+        max_size: Optional[int] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """
@@ -341,6 +355,10 @@ class SamGeo3:
             box_crs (str, optional): Coordinate reference system for box coordinates
                 (e.g., "EPSG:4326" for lat/lon). Only used if the source image is a GeoTIFF.
                 If None, boxes are assumed to be in pixel coordinates.
+            min_size (int): Minimum mask size in pixels. Masks smaller than this
+                will be filtered out. Defaults to 0.
+            max_size (int, optional): Maximum mask size in pixels. Masks larger than
+                this will be filtered out. Defaults to None (no maximum).
             **kwargs: Additional keyword arguments.
 
         Returns:
@@ -475,6 +493,13 @@ class SamGeo3:
             self.boxes = results["boxes"]
             self.scores = results["scores"]
 
+        # Convert tensors to numpy to free GPU memory
+        self._convert_results_to_numpy()
+
+        # Filter masks by size if min_size or max_size is specified
+        if min_size > 0 or max_size is not None:
+            self._filter_masks_by_size(min_size, max_size)
+
         num_objects = len(self.masks)
         if num_objects == 0:
             print("No objects found. Please check your box prompts.")
@@ -482,6 +507,114 @@ class SamGeo3:
             print("Found one object.")
         else:
             print(f"Found {num_objects} objects.")
+
+    def _convert_results_to_numpy(self) -> None:
+        """Convert masks, boxes, and scores from tensors to numpy arrays.
+
+        This frees GPU memory by moving data to CPU and converting to numpy.
+        """
+        if self.masks is None:
+            return
+
+        # Convert masks to numpy
+        converted_masks = []
+        for mask in self.masks:
+            if hasattr(mask, "cpu"):
+                # PyTorch tensor on GPU
+                mask_np = mask.cpu().numpy()
+            elif hasattr(mask, "numpy"):
+                # PyTorch tensor on CPU
+                mask_np = mask.numpy()
+            else:
+                # Already numpy or other array-like
+                mask_np = np.asarray(mask)
+            converted_masks.append(mask_np)
+        self.masks = converted_masks
+
+        # Convert boxes to numpy
+        if self.boxes is not None:
+            converted_boxes = []
+            for box in self.boxes:
+                if hasattr(box, "cpu"):
+                    box_np = box.cpu().numpy()
+                elif hasattr(box, "numpy"):
+                    box_np = box.numpy()
+                else:
+                    box_np = np.asarray(box)
+                converted_boxes.append(box_np)
+            self.boxes = converted_boxes
+
+        # Convert scores to numpy/float
+        if self.scores is not None:
+            converted_scores = []
+            for score in self.scores:
+                if hasattr(score, "cpu"):
+                    score_val = (
+                        score.cpu().item()
+                        if score.numel() == 1
+                        else score.cpu().numpy()
+                    )
+                elif hasattr(score, "item"):
+                    score_val = score.item()
+                elif hasattr(score, "numpy"):
+                    score_val = score.numpy()
+                else:
+                    score_val = float(score)
+                converted_scores.append(score_val)
+            self.scores = converted_scores
+
+    def _filter_masks_by_size(
+        self, min_size: int = 0, max_size: Optional[int] = None
+    ) -> None:
+        """Filter masks by size.
+
+        Args:
+            min_size (int): Minimum mask size in pixels. Masks smaller than this
+                will be filtered out.
+            max_size (int, optional): Maximum mask size in pixels. Masks larger than
+                this will be filtered out.
+        """
+        if self.masks is None or len(self.masks) == 0:
+            return
+
+        filtered_masks = []
+        filtered_boxes = []
+        filtered_scores = []
+
+        for i, mask in enumerate(self.masks):
+            # Convert mask to numpy array if it's a tensor
+            if hasattr(mask, "cpu"):
+                mask_np = mask.squeeze().cpu().numpy()
+            elif hasattr(mask, "numpy"):
+                mask_np = mask.squeeze().numpy()
+            else:
+                mask_np = mask.squeeze() if hasattr(mask, "squeeze") else mask
+
+            # Ensure mask is 2D
+            if mask_np.ndim > 2:
+                mask_np = mask_np[0]
+
+            # Convert to boolean and calculate mask size
+            mask_bool = mask_np > 0
+            mask_size = np.sum(mask_bool)
+
+            # Filter by size
+            if mask_size < min_size:
+                continue
+            if max_size is not None and mask_size > max_size:
+                continue
+
+            # Keep this mask
+            filtered_masks.append(self.masks[i])
+            if self.boxes is not None and len(self.boxes) > i:
+                filtered_boxes.append(self.boxes[i])
+            if self.scores is not None and len(self.scores) > i:
+                filtered_scores.append(self.scores[i])
+
+        # Update the stored masks, boxes, and scores
+        self.masks = filtered_masks
+        self.boxes = filtered_boxes if filtered_boxes else self.boxes
+        self.scores = filtered_scores if filtered_scores else self.scores
 
     def show_boxes(
         self,
@@ -1029,23 +1162,31 @@ class SamGeo3:
 
     def show_map(
         self,
-        basemap: str = "SATELLITE",
-        repeat_mode: bool = True,
-        out_dir: Optional[str] = None,
-        **kwargs: Any,
-    ) -> Any:
+        basemap="Esri.WorldImagery",
+        out_dir=None,
+        min_size=10,
+        max_size=None,
+        **kwargs,
+    ):
         """Show the interactive map.
 
         Args:
-            basemap (str): The basemap type.
-            repeat_mode (bool): Whether to use repeat mode for draw control.
-            out_dir (Optional[str]): The path to the output directory.
-
+            basemap (str, optional): The basemap. Valid options include "Esri.WorldImagery", "OpenStreetMap", "HYBRID", "ROADMAP", "TERRAIN", etc. See the leafmap documentation for a full list of supported basemaps.
+            out_dir (str, optional): The path to the output directory. Defaults to None.
+            min_size (int, optional): The minimum size of the object. Defaults to 10.
+            max_size (int, optional): The maximum size of the object. Defaults to None.
         Returns:
-            The map object.
+            leafmap.Map: The map object.
         """
-        return common.sam_map_gui(
-            self, basemap=basemap, repeat_mode=repeat_mode, out_dir=out_dir, **kwargs
+        return common.text_sam_gui(
+            self,
+            basemap=basemap,
+            out_dir=out_dir,
+            box_threshold=self.confidence_threshold,
+            text_threshold=self.mask_threshold,
+            min_size=min_size,
+            max_size=max_size,
+            **kwargs,
         )
 
     def show_canvas(
