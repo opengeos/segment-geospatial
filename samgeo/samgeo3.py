@@ -258,6 +258,8 @@ class SamGeo3:
     def generate_masks(
         self,
         prompt: str,
+        min_size: int = 0,
+        max_size: Optional[int] = None,
         **kwargs: Any,
     ) -> List[Dict[str, Any]]:
         """
@@ -265,6 +267,10 @@ class SamGeo3:
 
         Args:
             prompt (str): The text prompt describing the objects to segment.
+            min_size (int): Minimum mask size in pixels. Masks smaller than this
+                will be filtered out. Defaults to 0.
+            max_size (int, optional): Maximum mask size in pixels. Masks larger than
+                this will be filtered out. Defaults to None (no maximum).
 
         Returns:
             List[Dict[str, Any]]: A list of dictionaries containing the generated masks.
@@ -311,6 +317,10 @@ class SamGeo3:
             self.boxes = results["boxes"]
             self.scores = results["scores"]
 
+        # Filter masks by size if min_size or max_size is specified
+        if min_size > 0 or max_size is not None:
+            self._filter_masks_by_size(min_size, max_size)
+
         num_objects = len(self.masks)
         if num_objects == 0:
             print("No objects found. Please try a different prompt.")
@@ -324,6 +334,8 @@ class SamGeo3:
         boxes: List[List[float]],
         box_labels: Optional[List[bool]] = None,
         box_crs: Optional[str] = None,
+        min_size: int = 0,
+        max_size: Optional[int] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """
@@ -340,6 +352,10 @@ class SamGeo3:
             box_crs (str, optional): Coordinate reference system for box coordinates
                 (e.g., "EPSG:4326" for lat/lon). Only used if the source image is a GeoTIFF.
                 If None, boxes are assumed to be in pixel coordinates.
+            min_size (int): Minimum mask size in pixels. Masks smaller than this
+                will be filtered out. Defaults to 0.
+            max_size (int, optional): Maximum mask size in pixels. Masks larger than
+                this will be filtered out. Defaults to None (no maximum).
             **kwargs: Additional keyword arguments.
 
         Returns:
@@ -474,6 +490,10 @@ class SamGeo3:
             self.boxes = results["boxes"]
             self.scores = results["scores"]
 
+        # Filter masks by size if min_size or max_size is specified
+        if min_size > 0 or max_size is not None:
+            self._filter_masks_by_size(min_size, max_size)
+
         num_objects = len(self.masks)
         if num_objects == 0:
             print("No objects found. Please check your box prompts.")
@@ -481,6 +501,59 @@ class SamGeo3:
             print("Found one object.")
         else:
             print(f"Found {num_objects} objects.")
+
+    def _filter_masks_by_size(
+        self, min_size: int = 0, max_size: Optional[int] = None
+    ) -> None:
+        """Filter masks by size.
+
+        Args:
+            min_size (int): Minimum mask size in pixels. Masks smaller than this
+                will be filtered out.
+            max_size (int, optional): Maximum mask size in pixels. Masks larger than
+                this will be filtered out.
+        """
+        if self.masks is None or len(self.masks) == 0:
+            return
+
+        filtered_masks = []
+        filtered_boxes = []
+        filtered_scores = []
+
+        for i, mask in enumerate(self.masks):
+            # Convert mask to numpy array if it's a tensor
+            if hasattr(mask, "cpu"):
+                mask_np = mask.squeeze().cpu().numpy()
+            elif hasattr(mask, "numpy"):
+                mask_np = mask.squeeze().numpy()
+            else:
+                mask_np = mask.squeeze() if hasattr(mask, "squeeze") else mask
+
+            # Ensure mask is 2D
+            if mask_np.ndim > 2:
+                mask_np = mask_np[0]
+
+            # Convert to boolean and calculate mask size
+            mask_bool = mask_np > 0
+            mask_size = np.sum(mask_bool)
+
+            # Filter by size
+            if mask_size < min_size:
+                continue
+            if max_size is not None and mask_size > max_size:
+                continue
+
+            # Keep this mask
+            filtered_masks.append(self.masks[i])
+            if self.boxes is not None and len(self.boxes) > i:
+                filtered_boxes.append(self.boxes[i])
+            if self.scores is not None and len(self.scores) > i:
+                filtered_scores.append(self.scores[i])
+
+        # Update the stored masks, boxes, and scores
+        self.masks = filtered_masks
+        self.boxes = filtered_boxes if filtered_boxes else self.boxes
+        self.scores = filtered_scores if filtered_scores else self.scores
 
     def show_boxes(
         self,
@@ -1030,6 +1103,8 @@ class SamGeo3:
         self,
         basemap="Esri.WorldImagery",
         out_dir=None,
+        min_size=10,
+        max_size=None,
         **kwargs,
     ):
         """Show the interactive map.
@@ -1037,7 +1112,8 @@ class SamGeo3:
         Args:
             basemap (str, optional): The basemap. Valid options include "Esri.WorldImagery", "OpenStreetMap", "HYBRID", "ROADMAP", "TERRAIN", etc. See the leafmap documentation for a full list of supported basemaps.
             out_dir (str, optional): The path to the output directory. Defaults to None.
-
+            min_size (int, optional): The minimum size of the object. Defaults to 10.
+            max_size (int, optional): The maximum size of the object. Defaults to None.
         Returns:
             leafmap.Map: The map object.
         """
@@ -1047,6 +1123,8 @@ class SamGeo3:
             out_dir=out_dir,
             box_threshold=self.confidence_threshold,
             text_threshold=self.mask_threshold,
+            min_size=min_size,
+            max_size=max_size,
             **kwargs,
         )
 

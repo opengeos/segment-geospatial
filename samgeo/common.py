@@ -2531,6 +2531,8 @@ def text_sam_gui(
     text_threshold=0.25,
     cmap="viridis",
     opacity=0.7,
+    min_size=10,
+    max_size=None,
     **kwargs,
 ):
     """Display the SAM Map GUI.
@@ -2539,6 +2541,12 @@ def text_sam_gui(
         sam (SamGeo):
         basemap (str, optional): The basemap to use. Defaults to "SATELLITE".
         out_dir (str, optional): The output directory. Defaults to None.
+        box_threshold (float, optional): The threshold for the box. Defaults to 0.25.
+        text_threshold (float, optional): The threshold for the text. Defaults to 0.25.
+        cmap (str, optional): The colormap to use. Defaults to "viridis".
+        opacity (float, optional): The opacity of the mask. Defaults to 0.7.
+        min_size (int, optional): The minimum size of the object. Defaults to 10.
+        max_size (int, optional): The maximum size of the object. Defaults to None.
 
     """
     try:
@@ -2772,7 +2780,11 @@ def text_sam_gui(
                         elif sam.model_version == "sam3":
                             sam.confidence_threshold = box_slider.value
                             sam.mask_threshold = text_slider.value
-                            sam.generate_masks(prompt=text_prompt.value)
+                            sam.generate_masks(
+                                prompt=text_prompt.value,
+                                min_size=min_size,
+                                max_size=max_size,
+                            )
                             sam.save_masks(output=filename)
                         else:
                             print(
