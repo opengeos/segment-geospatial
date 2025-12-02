@@ -317,6 +317,9 @@ class SamGeo3:
             self.boxes = results["boxes"]
             self.scores = results["scores"]
 
+        # Convert tensors to numpy to free GPU memory
+        self._convert_results_to_numpy()
+
         # Filter masks by size if min_size or max_size is specified
         if min_size > 0 or max_size is not None:
             self._filter_masks_by_size(min_size, max_size)
@@ -490,6 +493,9 @@ class SamGeo3:
             self.boxes = results["boxes"]
             self.scores = results["scores"]
 
+        # Convert tensors to numpy to free GPU memory
+        self._convert_results_to_numpy()
+
         # Filter masks by size if min_size or max_size is specified
         if min_size > 0 or max_size is not None:
             self._filter_masks_by_size(min_size, max_size)
@@ -501,6 +507,61 @@ class SamGeo3:
             print("Found one object.")
         else:
             print(f"Found {num_objects} objects.")
+
+    def _convert_results_to_numpy(self) -> None:
+        """Convert masks, boxes, and scores from tensors to numpy arrays.
+
+        This frees GPU memory by moving data to CPU and converting to numpy.
+        """
+        if self.masks is None:
+            return
+
+        # Convert masks to numpy
+        converted_masks = []
+        for mask in self.masks:
+            if hasattr(mask, "cpu"):
+                # PyTorch tensor on GPU
+                mask_np = mask.cpu().numpy()
+            elif hasattr(mask, "numpy"):
+                # PyTorch tensor on CPU
+                mask_np = mask.numpy()
+            else:
+                # Already numpy or other array-like
+                mask_np = np.asarray(mask)
+            converted_masks.append(mask_np)
+        self.masks = converted_masks
+
+        # Convert boxes to numpy
+        if self.boxes is not None:
+            converted_boxes = []
+            for box in self.boxes:
+                if hasattr(box, "cpu"):
+                    box_np = box.cpu().numpy()
+                elif hasattr(box, "numpy"):
+                    box_np = box.numpy()
+                else:
+                    box_np = np.asarray(box)
+                converted_boxes.append(box_np)
+            self.boxes = converted_boxes
+
+        # Convert scores to numpy/float
+        if self.scores is not None:
+            converted_scores = []
+            for score in self.scores:
+                if hasattr(score, "cpu"):
+                    score_val = (
+                        score.cpu().item()
+                        if score.numel() == 1
+                        else score.cpu().numpy()
+                    )
+                elif hasattr(score, "item"):
+                    score_val = score.item()
+                elif hasattr(score, "numpy"):
+                    score_val = score.numpy()
+                else:
+                    score_val = float(score)
+                converted_scores.append(score_val)
+            self.scores = converted_scores
 
     def _filter_masks_by_size(
         self, min_size: int = 0, max_size: Optional[int] = None
