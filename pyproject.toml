@@ -73,7 +73,9 @@ samgeo3 = [
     "scikit-learn",
     "scikit-image",
     "transformers",
-    "buildingregulariser"
+    "buildingregulariser",
+    "leafmap",
+    "localtileserver"
 ]
 text = [
     "segment_geospatial[samgeo2]",
