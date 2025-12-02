@@ -870,10 +870,10 @@ class SamGeo3:
                 nrows, ncols, figsize=(figsize[0] * ncols, figsize[1] * nrows)
             )
 
-            if num_images == 1:
-                axes = np.array([axes])
-            axes = axes.flatten()
-
+            if num_images == 1 or ncols == 1 or nrows == 1:
+                axes = np.array([axes]).flatten()
+            else:
+                axes = axes.flatten()
             for i, result in enumerate(self.batch_results):
                 ax = axes[i]
                 self._show_single_ann(
