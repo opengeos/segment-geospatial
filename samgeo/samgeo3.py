@@ -265,7 +265,7 @@ class SamGeo3:
         self,
         images: List[Union[str, np.ndarray, Image.Image]],
         state: Optional[Dict] = None,
-    ) -> Dict[str, Any]:
+    ) -> None:
         """Set multiple images for batch processing.
 
         Note: This method is only available for the Meta backend.
@@ -275,10 +275,6 @@ class SamGeo3:
                 Each image can be a file path, a numpy array, or a PIL Image.
             state (dict, optional): An optional state object to pass to the
                 processor's set_image_batch method.
-
-        Returns:
-            Dict[str, Any]: The batch state containing backbone outputs and
-                image dimensions.
 
         Example:
             >>> sam = SamGeo3(backend="meta")
@@ -342,7 +338,7 @@ class SamGeo3:
         prompt: str,
         min_size: int = 0,
         max_size: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> None:
         """
         Generate masks for all images in the batch using SAM3.
 
@@ -354,14 +350,6 @@ class SamGeo3:
                 will be filtered out. Defaults to 0.
             max_size (int, optional): Maximum mask size in pixels. Masks larger than
                 this will be filtered out. Defaults to None (no maximum).
-
-        Returns:
-            List[Dict[str, Any]]: A list of dictionaries, one per image, containing:
-                - "masks": List of mask arrays
-                - "boxes": List of bounding boxes
-                - "scores": List of confidence scores
-                - "image": The original numpy image
-                - "source": The source file path (if available)
 
         Example:
             >>> sam = SamGeo3(backend="meta")
@@ -790,7 +778,9 @@ class SamGeo3:
 
             # Convert dtype
             if unique and valid_mask_count > np.iinfo(np.dtype(dtype)).max:
-                print(f"Warning: {valid_mask_count} masks exceed {dtype} range. Consider using uint16 or uint32.")
+                print(
+                    f"Warning: {valid_mask_count} masks exceed {dtype} range. Consider using uint16 or uint32."
+                )
             mask_array = mask_array.astype(dtype)
 
             # Determine output path and extension
