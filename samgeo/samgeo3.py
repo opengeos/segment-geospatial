@@ -1091,9 +1091,16 @@ class SamGeo3:
             # Handle both tensor and numpy array formats
             mask = results["masks"][i]
             if hasattr(mask, "cpu"):
-                mask = mask.squeeze(0).cpu()
-            elif hasattr(mask, "squeeze"):
-                mask = mask.squeeze(0)
+                mask = mask.squeeze().cpu().numpy()
+            elif hasattr(mask, "numpy"):
+                mask = mask.squeeze().numpy()
+            else:
+                # Already numpy array
+                mask = np.squeeze(mask)
+
+            # Ensure mask is 2D
+            if mask.ndim > 2:
+                mask = mask[0]
 
             plot_mask(mask, color=color, alpha=alpha)
 
