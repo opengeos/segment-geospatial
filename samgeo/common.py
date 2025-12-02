@@ -2758,13 +2758,19 @@ def text_sam_gui(
             segment_button.value = False
             with output:
                 output.clear_output()
-                if len(text_prompt.value) == 0:
-                    print("Please enter a text prompt first.")
+                if len(text_prompt.value) == 0 and m.user_roi_bounds() is None:
+                    print(
+                        "Please enter a text prompt or draw a region of interest first."
+                    )
                 elif sam.source is None:
                     print("Please run sam.set_image() first.")
                 else:
                     print("Segmenting...")
-                    layer_name = text_prompt.value.replace(" ", "_")
+                    if len(text_prompt.value) > 0:
+                        layer_name = text_prompt.value.replace(" ", "_")
+                    elif m.user_roi_bounds() is not None:
+                        layer_name = "masks"
+
                     filename = os.path.join(
                         out_dir, f"{layer_name}_{random_string()}.tif"
                     )
@@ -2780,11 +2786,24 @@ def text_sam_gui(
                         elif sam.model_version == "sam3":
                             sam.confidence_threshold = box_slider.value
                             sam.mask_threshold = text_slider.value
-                            sam.generate_masks(
-                                prompt=text_prompt.value,
-                                min_size=min_size,
-                                max_size=max_size,
-                            )
+                            if len(text_prompt.value) > 0:
+                                sam.generate_masks(
+                                    prompt=text_prompt.value,
+                                    min_size=min_size,
+                                    max_size=max_size,
+                                )
+                            elif m.user_roi_bounds() is not None:
+                                sam.generate_masks_by_boxes(
+                                    boxes=[m.user_roi_bounds()],
+                                    box_crs="EPSG:4326",
+                                    min_size=min_size,
+                                    max_size=max_size,
+                                )
+                            else:
+                                print(
+                                    "Please enter a text prompt or draw a region of interest first."
+                                )
+                                return
                             sam.save_masks(output=filename)
                         else:
                             print(
