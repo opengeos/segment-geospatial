@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "segment-geospatial"
-version = "0.13.0"
+version = "0.14.0"
 dynamic = [
     "dependencies",
 ]
@@ -104,7 +104,7 @@ dependencies = {file = ["requirements.txt"]}
 universal = true
 
 [tool.bumpversion]
-current_version = "0.13.0"
+current_version = "0.14.0"
 commit = true
 tag = true
 
