@@ -32,9 +32,7 @@ try:
     from matplotlib.colors import to_rgb
     import matplotlib.patches as patches
 except ImportError as e:
-    print(
-        f"Please install required dependencies as:\n\tpip install segment-geospatial[samgeo3]"
-    )
+    print(f"To use SamGeo 3, install it as:\n\tpip install segment-geospatial[samgeo3]")
 
 from samgeo import common
 

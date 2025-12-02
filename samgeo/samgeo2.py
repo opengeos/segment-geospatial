@@ -12,9 +12,7 @@ try:
     from sam2.sam2_image_predictor import SAM2ImagePredictor
     from sam2.sam2_video_predictor import SAM2VideoPredictor
 except ImportError as e:
-    print(
-        f"There was an error importing {e.name}. To use SAMGeo 2, install it as:\n\tpip install segment-geospatial[samgeo2]"
-    )
+    print(f"To use SamGeo 2, install it as:\n\tpip install segment-geospatial[samgeo2]")
 
 from samgeo import common
 
