@@ -790,6 +790,8 @@ class SamGeo3:
                 continue
 
             # Convert dtype
+            if unique and valid_mask_count > np.iinfo(np.dtype(dtype)).max:
+                print(f"Warning: {valid_mask_count} masks exceed {dtype} range. Consider using uint16 or uint32.")
             mask_array = mask_array.astype(dtype)
 
             # Determine output path and extension
