@@ -19,6 +19,7 @@ samgeo/assets/
 docs/examples/segments/
 docs/examples/blended/
 docs/examples/*.png
+output/
 
 docs/examples/*.geojson
 

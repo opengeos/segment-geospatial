@@ -139,6 +139,12 @@ class SamGeo3:
         self.image_width = None
         self.inference_state = None
 
+        # Batch processing attributes
+        self.images_batch = None
+        self.sources_batch = None
+        self.batch_state = None
+        self.batch_results = None
+
     def _init_meta_backend(
         self,
         bpe_path,
@@ -254,6 +260,738 @@ class SamGeo3:
             # For Transformers backend, we just store the PIL image
             # Processing will happen during generate_masks
             self.pil_image = image_for_processor
+
+    def set_image_batch(
+        self,
+        images: List[Union[str, np.ndarray, Image.Image]],
+        state: Optional[Dict] = None,
+    ) -> None:
+        """Set multiple images for batch processing.
+
+        Note: This method is only available for the Meta backend.
+
+        Args:
+            images (List[Union[str, np.ndarray, Image]]): A list of input images.
+                Each image can be a file path, a numpy array, or a PIL Image.
+            state (dict, optional): An optional state object to pass to the
+                processor's set_image_batch method.
+
+        Example:
+            >>> sam = SamGeo3(backend="meta")
+            >>> sam.set_image_batch(["image1.jpg", "image2.jpg", "image3.jpg"])
+            >>> results = sam.generate_masks_batch("tree")
+        """
+        if self.backend != "meta":
+            raise NotImplementedError(
+                "Batch image processing is only available for the Meta backend. "
+                "Use set_image() for the Transformers backend."
+            )
+
+        if not isinstance(images, list) or len(images) == 0:
+            raise ValueError("images must be a non-empty list")
+
+        # Process each image to PIL format
+        pil_images = []
+        sources = []
+        numpy_images = []
+
+        for image in images:
+            if isinstance(image, str):
+                if image.startswith("http"):
+                    image = common.download_file(image)
+
+                if not os.path.exists(image):
+                    raise ValueError(f"Input path {image} does not exist.")
+
+                sources.append(image)
+                img = cv2.imread(image)
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                numpy_images.append(img)
+                pil_images.append(Image.fromarray(img))
+
+            elif isinstance(image, np.ndarray):
+                sources.append(None)
+                numpy_images.append(image)
+                pil_images.append(Image.fromarray(image))
+
+            elif isinstance(image, Image.Image):
+                sources.append(None)
+                numpy_images.append(np.array(image))
+                pil_images.append(image)
+
+            else:
+                raise ValueError(
+                    "Each image must be either a path, numpy array, or PIL Image."
+                )
+
+        # Store batch information
+        self.images_batch = numpy_images
+        self.sources_batch = sources
+
+        # Call the processor's set_image_batch method
+        self.batch_state = self.processor.set_image_batch(pil_images, state=state)
+
+        print(f"Set {len(pil_images)} images for batch processing.")
+
+    def generate_masks_batch(
+        self,
+        prompt: str,
+        min_size: int = 0,
+        max_size: Optional[int] = None,
+    ) -> None:
+        """
+        Generate masks for all images in the batch using SAM3.
+
+        Note: This method is only available for the Meta backend.
+
+        Args:
+            prompt (str): The text prompt describing the objects to segment.
+            min_size (int): Minimum mask size in pixels. Masks smaller than this
+                will be filtered out. Defaults to 0.
+            max_size (int, optional): Maximum mask size in pixels. Masks larger than
+                this will be filtered out. Defaults to None (no maximum).
+
+        Example:
+            >>> sam = SamGeo3(backend="meta")
+            >>> sam.set_image_batch(["image1.jpg", "image2.jpg"])
+            >>> results = sam.generate_masks_batch("building")
+            >>> for i, result in enumerate(results):
+            ...     print(f"Image {i}: Found {len(result['masks'])} objects")
+        """
+        if self.backend != "meta":
+            raise NotImplementedError(
+                "Batch mask generation is only available for the Meta backend."
+            )
+
+        if self.batch_state is None:
+            raise ValueError(
+                "No images set for batch processing. "
+                "Please call set_image_batch() first."
+            )
+
+        batch_results = []
+        num_images = len(self.images_batch)
+
+        # The batch backbone features are computed once, but text prompting
+        # needs to be done per-image since set_text_prompt expects singular
+        # original_height/original_width keys
+        backbone_out = self.batch_state.get("backbone_out", {})
+
+        for i in range(num_images):
+            # Create a per-image state with the correct singular keys
+            image_state = {
+                "original_height": self.batch_state["original_heights"][i],
+                "original_width": self.batch_state["original_widths"][i],
+            }
+
+            # Extract backbone features for this specific image
+            # The backbone_out contains batched features, we need to slice them
+            image_backbone_out = self._extract_image_backbone_features(backbone_out, i)
+            image_state["backbone_out"] = image_backbone_out
+
+            # Reset prompts and set text prompt for this image
+            self.processor.reset_all_prompts(image_state)
+            output = self.processor.set_text_prompt(state=image_state, prompt=prompt)
+
+            # Build result for this image
+            result = {
+                "masks": output.get("masks", []),
+                "boxes": output.get("boxes", []),
+                "scores": output.get("scores", []),
+                "image": self.images_batch[i],
+                "source": self.sources_batch[i],
+            }
+
+            # Convert tensors to numpy
+            result = self._convert_batch_result_to_numpy(result)
+
+            # Filter by size if needed
+            if min_size > 0 or max_size is not None:
+                result = self._filter_batch_result_by_size(result, min_size, max_size)
+
+            batch_results.append(result)
+
+        self.batch_results = batch_results
+
+        # Print summary
+        total_objects = sum(len(r.get("masks", [])) for r in batch_results)
+        print(
+            f"Processed {num_images} image(s), found {total_objects} total object(s)."
+        )
+
+    def _extract_image_backbone_features(
+        self, backbone_out: Dict[str, Any], image_index: int
+    ) -> Dict[str, Any]:
+        """Extract backbone features for a single image from batched features.
+
+        Args:
+            backbone_out: Batched backbone output from set_image_batch.
+            image_index: Index of the image to extract features for.
+
+        Returns:
+            Dictionary containing backbone features for a single image.
+        """
+        import torch
+
+        image_backbone = {}
+
+        for key, value in backbone_out.items():
+            # Skip None values
+            if value is None:
+                image_backbone[key] = None
+                continue
+
+            if key == "sam2_backbone_out":
+                # Handle nested sam2 backbone output
+                if not isinstance(value, dict):
+                    image_backbone[key] = value
+                    continue
+
+                sam2_out = {}
+                for sam2_key, sam2_value in value.items():
+                    if sam2_value is None:
+                        sam2_out[sam2_key] = None
+                    elif sam2_key == "backbone_fpn":
+                        # backbone_fpn is a list of feature tensors
+                        sam2_out[sam2_key] = [
+                            (
+                                feat[image_index : image_index + 1]
+                                if isinstance(feat, torch.Tensor)
+                                else feat
+                            )
+                            for feat in sam2_value
+                        ]
+                    elif isinstance(sam2_value, torch.Tensor):
+                        sam2_out[sam2_key] = sam2_value[image_index : image_index + 1]
+                    elif isinstance(sam2_value, list):
+                        sam2_out[sam2_key] = [
+                            (
+                                v[image_index : image_index + 1]
+                                if isinstance(v, torch.Tensor)
+                                else v
+                            )
+                            for v in sam2_value
+                        ]
+                    else:
+                        sam2_out[sam2_key] = sam2_value
+                image_backbone[key] = sam2_out
+            elif isinstance(value, torch.Tensor):
+                # Slice the batch dimension
+                image_backbone[key] = value[image_index : image_index + 1]
+            elif isinstance(value, list):
+                # Handle list of tensors
+                image_backbone[key] = [
+                    (
+                        v[image_index : image_index + 1]
+                        if isinstance(v, torch.Tensor)
+                        else v
+                    )
+                    for v in value
+                ]
+            elif isinstance(value, dict):
+                # Recursively handle nested dicts
+                nested = {}
+                for k, v in value.items():
+                    if v is None:
+                        nested[k] = None
+                    elif isinstance(v, torch.Tensor):
+                        nested[k] = v[image_index : image_index + 1]
+                    elif isinstance(v, list):
+                        nested[k] = [
+                            (
+                                item[image_index : image_index + 1]
+                                if isinstance(item, torch.Tensor)
+                                else item
+                            )
+                            for item in v
+                        ]
+                    else:
+                        nested[k] = v
+                image_backbone[key] = nested
+            else:
+                image_backbone[key] = value
+
+        return image_backbone
+
+    def _convert_batch_result_to_numpy(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert masks, boxes, and scores in a batch result to numpy arrays.
+
+        Args:
+            result: Dictionary containing masks, boxes, scores for one image.
+
+        Returns:
+            Dictionary with numpy arrays instead of tensors.
+        """
+        import torch
+
+        # Helper to check if a value is non-empty
+        def has_items(val):
+            if val is None:
+                return False
+            if isinstance(val, (list, tuple)):
+                return len(val) > 0
+            if isinstance(val, torch.Tensor):
+                return val.numel() > 0
+            if isinstance(val, np.ndarray):
+                return val.size > 0
+            return bool(val)
+
+        # Convert masks
+        masks = result.get("masks")
+        if has_items(masks):
+            converted_masks = []
+            # Handle case where masks is a single tensor with batch dimension
+            if isinstance(masks, torch.Tensor):
+                # If it's a batched tensor, split into list
+                if masks.dim() >= 3:
+                    for i in range(masks.shape[0]):
+                        converted_masks.append(masks[i].cpu().numpy())
+                else:
+                    converted_masks.append(masks.cpu().numpy())
+            else:
+                # It's already a list
+                for mask in masks:
+                    if hasattr(mask, "cpu"):
+                        mask_np = mask.cpu().numpy()
+                    elif hasattr(mask, "numpy"):
+                        mask_np = mask.numpy()
+                    else:
+                        mask_np = np.asarray(mask)
+                    converted_masks.append(mask_np)
+            result["masks"] = converted_masks
+
+        # Convert boxes
+        boxes = result.get("boxes")
+        if has_items(boxes):
+            converted_boxes = []
+            if isinstance(boxes, torch.Tensor):
+                # If it's a batched tensor [N, 4], split into list
+                if boxes.dim() == 2:
+                    for i in range(boxes.shape[0]):
+                        converted_boxes.append(boxes[i].cpu().numpy())
+                else:
+                    converted_boxes.append(boxes.cpu().numpy())
+            else:
+                for box in boxes:
+                    if hasattr(box, "cpu"):
+                        box_np = box.cpu().numpy()
+                    elif hasattr(box, "numpy"):
+                        box_np = box.numpy()
+                    else:
+                        box_np = np.asarray(box)
+                    converted_boxes.append(box_np)
+            result["boxes"] = converted_boxes
+
+        # Convert scores
+        scores = result.get("scores")
+        if has_items(scores):
+            converted_scores = []
+            if isinstance(scores, torch.Tensor):
+                # If it's a 1D tensor of scores
+                scores_np = scores.cpu().numpy()
+                if scores_np.ndim == 0:
+                    converted_scores.append(float(scores_np))
+                else:
+                    for s in scores_np:
+                        converted_scores.append(float(s))
+            else:
+                for score in scores:
+                    if hasattr(score, "cpu"):
+                        score_val = (
+                            score.cpu().item()
+                            if hasattr(score, "numel") and score.numel() == 1
+                            else score.cpu().numpy()
+                        )
+                    elif hasattr(score, "item"):
+                        score_val = score.item()
+                    elif hasattr(score, "numpy"):
+                        score_val = score.numpy()
+                    else:
+                        score_val = float(score)
+                    converted_scores.append(score_val)
+            result["scores"] = converted_scores
+
+        return result
+
+    def _filter_batch_result_by_size(
+        self,
+        result: Dict[str, Any],
+        min_size: int = 0,
+        max_size: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Filter masks in a batch result by size.
+
+        Args:
+            result: Dictionary containing masks, boxes, scores for one image.
+            min_size: Minimum mask size in pixels.
+            max_size: Maximum mask size in pixels.
+
+        Returns:
+            Filtered result dictionary.
+        """
+        if not result.get("masks"):
+            return result
+
+        filtered_masks = []
+        filtered_boxes = []
+        filtered_scores = []
+
+        masks = result["masks"]
+        boxes = result.get("boxes", [])
+        scores = result.get("scores", [])
+
+        for i, mask in enumerate(masks):
+            # Convert mask to numpy if needed
+            if hasattr(mask, "cpu"):
+                mask_np = mask.squeeze().cpu().numpy()
+            elif hasattr(mask, "numpy"):
+                mask_np = mask.squeeze().numpy()
+            else:
+                mask_np = np.squeeze(mask) if hasattr(mask, "squeeze") else mask
+
+            # Ensure mask is 2D
+            if mask_np.ndim > 2:
+                mask_np = mask_np[0]
+
+            # Calculate mask size
+            mask_bool = mask_np > 0
+            mask_size = np.sum(mask_bool)
+
+            # Filter by size
+            if mask_size < min_size:
+                continue
+            if max_size is not None and mask_size > max_size:
+                continue
+
+            # Keep this mask
+            filtered_masks.append(masks[i])
+            if i < len(boxes):
+                filtered_boxes.append(boxes[i])
+            if i < len(scores):
+                filtered_scores.append(scores[i])
+
+        result["masks"] = filtered_masks
+        result["boxes"] = filtered_boxes
+        result["scores"] = filtered_scores
+
+        return result
+
+    def save_masks_batch(
+        self,
+        output_dir: str,
+        prefix: str = "mask",
+        unique: bool = True,
+        min_size: int = 0,
+        max_size: Optional[int] = None,
+        dtype: str = "uint8",
+        **kwargs: Any,
+    ) -> List[str]:
+        """Save masks from batch processing to files.
+
+        Args:
+            output_dir (str): Directory to save the mask files.
+            prefix (str): Prefix for output filenames. Files will be named
+                "{prefix}_{index}.tif" or "{prefix}_{index}.png".
+            unique (bool): If True, each mask gets a unique value (1, 2, 3, ...).
+                If False, all masks are combined into a binary mask.
+            min_size (int): Minimum mask size in pixels.
+            max_size (int, optional): Maximum mask size in pixels.
+            dtype (str): Data type for the output array.
+            **kwargs: Additional arguments passed to common.array_to_image().
+
+        Returns:
+            List[str]: List of paths to saved mask files.
+
+        Example:
+            >>> sam = SamGeo3(backend="meta")
+            >>> sam.set_image_batch(["img1.tif", "img2.tif"])
+            >>> sam.generate_masks_batch("building")
+            >>> saved_files = sam.save_masks_batch("output/", prefix="building_mask")
+        """
+        if self.batch_results is None:
+            raise ValueError(
+                "No batch results found. Please run generate_masks_batch() first."
+            )
+
+        os.makedirs(output_dir, exist_ok=True)
+        saved_files = []
+
+        for i, result in enumerate(self.batch_results):
+            masks = result.get("masks", [])
+            source = result.get("source")
+            image = result.get("image")
+
+            if not masks:
+                print(f"No masks for image {i + 1}, skipping.")
+                continue
+
+            # Get image dimensions
+            if image is not None:
+                height, width = image.shape[:2]
+            else:
+                # Try to get from first mask
+                mask = masks[0]
+                if hasattr(mask, "shape"):
+                    if mask.ndim > 2:
+                        height, width = mask.shape[-2:]
+                    else:
+                        height, width = mask.shape
+                else:
+                    raise ValueError(f"Cannot determine dimensions for image {i}")
+
+            # Create combined mask array
+            mask_array = np.zeros(
+                (height, width), dtype=np.uint32 if unique else np.uint8
+            )
+
+            valid_mask_count = 0
+            for j, mask in enumerate(masks):
+                # Convert to numpy
+                if hasattr(mask, "cpu"):
+                    mask_np = mask.squeeze().cpu().numpy()
+                elif hasattr(mask, "numpy"):
+                    mask_np = mask.squeeze().numpy()
+                else:
+                    mask_np = np.squeeze(mask) if hasattr(mask, "squeeze") else mask
+
+                if mask_np.ndim > 2:
+                    mask_np = mask_np[0]
+
+                mask_bool = mask_np > 0
+                mask_size = np.sum(mask_bool)
+
+                if mask_size < min_size:
+                    continue
+                if max_size is not None and mask_size > max_size:
+                    continue
+
+                if unique:
+                    mask_array[mask_bool] = valid_mask_count + 1
+                else:
+                    mask_array[mask_bool] = 255
+
+                valid_mask_count += 1
+
+            if valid_mask_count == 0:
+                print(f"No valid masks for image {i + 1} after filtering.")
+                continue
+
+            # Convert dtype
+            if unique and valid_mask_count > np.iinfo(np.dtype(dtype)).max:
+                print(
+                    f"Warning: {valid_mask_count} masks exceed {dtype} range. Consider using uint16 or uint32."
+                )
+            mask_array = mask_array.astype(dtype)
+
+            # Determine output path and extension
+            if source is not None and source.lower().endswith((".tif", ".tiff")):
+                ext = ".tif"
+            else:
+                ext = ".png"
+
+            output_path = os.path.join(output_dir, f"{prefix}_{i + 1}{ext}")
+
+            # Save
+            common.array_to_image(
+                mask_array, output_path, source, dtype=dtype, **kwargs
+            )
+            saved_files.append(output_path)
+            print(
+                f"Saved {valid_mask_count} mask(s) for image {i + 1} to {output_path}"
+            )
+
+        return saved_files
+
+    def show_anns_batch(
+        self,
+        figsize: Tuple[int, int] = (12, 10),
+        axis: str = "off",
+        show_bbox: bool = True,
+        show_score: bool = True,
+        output_dir: Optional[str] = None,
+        prefix: str = "anns",
+        blend: bool = True,
+        alpha: float = 0.5,
+        ncols: int = 2,
+        **kwargs: Any,
+    ) -> None:
+        """Show annotations for all images in the batch.
+
+        Args:
+            figsize (tuple): Figure size for each subplot.
+            axis (str): Whether to show axis.
+            show_bbox (bool): Whether to show bounding boxes.
+            show_score (bool): Whether to show confidence scores.
+            output_dir (str, optional): Directory to save annotation images.
+                If None, displays the figure.
+            prefix (str): Prefix for output filenames.
+            blend (bool): Whether to show image as background.
+            alpha (float): Alpha value for mask overlay.
+            ncols (int): Number of columns in the grid display.
+            **kwargs: Additional arguments for saving.
+        """
+        if self.batch_results is None:
+            raise ValueError(
+                "No batch results found. Please run generate_masks_batch() first."
+            )
+
+        num_images = len(self.batch_results)
+
+        if output_dir is not None:
+            os.makedirs(output_dir, exist_ok=True)
+            # Save each image separately
+            for i, result in enumerate(self.batch_results):
+                self._show_single_ann(
+                    result,
+                    figsize=figsize,
+                    axis=axis,
+                    show_bbox=show_bbox,
+                    show_score=show_score,
+                    blend=blend,
+                    alpha=alpha,
+                    output=os.path.join(output_dir, f"{prefix}_{i + 1}.png"),
+                    **kwargs,
+                )
+        else:
+            # Display in grid
+            nrows = (num_images + ncols - 1) // ncols
+            fig, axes = plt.subplots(
+                nrows, ncols, figsize=(figsize[0] * ncols, figsize[1] * nrows)
+            )
+
+            if num_images == 1 or ncols == 1 or nrows == 1:
+                axes = np.array([axes]).flatten()
+            else:
+                axes = axes.flatten()
+            for i, result in enumerate(self.batch_results):
+                ax = axes[i]
+                self._show_single_ann(
+                    result,
+                    figsize=figsize,
+                    axis=axis,
+                    show_bbox=show_bbox,
+                    show_score=show_score,
+                    blend=blend,
+                    alpha=alpha,
+                    ax=ax,
+                )
+                ax.set_title(f"Image {i + 1}")
+
+            # Hide unused subplots
+            for j in range(num_images, len(axes)):
+                axes[j].axis("off")
+
+            plt.tight_layout()
+            plt.show()
+
+    def _show_single_ann(
+        self,
+        result: Dict[str, Any],
+        figsize: Tuple[int, int] = (12, 10),
+        axis: str = "off",
+        show_bbox: bool = True,
+        show_score: bool = True,
+        blend: bool = True,
+        alpha: float = 0.5,
+        output: Optional[str] = None,
+        ax: Optional[Any] = None,
+        **kwargs: Any,
+    ) -> None:
+        """Show annotations for a single batch result.
+
+        Args:
+            result: Dictionary containing masks, boxes, scores, and image.
+            figsize: Figure size.
+            axis: Whether to show axis.
+            show_bbox: Whether to show bounding boxes.
+            show_score: Whether to show scores.
+            blend: Whether to blend with original image.
+            alpha: Alpha for mask overlay.
+            output: Path to save the figure.
+            ax: Matplotlib axis to plot on.
+            **kwargs: Additional arguments for saving.
+        """
+        image = result.get("image")
+        masks = result.get("masks", [])
+        boxes = result.get("boxes", [])
+        scores = result.get("scores", [])
+
+        if image is None or len(masks) == 0:
+            return
+
+        if ax is None:
+            fig = plt.figure(figsize=figsize)
+            ax = plt.gca()
+            own_figure = True
+        else:
+            own_figure = False
+
+        img_pil = Image.fromarray(image)
+
+        if blend:
+            ax.imshow(img_pil)
+        else:
+            white_background = np.ones_like(image) * 255
+            ax.imshow(white_background)
+
+        h, w = image.shape[:2]
+        COLORS = generate_colors(n_colors=128, n_samples=5000)
+
+        for i in range(len(masks)):
+            color = COLORS[i % len(COLORS)]
+
+            mask = masks[i]
+            if hasattr(mask, "cpu"):
+                mask = mask.squeeze().cpu().numpy()
+            elif hasattr(mask, "numpy"):
+                mask = mask.squeeze().numpy()
+            else:
+                mask = np.squeeze(mask)
+
+            if mask.ndim > 2:
+                mask = mask[0]
+
+            plot_mask(mask, color=color, alpha=alpha, ax=ax)
+
+            if show_bbox and i < len(boxes):
+                score = scores[i] if i < len(scores) else 0.0
+                if hasattr(score, "item"):
+                    prob = score.item()
+                else:
+                    prob = float(score)
+
+                if show_score:
+                    text = f"(id={i}, {prob=:.2f})"
+                else:
+                    text = f"(id={i})"
+
+                box = boxes[i]
+                if hasattr(box, "cpu"):
+                    box = box.cpu().numpy()
+                elif hasattr(box, "numpy"):
+                    box = box.numpy()
+
+                plot_bbox(
+                    h,
+                    w,
+                    box,
+                    text=text,
+                    box_format="XYXY",
+                    color=color,
+                    relative_coords=False,
+                    ax=ax,
+                )
+
+        ax.axis(axis)
+
+        if output is not None and own_figure:
+            save_kwargs = {"bbox_inches": "tight", "pad_inches": 0.1, "dpi": 100}
+            save_kwargs.update(kwargs)
+            plt.savefig(output, **save_kwargs)
+            print(f"Saved annotations to {output}")
+            plt.close(fig)
+        elif own_figure:
+            plt.show()
 
     def generate_masks(
         self,
@@ -710,101 +1448,6 @@ class SamGeo3:
         plt.imshow(img)
         plt.axis(axis)
         plt.show()
-
-    def predict(
-        self,
-        point_coords: Optional[np.ndarray] = None,
-        point_labels: Optional[np.ndarray] = None,
-        boxes: Optional[np.ndarray] = None,
-        mask_input: Optional[np.ndarray] = None,
-        multimask_output: bool = False,
-        return_logits: bool = False,
-        normalize_coords: bool = True,
-        point_crs: Optional[str] = None,
-        output: Optional[str] = None,
-        index: Optional[int] = None,
-        mask_multiplier: int = 255,
-        dtype: str = "float32",
-        return_results: bool = False,
-        **kwargs: Any,
-    ) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
-        """Predict the mask for the input image using interactive prompts.
-
-        Note: This method is only available for the Meta backend with inst_interactivity=True.
-
-        Args:
-            point_coords (np.ndarray, optional): The point coordinates. Defaults to None.
-            point_labels (np.ndarray, optional): The point labels. Defaults to None.
-            boxes (np.ndarray, optional): Bounding box prompts in XYXY format.
-            mask_input (np.ndarray, optional): Low resolution mask input.
-            multimask_output (bool): Whether to output multiple masks.
-            return_logits (bool): Whether to return logits instead of binary masks.
-            normalize_coords (bool): Whether to normalize coordinates.
-            point_crs (str, optional): Coordinate reference system for points.
-            output (str, optional): Path to save output image.
-            index (int, optional): Index of mask to save.
-            mask_multiplier (int): Multiplier for mask values.
-            dtype (str): Data type for output.
-            return_results (bool): Whether to return results.
-            **kwargs: Additional arguments.
-
-        Returns:
-            Tuple of masks, scores, and logits.
-        """
-
-        if self.backend == "transformers":
-            raise NotImplementedError(
-                "Interactive prediction is not supported for Transformers backend. "
-                "Use generate_masks() or generate_masks_by_boxes() instead."
-            )
-
-        if self.predictor is None:
-            raise ValueError(
-                "Interactive predictor not available. Enable inst_interactivity=True."
-            )
-
-        if self.image is None:
-            raise ValueError("No image set. Please call set_image() first.")
-
-        # Handle coordinate transformations if needed
-        if (
-            point_crs is not None
-            and point_coords is not None
-            and self.source is not None
-        ):
-            point_coords, _ = common.coords_to_xy(
-                self.source, point_coords, point_crs, return_out_of_bounds=True
-            )
-
-        if isinstance(point_coords, list):
-            point_coords = np.array(point_coords)
-
-        if point_coords is not None and point_labels is None:
-            point_labels = [1] * len(point_coords)
-
-        if isinstance(point_labels, list):
-            point_labels = np.array(point_labels)
-
-        # Use the interactive predictor
-        masks, scores, logits = self.predictor.predict(
-            point_coords=point_coords,
-            point_labels=point_labels,
-            box=boxes,
-            mask_input=mask_input,
-            multimask_output=multimask_output,
-            return_logits=return_logits,
-            normalize_coords=normalize_coords,
-        )
-
-        self.masks = masks
-        self.scores = scores
-        self.logits = logits
-
-        if output is not None:
-            self.save_prediction(output, index, mask_multiplier, dtype, **kwargs)
-
-        if return_results:
-            return masks, scores, logits
 
     def save_masks(
         self,
