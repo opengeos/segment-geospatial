@@ -2589,9 +2589,8 @@ class SamGeo3Video:
 
             # Determine output path
             if is_geotiff and self._tif_names is not None:
-                filename = self._tif_names[frame_idx].replace(
-                    ".tif", f"_mask.{img_ext}"
-                )
+                base_name = os.path.splitext(self._tif_names[frame_idx])[0]
+                filename = f"{base_name}_mask.{img_ext}"
                 crs_source = os.path.join(self._tif_dir, self._tif_names[frame_idx])
             else:
                 filename = f"{str(frame_idx).zfill(num_digits)}.{img_ext}"
