@@ -2281,8 +2281,6 @@ class SamGeo3Video:
         if propagate:
             self.propagate()
 
-        return self.outputs_per_frame
-
     def add_point_prompts(
         self,
         points: List[List[float]],
@@ -2610,7 +2608,6 @@ class SamGeo3Video:
             saved_files.append(output_path)
 
         print(f"Saved {len(saved_files)} mask files to {output_dir}")
-        return saved_files
 
     def save_video(
         self,
@@ -2657,8 +2654,6 @@ class SamGeo3Video:
         # Create video from frames
         common.images_to_video(temp_dir, output_path, fps=fps)
         print(f"Saved video to {output_path}")
-
-        return output_path
 
     def _save_blended_frames(
         self,
@@ -2759,6 +2754,7 @@ class SamGeo3Video:
         figsize: Tuple[int, int] = (12, 8),
         alpha: float = 0.6,
         show_ids: bool = True,
+        axis: str = "off",
         output: Optional[str] = None,
     ) -> None:
         """Display a single frame with mask overlay.
@@ -2793,7 +2789,7 @@ class SamGeo3Video:
         w_frame, h_frame = frame.size
 
         fig = plt.figure(figsize=figsize)
-        plt.axis("off")
+        plt.axis(axis)
         plt.title(f"Frame {frame_idx}")
         plt.imshow(frame)
 
