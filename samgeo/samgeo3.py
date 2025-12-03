@@ -2178,6 +2178,21 @@ class SamGeo3Video:
         self.session_id = response["session_id"]
         print(f"Loaded {len(self.video_frames)} frames. Session started.")
 
+    def show_video(self, video_path: str, embed: bool = True, **kwargs: Any) -> None:
+        """Show the video.
+
+        Args:
+            video_path (str): Path to video file.
+            embed (bool, optional): Whether to embed the video. Defaults to True.
+            **kwargs: Additional keyword arguments passed to Video.
+
+        Returns:
+            IPython.display.Video: The video object.
+        """
+        from IPython.display import Video
+
+        return Video(video_path, embed=embed, **kwargs)
+
     def _load_video_frames(self, video_path: str) -> None:
         """Load video frames for visualization.
 
