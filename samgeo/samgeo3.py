@@ -2209,7 +2209,8 @@ class SamGeo3Video:
             if self.video_frames:
                 first_frame = load_frame(self.video_frames[0])
                 self.frame_height, self.frame_width = first_frame.shape[:2]
-
+            else:
+                raise ValueError(f"No JPEG frames found in directory: {video_path}")
     def reset(self) -> None:
         """Reset the current session, clearing all prompts and masks.
 
