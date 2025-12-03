@@ -75,7 +75,8 @@ samgeo3 = [
     "transformers",
     "buildingregulariser",
     "leafmap",
-    "localtileserver"
+    "localtileserver",
+    "spacy"
 ]
 text = [
     "segment_geospatial[samgeo2]",

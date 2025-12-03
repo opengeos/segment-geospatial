@@ -73,6 +73,7 @@ nav:
           - examples/sam3_interactive.ipynb
           - examples/sam3_batch_segmentation.ipynb
           - examples/sam3_video_segmentation.ipynb
+          - examples/image_captioning.ipynb
     - Workshops:
           - workshops/purdue.ipynb
           - workshops/cn_workshop.ipynb
