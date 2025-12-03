@@ -2,16 +2,19 @@
 https://github.com/facebookresearch/sam3
 """
 
+import glob
 import os
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
 from PIL import Image
+from tqdm import tqdm
 
 try:
-    from sam3.model_builder import build_sam3_image_model
+    from sam3.model_builder import build_sam3_image_model, build_sam3_video_predictor
     from sam3.model.sam3_image_processor import Sam3Processor as MetaSam3Processor
+    from sam3.visualization_utils import load_frame
 
     SAM3_META_AVAILABLE = True
 except ImportError:
@@ -2022,3 +2025,975 @@ def plot_mask(mask, color="r", alpha=0.5, ax=None):
     if ax is None:
         ax = plt.gca()
     ax.imshow(mask_img)
+
+
+class SamGeo3Video:
+    """Video segmentation and tracking with SAM3 for geospatial data.
+
+    This class provides a simplified API for segmenting and tracking objects
+    in videos or time series remote sensing images using SAM3.
+
+    Example:
+        >>> from samgeo.samgeo3 import SamGeo3Video
+        >>> sam = SamGeo3Video()
+        >>> sam.set_video("path/to/video.mp4")  # or path to image sequence
+        >>> sam.generate_masks("person")  # text prompt
+        >>> sam.save_masks("output/")
+        >>> sam.save_video("output.mp4")
+        >>> sam.close()
+    """
+
+    def __init__(
+        self,
+        gpus_to_use: Optional[List[int]] = None,
+        bpe_path: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize the SamGeo3Video class.
+
+        Args:
+            gpus_to_use (List[int], optional): List of GPU indices to use.
+                If None, uses all available GPUs. Defaults to None.
+            bpe_path (str, optional): Path to the BPE tokenizer vocabulary.
+                If None, uses the default path. Defaults to None.
+            **kwargs: Additional keyword arguments passed to build_sam3_video_predictor.
+        """
+        if not SAM3_META_AVAILABLE:
+            raise ImportError(
+                "SAM3 is not available. Please install it as:\n\t"
+                "pip install segment-geospatial[samgeo3]"
+            )
+
+        import torch
+
+        # Set up GPU configuration
+        if gpus_to_use is None:
+            gpus_to_use = list(range(torch.cuda.device_count()))
+            if len(gpus_to_use) == 0:
+                gpus_to_use = [torch.cuda.current_device()]
+
+        # Set up BPE path
+        if bpe_path is None:
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            bpe_path = os.path.abspath(
+                os.path.join(current_dir, "assets", "bpe_simple_vocab_16e6.txt.gz")
+            )
+            if not os.path.exists(bpe_path):
+                bpe_dir = os.path.dirname(bpe_path)
+                os.makedirs(bpe_dir, exist_ok=True)
+                url = "https://github.com/facebookresearch/sam3/raw/refs/heads/main/assets/bpe_simple_vocab_16e6.txt.gz"
+                bpe_path = common.download_file(url, bpe_path, quiet=True)
+
+        print(f"Using GPUs: {gpus_to_use}")
+
+        self.predictor = build_sam3_video_predictor(
+            gpus_to_use=gpus_to_use, bpe_path=bpe_path, **kwargs
+        )
+        self.gpus_to_use = gpus_to_use
+        self.session_id = None
+        self.video_path = None
+        self.video_frames = None
+        self.outputs_per_frame = None
+        self.frame_width = None
+        self.frame_height = None
+        self._tif_source = None
+        self._tif_dir = None
+        self._tif_names = None
+
+    def set_video(
+        self,
+        video_path: str,
+        output_dir: Optional[str] = None,
+        frame_rate: Optional[int] = None,
+        prefix: str = "",
+    ) -> None:
+        """Load a video or time series images for segmentation.
+
+        The video can be:
+        - An MP4 video file
+        - A directory of JPEG frames
+        - A directory of GeoTIFF images (for time series remote sensing data)
+
+        Args:
+            video_path (str): Path to the video file or image directory.
+            output_dir (str, optional): Directory to save extracted frames.
+                Only used when video_path is an MP4 file. Defaults to None.
+            frame_rate (int, optional): Frame rate for extracting frames from video.
+                Only used when video_path is an MP4 file. Defaults to None.
+            prefix (str): Prefix for extracted frame filenames. Defaults to "".
+
+        Example:
+            >>> sam = SamGeo3Video()
+            >>> sam.set_video("video.mp4")  # Load MP4 video
+            >>> sam.set_video("frames/")  # Load from JPEG frames directory
+            >>> sam.set_video("landsat_ts/")  # Load GeoTIFF time series
+        """
+        if isinstance(video_path, str):
+            if video_path.startswith("http"):
+                video_path = common.download_file(video_path)
+
+            if os.path.isfile(video_path):
+                # MP4 video file - extract frames
+                if output_dir is None:
+                    output_dir = common.make_temp_dir()
+                if not os.path.exists(output_dir):
+                    os.makedirs(output_dir)
+                print(f"Extracting frames to: {output_dir}")
+                common.video_to_images(
+                    video_path, output_dir, frame_rate=frame_rate, prefix=prefix
+                )
+                video_path = output_dir
+
+            elif os.path.isdir(video_path):
+                files = sorted(os.listdir(video_path))
+                if len(files) == 0:
+                    raise ValueError(f"No files found in {video_path}.")
+
+                # Check if it's a GeoTIFF directory
+                if files[0].lower().endswith((".tif", ".tiff")):
+                    self._tif_source = os.path.join(video_path, files[0])
+                    self._tif_dir = video_path
+                    self._tif_names = files
+                    # Convert GeoTIFFs to JPEGs for SAM3
+                    video_path = common.geotiff_to_jpg_batch(video_path)
+                    print(f"Converted GeoTIFFs to JPEGs: {video_path}")
+
+            if not os.path.exists(video_path):
+                raise ValueError(f"Input path {video_path} does not exist.")
+        else:
+            raise ValueError("video_path must be a string.")
+
+        self.video_path = video_path
+
+        # Load frames for visualization
+        self._load_video_frames(video_path)
+
+        # Start a session
+        response = self.predictor.handle_request(
+            request=dict(
+                type="start_session",
+                resource_path=video_path,
+            )
+        )
+        self.session_id = response["session_id"]
+        print(f"Loaded {len(self.video_frames)} frames. Session started.")
+
+    def show_video(self, video_path: str, embed: bool = True, **kwargs: Any) -> None:
+        """Show the video.
+
+        Args:
+            video_path (str): Path to video file.
+            embed (bool, optional): Whether to embed the video. Defaults to True.
+            **kwargs: Additional keyword arguments passed to Video.
+
+        Returns:
+            IPython.display.Video: The video object.
+        """
+        from IPython.display import Video
+
+        return Video(video_path, embed=embed, **kwargs)
+
+    def _load_video_frames(self, video_path: str) -> None:
+        """Load video frames for visualization.
+
+        Args:
+            video_path (str): Path to video file or frame directory.
+        """
+        if isinstance(video_path, str) and video_path.endswith(".mp4"):
+            cap = cv2.VideoCapture(video_path)
+            self.video_frames = []
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                self.video_frames.append(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            cap.release()
+            if self.video_frames:
+                self.frame_height, self.frame_width = self.video_frames[0].shape[:2]
+            else:
+                raise ValueError(f"Failed to load any frames from video: {video_path}")
+        else:
+            self.video_frames = glob.glob(os.path.join(video_path, "*.jpg"))
+            try:
+                self.video_frames.sort(
+                    key=lambda p: int(os.path.splitext(os.path.basename(p))[0])
+                )
+            except ValueError:
+                self.video_frames.sort()
+
+            if self.video_frames:
+                first_frame = load_frame(self.video_frames[0])
+                self.frame_height, self.frame_width = first_frame.shape[:2]
+            else:
+                raise ValueError(f"No JPEG frames found in directory: {video_path}")
+
+    def reset(self) -> None:
+        """Reset the current session, clearing all prompts and masks.
+
+        Use this when you want to start fresh with new prompts on the same video.
+        """
+        if self.session_id is None:
+            raise ValueError("No session active. Please call set_video() first.")
+
+        self.predictor.handle_request(
+            request=dict(
+                type="reset_session",
+                session_id=self.session_id,
+            )
+        )
+        self.outputs_per_frame = None
+        print("Session reset.")
+
+    def generate_masks(
+        self,
+        prompt: str,
+        frame_idx: int = 0,
+        propagate: bool = True,
+    ) -> Dict[int, Any]:
+        """Generate masks using a text prompt.
+
+        This will segment all instances of the described object in the video
+        and optionally track them through all frames.
+
+        Args:
+            prompt (str): Text description of objects to segment (e.g., "person", "car").
+            frame_idx (int): Frame index to add the prompt on. Defaults to 0.
+            propagate (bool): Whether to propagate masks to all frames. Defaults to True.
+
+        Returns:
+            Dict[int, Any]: Dictionary mapping frame index to mask outputs.
+
+        Example:
+            >>> sam.generate_masks("building")
+            >>> sam.generate_masks("tree", frame_idx=10)
+        """
+        if self.session_id is None:
+            raise ValueError("No session active. Please call set_video() first.")
+
+        # Reset prompts before adding new text prompt
+        self.reset()
+
+        # Add text prompt
+        response = self.predictor.handle_request(
+            request=dict(
+                type="add_prompt",
+                session_id=self.session_id,
+                frame_index=frame_idx,
+                text=prompt,
+            )
+        )
+
+        out = response["outputs"]
+        # Get object IDs - key is 'out_obj_ids' from SAM3 video predictor
+        obj_ids = out.get("out_obj_ids", [])
+        if hasattr(obj_ids, "tolist"):
+            obj_ids = obj_ids.tolist()
+        num_objects = len(obj_ids)
+        print(
+            f"Found {num_objects} object(s) matching '{prompt}' on frame {frame_idx}."
+        )
+
+        if propagate:
+            self.propagate()
+
+    def add_point_prompts(
+        self,
+        points: List[List[float]],
+        labels: List[int],
+        obj_id: int,
+        frame_idx: int = 0,
+        point_crs: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Add point prompts to segment or refine an object.
+
+        Args:
+            points (List[List[float]]): List of [x, y] point coordinates.
+                In pixel coordinates by default, or in the specified CRS.
+            labels (List[int]): List of labels for each point.
+                1 for positive (include), 0 for negative (exclude).
+            obj_id (int): Object ID to associate with this prompt.
+            frame_idx (int): Frame index to add the prompt on. Defaults to 0.
+            point_crs (str, optional): Coordinate reference system for points
+                (e.g., "EPSG:4326"). Only used with GeoTIFF time series.
+
+        Returns:
+            Dict[str, Any]: Response containing the mask output.
+
+        Example:
+            >>> # Add positive point
+            >>> sam.add_point_prompts([[500, 300]], [1], obj_id=1)
+            >>> # Add positive and negative points
+            >>> sam.add_point_prompts([[500, 300], [600, 400]], [1, 0], obj_id=1)
+        """
+        import torch
+
+        if self.session_id is None:
+            raise ValueError("No session active. Please call set_video() first.")
+
+        points = np.array(points)
+
+        # Transform coordinates if CRS is provided
+        if point_crs is not None and self._tif_source is not None:
+            points = common.coords_to_xy(self._tif_source, points, point_crs)
+
+        # Convert to relative coordinates (0-1 range)
+        rel_points = [[x / self.frame_width, y / self.frame_height] for x, y in points]
+
+        points_tensor = torch.tensor(rel_points, dtype=torch.float32)
+        labels_tensor = torch.tensor(labels, dtype=torch.int32)
+
+        response = self.predictor.handle_request(
+            request=dict(
+                type="add_prompt",
+                session_id=self.session_id,
+                frame_index=frame_idx,
+                points=points_tensor,
+                point_labels=labels_tensor,
+                obj_id=obj_id,
+            )
+        )
+
+        return response
+
+    def add_box_prompt(
+        self,
+        box: List[float],
+        obj_id: int,
+        frame_idx: int = 0,
+        box_crs: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Add a bounding box prompt to segment an object.
+
+        Args:
+            box (List[float]): Bounding box in [x, y, width, height] format.
+                In pixel coordinates by default, or in the specified CRS.
+            obj_id (int): Object ID to associate with this prompt.
+            frame_idx (int): Frame index to add the prompt on. Defaults to 0.
+            box_crs (str, optional): Coordinate reference system for box
+                (e.g., "EPSG:4326"). Only used with GeoTIFF time series.
+
+        Returns:
+            Dict[str, Any]: Response containing the mask output.
+
+        Example:
+            >>> sam.add_box_prompt([100, 100, 200, 150], obj_id=1)
+        """
+        import torch
+
+        if self.session_id is None:
+            raise ValueError("No session active. Please call set_video() first.")
+
+        x, y, w, h = box
+
+        # Transform coordinates if CRS is provided
+        if box_crs is not None and self._tif_source is not None:
+            # Convert box corners to pixel coordinates
+            corners = np.array([[x, y], [x + w, y + h]])
+            corners = common.coords_to_xy(self._tif_source, corners, box_crs)
+            x, y = corners[0]
+            x2, y2 = corners[1]
+            w = x2 - x
+            h = y2 - y
+
+        # Convert to relative coordinates [cx, cy, w, h]
+        cx = (x + w / 2) / self.frame_width
+        cy = (y + h / 2) / self.frame_height
+        rel_w = w / self.frame_width
+        rel_h = h / self.frame_height
+
+        box_tensor = torch.tensor([cx, cy, rel_w, rel_h], dtype=torch.float32)
+
+        response = self.predictor.handle_request(
+            request=dict(
+                type="add_prompt",
+                session_id=self.session_id,
+                frame_index=frame_idx,
+                box=box_tensor,
+                obj_id=obj_id,
+            )
+        )
+
+        return response
+
+    def remove_object(self, obj_id: int) -> None:
+        """Remove an object from tracking.
+
+        Args:
+            obj_id (int): Object ID to remove.
+
+        Example:
+            >>> sam.generate_masks("person")  # Finds 3 people
+            >>> sam.remove_object(2)  # Remove person with ID 2
+            >>> sam.propagate()  # Re-propagate without that person
+        """
+        if self.session_id is None:
+            raise ValueError("No session active. Please call set_video() first.")
+
+        self.predictor.handle_request(
+            request=dict(
+                type="remove_object",
+                session_id=self.session_id,
+                obj_id=obj_id,
+            )
+        )
+        print(f"Removed object {obj_id}.")
+
+    def propagate(self) -> Dict[int, Any]:
+        """Propagate masks through all frames of the video.
+
+        This tracks the segmented objects from the prompt frame through
+        the entire video.
+
+        Returns:
+            Dict[int, Any]: Dictionary mapping frame index to mask outputs.
+        """
+        if self.session_id is None:
+            raise ValueError("No session active. Please call set_video() first.")
+
+        outputs_per_frame = {}
+        for response in self.predictor.handle_stream_request(
+            request=dict(
+                type="propagate_in_video",
+                session_id=self.session_id,
+            )
+        ):
+            outputs_per_frame[response["frame_index"]] = response["outputs"]
+
+        self.outputs_per_frame = outputs_per_frame
+        print(f"Propagated masks to {len(outputs_per_frame)} frames.")
+        return outputs_per_frame
+
+    def _format_outputs(self) -> Dict[int, Dict[int, np.ndarray]]:
+        """Format the outputs_per_frame into a simpler structure.
+
+        Returns:
+            Dict mapping frame_idx to Dict mapping obj_id to mask array.
+        """
+        if self.outputs_per_frame is None:
+            return {}
+
+        formatted = {}
+        for frame_idx, outputs in self.outputs_per_frame.items():
+            formatted[frame_idx] = {}
+
+            # Handle different output formats
+            if "out_obj_ids" in outputs:
+                # Format from propagate_in_video or add_prompt response
+                obj_ids = outputs["out_obj_ids"]
+                # Try multiple possible mask keys
+                masks = outputs.get(
+                    "out_binary_masks",
+                    outputs.get("out_mask_logits", outputs.get("masks", [])),
+                )
+
+                if hasattr(obj_ids, "tolist"):
+                    obj_ids = obj_ids.tolist()
+
+                for i, obj_id in enumerate(obj_ids):
+                    if i < len(masks):
+                        mask = masks[i]
+                        if hasattr(mask, "cpu"):
+                            mask = (mask > 0.0).cpu().numpy()
+                        elif hasattr(mask, "numpy"):
+                            mask = (mask > 0.0).numpy()
+                        else:
+                            mask = np.array(mask) > 0.0
+                        formatted[frame_idx][obj_id] = mask.squeeze()
+
+            elif "object_ids" in outputs:
+                # Format from add_prompt response
+                obj_ids = outputs["object_ids"]
+                masks = outputs.get("masks", [])
+
+                if hasattr(obj_ids, "tolist"):
+                    obj_ids = obj_ids.tolist()
+
+                for i, obj_id in enumerate(obj_ids):
+                    if i < len(masks):
+                        mask = masks[i]
+                        if hasattr(mask, "cpu"):
+                            mask = (mask > 0.0).cpu().numpy()
+                        elif hasattr(mask, "numpy"):
+                            mask = (mask > 0.0).numpy()
+                        else:
+                            mask = np.array(mask) > 0.0
+                        formatted[frame_idx][obj_id] = mask.squeeze()
+
+            elif isinstance(outputs, dict):
+                # Already in {obj_id: mask} format
+                for obj_id, mask in outputs.items():
+                    if isinstance(obj_id, int):
+                        if hasattr(mask, "cpu"):
+                            mask = (mask > 0.0).cpu().numpy()
+                        elif hasattr(mask, "numpy"):
+                            mask = (mask > 0.0).numpy()
+                        else:
+                            mask = np.array(mask) > 0.0
+                        formatted[frame_idx][obj_id] = mask.squeeze()
+
+        return formatted
+
+    def save_masks(
+        self,
+        output_dir: str,
+        img_ext: str = "png",
+        dtype: str = "uint8",
+    ) -> List[str]:
+        """Save segmentation masks to files.
+
+        For GeoTIFF time series, masks are saved with georeferencing information.
+
+        Args:
+            output_dir (str): Directory to save mask files.
+            img_ext (str): Image extension for output files. Defaults to "png".
+                For GeoTIFF time series, this is overridden to "tif".
+            dtype (str): Data type for mask values. Defaults to "uint8".
+
+        Returns:
+            List[str]: List of saved file paths.
+
+        Example:
+            >>> sam.generate_masks("building")
+            >>> sam.save_masks("output/masks/")
+        """
+        if self.outputs_per_frame is None:
+            raise ValueError("No masks to save. Please run generate_masks() first.")
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Prepare mask data using our custom formatter
+        formatted_outputs = self._format_outputs()
+
+        if not formatted_outputs:
+            print("No masks to save.")
+            return []
+
+        num_digits = len(str(len(self.video_frames)))
+        saved_files = []
+
+        # Check if we have GeoTIFF source
+        is_geotiff = self._tif_source is not None and self._tif_source.lower().endswith(
+            (".tif", ".tiff")
+        )
+        if is_geotiff:
+            img_ext = "tif"
+
+        # Determine frame dimensions once
+        if isinstance(self.video_frames[0], str):
+            first_frame = load_frame(self.video_frames[0])
+            h, w = first_frame.shape[:2]
+        else:
+            h, w = self.video_frames[0].shape[:2]
+
+        for frame_idx in tqdm(sorted(formatted_outputs.keys()), desc="Saving masks"):
+            frame_data = formatted_outputs[frame_idx]
+            mask_array = np.zeros((h, w), dtype=np.uint8)
+
+            # Combine all object masks with unique IDs
+            for obj_id, mask in frame_data.items():
+                mask_np = np.array(mask)
+                if mask_np.ndim > 2:
+                    mask_np = mask_np.squeeze()
+                # Resize mask if needed
+                if mask_np.shape != (h, w):
+                    mask_np = cv2.resize(
+                        mask_np.astype(np.uint8),
+                        (w, h),
+                        interpolation=cv2.INTER_NEAREST,
+                    )
+                mask_array[mask_np > 0] = obj_id
+
+            # Determine output path
+            if is_geotiff and self._tif_names is not None:
+                base_name = os.path.splitext(self._tif_names[frame_idx])[0]
+                filename = f"{base_name}_mask.{img_ext}"
+                crs_source = os.path.join(self._tif_dir, self._tif_names[frame_idx])
+            else:
+                filename = f"{str(frame_idx).zfill(num_digits)}.{img_ext}"
+                crs_source = None
+
+            output_path = os.path.join(output_dir, filename)
+
+            if is_geotiff:
+                common.array_to_image(mask_array, output_path, crs_source, dtype=dtype)
+            else:
+                img = Image.fromarray(mask_array)
+                img.save(output_path)
+
+            saved_files.append(output_path)
+
+        print(f"Saved {len(saved_files)} mask files to {output_dir}")
+
+    def save_video(
+        self,
+        output_path: str,
+        fps: int = 30,
+        alpha: float = 0.6,
+        dpi: int = 200,
+        frame_stride: int = 1,
+        show_ids: bool = True,
+    ) -> str:
+        """Save segmentation results as a video with blended masks.
+
+        Args:
+            output_path (str): Path to save the output video (MP4).
+            fps (int): Frames per second for the output video. Defaults to 30.
+            alpha (float): Opacity for mask overlay. Defaults to 0.6.
+            dpi (int): DPI for rendering. Defaults to 200.
+            frame_stride (int): Process every nth frame. Defaults to 1.
+            show_ids (bool): Whether to show object IDs on the video. Defaults to True.
+
+        Returns:
+            str: Path to the saved video.
+
+        Example:
+            >>> sam.generate_masks("car")
+            >>> sam.save_video("output.mp4")
+        """
+        if self.outputs_per_frame is None:
+            raise ValueError("No masks to save. Please run generate_masks() first.")
+
+        # Create temporary directory for frames
+        temp_dir = common.make_temp_dir()
+        os.makedirs(temp_dir, exist_ok=True)
+
+        # Save blended frames
+        self._save_blended_frames(
+            temp_dir,
+            alpha=alpha,
+            dpi=dpi,
+            frame_stride=frame_stride,
+            show_ids=show_ids,
+        )
+
+        # Create video from frames
+        common.images_to_video(temp_dir, output_path, fps=fps)
+        print(f"Saved video to {output_path}")
+
+    def _save_blended_frames(
+        self,
+        output_dir: str,
+        alpha: float = 0.6,
+        dpi: int = 200,
+        frame_stride: int = 1,
+        show_ids: bool = True,
+    ) -> None:
+        """Save frames with blended mask overlays.
+
+        Args:
+            output_dir (str): Directory to save blended frames.
+            alpha (float): Opacity for mask overlay.
+            dpi (int): DPI for rendering.
+            frame_stride (int): Process every nth frame.
+            show_ids (bool): Whether to show object IDs.
+        """
+        formatted_outputs = self._format_outputs()
+        num_frames = len(self.video_frames)
+        num_digits = len(str(num_frames))
+
+        plt.close("all")
+
+        for frame_idx in tqdm(
+            range(0, num_frames, frame_stride), desc="Rendering frames"
+        ):
+            if frame_idx not in formatted_outputs:
+                continue
+
+            # Load frame
+            if isinstance(self.video_frames[frame_idx], str):
+                frame = Image.open(self.video_frames[frame_idx])
+            else:
+                frame = Image.fromarray(self.video_frames[frame_idx])
+
+            w, h = frame.size
+            figsize = (w / dpi * 1.3, h / dpi * 1.3)
+
+            fig = plt.figure(figsize=figsize, dpi=dpi)
+            plt.axis("off")
+            plt.imshow(frame)
+
+            # Overlay masks
+            frame_data = formatted_outputs[frame_idx]
+            cmap = plt.get_cmap("tab10")
+
+            for obj_id, mask in frame_data.items():
+                if isinstance(obj_id, str) and obj_id == "image":
+                    continue
+
+                color = np.array([*cmap(obj_id % 10)[:3], alpha])
+                mask_np = np.array(mask)
+                if mask_np.ndim > 2:
+                    mask_np = mask_np.squeeze()
+
+                # Resize mask if it doesn't match frame dimensions
+                if mask_np.shape != (h, w):
+                    mask_np = cv2.resize(
+                        mask_np.astype(np.float32),
+                        (w, h),
+                        interpolation=cv2.INTER_NEAREST,
+                    )
+
+                mask_image = mask_np.reshape(h, w, 1) * color.reshape(1, 1, -1)
+                plt.gca().imshow(mask_image)
+
+                # Add object ID label
+                if show_ids:
+                    ys, xs = np.where(mask_np > 0)
+                    if len(xs) > 0 and len(ys) > 0:
+                        cx, cy = np.mean(xs), np.mean(ys)
+                        plt.text(
+                            cx,
+                            cy,
+                            str(obj_id),
+                            color="white",
+                            fontsize=12,
+                            fontweight="bold",
+                            ha="center",
+                            va="center",
+                            bbox=dict(
+                                facecolor=cmap(obj_id % 10)[:3],
+                                alpha=0.7,
+                                edgecolor="none",
+                                pad=2,
+                            ),
+                        )
+
+            filename = f"{str(frame_idx).zfill(num_digits)}.png"
+            filepath = os.path.join(output_dir, filename)
+            plt.savefig(filepath, dpi=dpi, pad_inches=0, bbox_inches="tight")
+            plt.close(fig)
+
+    def show_frame(
+        self,
+        frame_idx: int = 0,
+        figsize: Tuple[int, int] = (12, 8),
+        alpha: float = 0.6,
+        show_ids: bool = True,
+        axis: str = "off",
+        output: Optional[str] = None,
+    ) -> None:
+        """Display a single frame with mask overlay.
+
+        Args:
+            frame_idx (int): Frame index to display. Defaults to 0.
+            figsize (Tuple[int, int]): Figure size. Defaults to (12, 8).
+            alpha (float): Opacity for mask overlay. Defaults to 0.6.
+            show_ids (bool): Whether to show object IDs. Defaults to True.
+            output (str, optional): Path to save the figure. Defaults to None.
+
+        Example:
+            >>> sam.generate_masks("tree")
+            >>> sam.show_frame(0)  # Show first frame
+            >>> sam.show_frame(50, output="frame_50.png")  # Save frame 50
+        """
+        if self.outputs_per_frame is None:
+            raise ValueError("No masks to show. Please run generate_masks() first.")
+
+        formatted_outputs = self._format_outputs()
+
+        if frame_idx not in formatted_outputs:
+            print(f"Frame {frame_idx} not in outputs.")
+            return
+
+        # Load frame
+        if isinstance(self.video_frames[frame_idx], str):
+            frame = Image.open(self.video_frames[frame_idx])
+        else:
+            frame = Image.fromarray(self.video_frames[frame_idx])
+
+        w_frame, h_frame = frame.size
+
+        fig = plt.figure(figsize=figsize)
+        plt.axis(axis)
+        plt.title(f"Frame {frame_idx}")
+        plt.imshow(frame)
+
+        # Overlay masks
+        frame_data = formatted_outputs[frame_idx]
+        cmap = plt.get_cmap("tab10")
+
+        for obj_id, mask in frame_data.items():
+            if isinstance(obj_id, str) and obj_id == "image":
+                continue
+
+            color = np.array([*cmap(obj_id % 10)[:3], alpha])
+            mask_np = np.array(mask)
+            if mask_np.ndim > 2:
+                mask_np = mask_np.squeeze()
+
+            # Resize mask if it doesn't match frame dimensions
+            if mask_np.shape != (h_frame, w_frame):
+                mask_np = cv2.resize(
+                    mask_np.astype(np.float32),
+                    (w_frame, h_frame),
+                    interpolation=cv2.INTER_NEAREST,
+                )
+
+            mask_image = mask_np.reshape(h_frame, w_frame, 1) * color.reshape(1, 1, -1)
+            plt.gca().imshow(mask_image)
+
+            # Add object ID label
+            if show_ids:
+                ys, xs = np.where(mask_np > 0)
+                if len(xs) > 0 and len(ys) > 0:
+                    cx, cy = np.mean(xs), np.mean(ys)
+                    plt.text(
+                        cx,
+                        cy,
+                        str(obj_id),
+                        color="white",
+                        fontsize=12,
+                        fontweight="bold",
+                        ha="center",
+                        va="center",
+                        bbox=dict(
+                            facecolor=cmap(obj_id % 10)[:3],
+                            alpha=0.7,
+                            edgecolor="none",
+                            pad=2,
+                        ),
+                    )
+
+        if output is not None:
+            plt.savefig(output, dpi=150, bbox_inches="tight", pad_inches=0.1)
+            print(f"Saved frame to {output}")
+            plt.close(fig)
+        else:
+            plt.show()
+
+    def show_frames(
+        self,
+        frame_stride: int = 10,
+        ncols: int = 3,
+        figsize_per_frame: Tuple[int, int] = (6, 4),
+        alpha: float = 0.6,
+        show_ids: bool = False,
+    ) -> None:
+        """Display multiple frames with mask overlays in a grid.
+
+        Args:
+            frame_stride (int): Show every nth frame. Defaults to 10.
+            ncols (int): Number of columns in the grid. Defaults to 3.
+            figsize_per_frame (Tuple[int, int]): Size per subplot. Defaults to (6, 4).
+            alpha (float): Opacity for mask overlay. Defaults to 0.6.
+            show_ids (bool): Whether to show object IDs. Defaults to False.
+
+        Example:
+            >>> sam.generate_masks("person")
+            >>> sam.show_frames(frame_stride=30, ncols=4)
+        """
+        if self.outputs_per_frame is None:
+            raise ValueError("No masks to show. Please run generate_masks() first.")
+
+        formatted_outputs = self._format_outputs()
+        frame_indices = list(range(0, len(self.video_frames), frame_stride))
+        nrows = (len(frame_indices) + ncols - 1) // ncols
+
+        fig, axes = plt.subplots(
+            nrows,
+            ncols,
+            figsize=(figsize_per_frame[0] * ncols, figsize_per_frame[1] * nrows),
+        )
+        if nrows == 1 and ncols == 1:
+            axes = np.array([[axes]])
+        elif nrows == 1 or ncols == 1:
+            axes = axes.reshape(-1)
+
+        axes = np.array(axes).flatten()
+
+        cmap = plt.get_cmap("tab10")
+
+        for i, frame_idx in enumerate(frame_indices):
+            ax = axes[i]
+            ax.axis("off")
+            ax.set_title(f"Frame {frame_idx}")
+
+            # Load frame
+            if isinstance(self.video_frames[frame_idx], str):
+                frame = Image.open(self.video_frames[frame_idx])
+            else:
+                frame = Image.fromarray(self.video_frames[frame_idx])
+
+            w_frame, h_frame = frame.size
+            ax.imshow(frame)
+
+            if frame_idx in formatted_outputs:
+                frame_data = formatted_outputs[frame_idx]
+
+                for obj_id, mask in frame_data.items():
+                    if isinstance(obj_id, str) and obj_id == "image":
+                        continue
+
+                    color = np.array([*cmap(obj_id % 10)[:3], alpha])
+                    mask_np = np.array(mask)
+                    if mask_np.ndim > 2:
+                        mask_np = mask_np.squeeze()
+
+                    # Resize mask if it doesn't match frame dimensions
+                    if mask_np.shape != (h_frame, w_frame):
+                        mask_np = cv2.resize(
+                            mask_np.astype(np.float32),
+                            (w_frame, h_frame),
+                            interpolation=cv2.INTER_NEAREST,
+                        )
+
+                    mask_image = mask_np.reshape(h_frame, w_frame, 1) * color.reshape(
+                        1, 1, -1
+                    )
+                    ax.imshow(mask_image)
+
+                    if show_ids:
+                        ys, xs = np.where(mask_np > 0)
+                        if len(xs) > 0 and len(ys) > 0:
+                            cx, cy = np.mean(xs), np.mean(ys)
+                            ax.text(
+                                cx,
+                                cy,
+                                str(obj_id),
+                                color="white",
+                                fontsize=10,
+                                fontweight="bold",
+                                ha="center",
+                                va="center",
+                            )
+
+        # Hide unused subplots
+        for j in range(len(frame_indices), len(axes)):
+            axes[j].axis("off")
+
+        plt.tight_layout()
+        plt.show()
+
+    def close(self) -> None:
+        """Close the current session and free GPU resources.
+
+        Call this when you're done with the current video and want to
+        process a new one, or when you want to free up memory.
+        """
+        if self.session_id is not None:
+            self.predictor.handle_request(
+                request=dict(
+                    type="close_session",
+                    session_id=self.session_id,
+                )
+            )
+            self.session_id = None
+            print("Session closed.")
+
+    def shutdown(self) -> None:
+        """Shutdown the predictor and free all GPU resources.
+
+        Call this when you're completely done with video segmentation.
+        After calling this, you cannot use this instance anymore.
+        """
+        self.close()
+        self.predictor.shutdown()
+        print("Predictor shutdown complete.")
+
+    def __del__(self):
+        """Destructor to clean up resources."""
+        try:
+            if hasattr(self, "session_id") and self.session_id is not None:
+                self.close()
+        except Exception:
+            pass
