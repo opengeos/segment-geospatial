@@ -2562,16 +2562,15 @@ class SamGeo3Video:
         if is_geotiff:
             img_ext = "tif"
 
+        # Determine frame dimensions once
+        if isinstance(self.video_frames[0], str):
+            first_frame = load_frame(self.video_frames[0])
+            h, w = first_frame.shape[:2]
+        else:
+            h, w = self.video_frames[0].shape[:2]
+
         for frame_idx in tqdm(sorted(formatted_outputs.keys()), desc="Saving masks"):
             frame_data = formatted_outputs[frame_idx]
-
-            # Create combined mask array
-            if isinstance(self.video_frames[0], str):
-                first_frame = load_frame(self.video_frames[0])
-                h, w = first_frame.shape[:2]
-            else:
-                h, w = self.video_frames[0].shape[:2]
-
             mask_array = np.zeros((h, w), dtype=np.uint8)
 
             # Combine all object masks with unique IDs
