@@ -80,9 +80,11 @@ nav:
           - workshops/IPPN_2024.ipynb
           - workshops/AIforGood_2025.ipynb
     - API Reference:
+          - caption module: caption.md
           - common module: common.md
           - samgeo module: samgeo.md
           - samgeo2 module: samgeo2.md
+          - samgeo3 module: samgeo3.md
           - fast_sam module: fast_sam.md
           - hq_sam module: hq_sam.md
           - text_sam module: text_sam.md
