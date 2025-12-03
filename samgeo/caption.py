@@ -44,8 +44,15 @@ def ensure_spacy_model(model_name: str = DEFAULT_SPACY_MODEL) -> None:
         importlib.import_module(model_name)
     except ImportError:
         print(f"↓ Model '{model_name}' not found. Installing...")
-        download(model_name)
-        print(f"✓ Model '{model_name}' installed.")
+        try:
+            download(model_name)
+            print(f"✓ Model '{model_name}' installed.")
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to download spaCy model '{model_name}'. "
+                f"You may need to install it manually with: python -m spacy download {model_name}. "
+                f"Error: {e}"
+            ) from e
 
 
 # ---------------------------------------------------------------------
