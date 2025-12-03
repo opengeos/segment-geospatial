@@ -2195,6 +2195,8 @@ class SamGeo3Video:
             cap.release()
             if self.video_frames:
                 self.frame_height, self.frame_width = self.video_frames[0].shape[:2]
+            else:
+                raise ValueError(f"Failed to load any frames from video: {video_path}")
         else:
             self.video_frames = glob.glob(os.path.join(video_path, "*.jpg"))
             try:
