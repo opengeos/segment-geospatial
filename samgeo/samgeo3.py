@@ -2555,7 +2555,6 @@ class SamGeo3Video:
             print("No masks to save.")
             return []
 
-        num_frames = len(formatted_outputs)
         num_digits = len(str(len(self.video_frames)))
         saved_files = []
 
