@@ -2415,28 +2415,38 @@ class SamGeo3Video:
 
         return response
 
-    def remove_object(self, obj_id: int) -> None:
-        """Remove an object from tracking.
+    def remove_object(self, obj_id: Union[int, List[int]]) -> None:
+        """Remove one or more objects from tracking.
 
         Args:
-            obj_id (int): Object ID to remove.
+            obj_id (Union[int, List[int]]): Object ID(s) to remove.
+                Can be a single int or a list of ints.
 
         Example:
             >>> sam.generate_masks("person")  # Finds 3 people
             >>> sam.remove_object(2)  # Remove person with ID 2
-            >>> sam.propagate()  # Re-propagate without that person
+            >>> sam.remove_object([1, 3])  # Remove multiple objects at once
+            >>> sam.propagate()  # Re-propagate without removed objects
         """
         if self.session_id is None:
             raise ValueError("No session active. Please call set_video() first.")
 
-        self.predictor.handle_request(
-            request=dict(
-                type="remove_object",
-                session_id=self.session_id,
-                obj_id=obj_id,
+        # Convert single int to list for uniform processing
+        obj_ids = [obj_id] if isinstance(obj_id, int) else obj_id
+
+        for oid in obj_ids:
+            self.predictor.handle_request(
+                request=dict(
+                    type="remove_object",
+                    session_id=self.session_id,
+                    obj_id=oid,
+                )
             )
-        )
-        print(f"Removed object {obj_id}.")
+
+        if len(obj_ids) == 1:
+            print(f"Removed object {obj_ids[0]}.")
+        else:
+            print(f"Removed objects {obj_ids}.")
 
     def propagate(self) -> Dict[int, Any]:
         """Propagate masks through all frames of the video.
@@ -2631,7 +2641,7 @@ class SamGeo3Video:
         alpha: float = 0.6,
         dpi: int = 200,
         frame_stride: int = 1,
-        show_ids: bool = True,
+        show_ids: Union[bool, Dict[int, str]] = True,
     ) -> str:
         """Save segmentation results as a video with blended masks.
 
@@ -2641,7 +2651,10 @@ class SamGeo3Video:
             alpha (float): Opacity for mask overlay. Defaults to 0.6.
             dpi (int): DPI for rendering. Defaults to 200.
             frame_stride (int): Process every nth frame. Defaults to 1.
-            show_ids (bool): Whether to show object IDs on the video. Defaults to True.
+            show_ids (Union[bool, Dict[int, str]]): Whether to show object IDs
+                on the video. If True, shows numeric IDs. If False, hides IDs.
+                If a dict, maps object IDs to custom labels (e.g., player names).
+                Defaults to True.
 
         Returns:
             str: Path to the saved video.
@@ -2649,6 +2662,8 @@ class SamGeo3Video:
         Example:
             >>> sam.generate_masks("car")
             >>> sam.save_video("output.mp4")
+            >>> # With custom labels
+            >>> sam.save_video("output.mp4", show_ids={1: "Player A", 2: "Player B"})
         """
         if self.outputs_per_frame is None:
             raise ValueError("No masks to save. Please run generate_masks() first.")
@@ -2676,22 +2691,36 @@ class SamGeo3Video:
         alpha: float = 0.6,
         dpi: int = 200,
         frame_stride: int = 1,
-        show_ids: bool = True,
+        show_ids: Union[bool, Dict[int, str]] = True,
     ) -> None:
         """Save frames with blended mask overlays.
 
         Args:
             output_dir (str): Directory to save blended frames.
             alpha (float): Opacity for mask overlay.
-            dpi (int): DPI for rendering.
+            dpi (int): DPI for rendering (not used in optimized version).
             frame_stride (int): Process every nth frame.
-            show_ids (bool): Whether to show object IDs.
+            show_ids (Union[bool, Dict[int, str]]): Whether to show object IDs.
+                If True, shows numeric IDs. If False, hides IDs.
+                If a dict, maps object IDs to custom labels.
         """
         formatted_outputs = self._format_outputs()
         num_frames = len(self.video_frames)
         num_digits = len(str(num_frames))
 
-        plt.close("all")
+        # Pre-compute colors (tab10 colormap)
+        tab10_colors = [
+            (31, 119, 180),  # blue
+            (255, 127, 14),  # orange
+            (44, 160, 44),  # green
+            (214, 39, 40),  # red
+            (148, 103, 189),  # purple
+            (140, 86, 75),  # brown
+            (227, 119, 194),  # pink
+            (127, 127, 127),  # gray
+            (188, 189, 34),  # olive
+            (23, 190, 207),  # cyan
+        ]
 
         for frame_idx in tqdm(
             range(0, num_frames, frame_stride), desc="Rendering frames"
@@ -2701,26 +2730,25 @@ class SamGeo3Video:
 
             # Load frame
             if isinstance(self.video_frames[frame_idx], str):
-                frame = Image.open(self.video_frames[frame_idx])
+                frame = Image.open(self.video_frames[frame_idx]).convert("RGB")
             else:
-                frame = Image.fromarray(self.video_frames[frame_idx])
+                frame = Image.fromarray(self.video_frames[frame_idx]).convert("RGB")
 
-            w, h = frame.size
-            figsize = (w / dpi * 1.3, h / dpi * 1.3)
+            frame_np = np.array(frame, dtype=np.float32)
+            h, w = frame_np.shape[:2]
 
-            fig = plt.figure(figsize=figsize, dpi=dpi)
-            plt.axis("off")
-            plt.imshow(frame)
+            # Create overlay for all masks
+            overlay = np.zeros((h, w, 3), dtype=np.float32)
+            mask_combined = np.zeros((h, w), dtype=np.float32)
 
-            # Overlay masks
             frame_data = formatted_outputs[frame_idx]
-            cmap = plt.get_cmap("tab10")
+            labels_to_draw = []
 
             for obj_id, mask in frame_data.items():
                 if isinstance(obj_id, str) and obj_id == "image":
                     continue
 
-                color = np.array([*cmap(obj_id % 10)[:3], alpha])
+                color = tab10_colors[obj_id % 10]
                 mask_np = np.array(mask)
                 if mask_np.ndim > 2:
                     mask_np = mask_np.squeeze()
@@ -2733,42 +2761,79 @@ class SamGeo3Video:
                         interpolation=cv2.INTER_NEAREST,
                     )
 
-                mask_image = mask_np.reshape(h, w, 1) * color.reshape(1, 1, -1)
-                plt.gca().imshow(mask_image)
+                # Add color to overlay where mask is present
+                mask_bool = mask_np > 0
+                for c in range(3):
+                    overlay[:, :, c] = np.where(mask_bool, color[c], overlay[:, :, c])
+                mask_combined = np.maximum(mask_combined, mask_np)
 
-                # Add object ID label
+                # Collect label info
                 if show_ids:
-                    ys, xs = np.where(mask_np > 0)
+                    ys, xs = np.where(mask_bool)
                     if len(xs) > 0 and len(ys) > 0:
-                        cx, cy = np.mean(xs), np.mean(ys)
-                        plt.text(
-                            cx,
-                            cy,
-                            str(obj_id),
-                            color="white",
-                            fontsize=12,
-                            fontweight="bold",
-                            ha="center",
-                            va="center",
-                            bbox=dict(
-                                facecolor=cmap(obj_id % 10)[:3],
-                                alpha=0.7,
-                                edgecolor="none",
-                                pad=2,
-                            ),
-                        )
+                        cx, cy = int(np.mean(xs)), int(np.mean(ys))
+                        if isinstance(show_ids, dict):
+                            label = show_ids.get(obj_id, str(obj_id))
+                        else:
+                            label = str(obj_id)
+                        labels_to_draw.append((cx, cy, label, color))
 
+            # Blend overlay with frame
+            mask_3d = mask_combined[:, :, np.newaxis]
+            blended = frame_np * (1 - mask_3d * alpha) + overlay * (mask_3d * alpha)
+            blended = np.clip(blended, 0, 255).astype(np.uint8)
+
+            # Draw labels using OpenCV
+            for cx, cy, label, color in labels_to_draw:
+                # Get text size for background rectangle
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                font_scale = 0.7
+                thickness = 2
+                (text_w, text_h), baseline = cv2.getTextSize(
+                    label, font, font_scale, thickness
+                )
+
+                # Draw background rectangle
+                pad = 4
+                x1 = cx - text_w // 2 - pad
+                y1 = cy - text_h // 2 - pad
+                x2 = cx + text_w // 2 + pad
+                y2 = cy + text_h // 2 + pad + baseline
+
+                # Semi-transparent background
+                sub_img = blended[max(0, y1) : min(h, y2), max(0, x1) : min(w, x2)]
+                if sub_img.size > 0:
+                    bg_color = np.array(color, dtype=np.float32)
+                    blend_rect = (sub_img * 0.3 + bg_color * 0.7).astype(np.uint8)
+                    blended[max(0, y1) : min(h, y2), max(0, x1) : min(w, x2)] = (
+                        blend_rect
+                    )
+
+                # Draw text
+                text_x = cx - text_w // 2
+                text_y = cy + text_h // 2
+                cv2.putText(
+                    blended,
+                    label,
+                    (text_x, text_y),
+                    font,
+                    font_scale,
+                    (255, 255, 255),
+                    thickness,
+                    cv2.LINE_AA,
+                )
+
+            # Save frame
             filename = f"{str(frame_idx).zfill(num_digits)}.png"
             filepath = os.path.join(output_dir, filename)
-            plt.savefig(filepath, dpi=dpi, pad_inches=0, bbox_inches="tight")
-            plt.close(fig)
+            cv2.imwrite(filepath, cv2.cvtColor(blended, cv2.COLOR_RGB2BGR))
 
     def show_frame(
         self,
         frame_idx: int = 0,
         figsize: Tuple[int, int] = (12, 8),
         alpha: float = 0.6,
-        show_ids: bool = True,
+        show_ids: Union[bool, Dict[int, str]] = True,
         axis: str = "off",
         output: Optional[str] = None,
     ) -> None:
@@ -2778,13 +2843,19 @@ class SamGeo3Video:
             frame_idx (int): Frame index to display. Defaults to 0.
             figsize (Tuple[int, int]): Figure size. Defaults to (12, 8).
             alpha (float): Opacity for mask overlay. Defaults to 0.6.
-            show_ids (bool): Whether to show object IDs. Defaults to True.
+            show_ids (Union[bool, Dict[int, str]]): Whether to show object IDs.
+                If True, shows numeric IDs. If False, hides IDs.
+                If a dict, maps object IDs to custom labels (e.g., player names).
+                Defaults to True.
+            axis (str): Axis visibility setting. Defaults to "off".
             output (str, optional): Path to save the figure. Defaults to None.
 
         Example:
             >>> sam.generate_masks("tree")
             >>> sam.show_frame(0)  # Show first frame
             >>> sam.show_frame(50, output="frame_50.png")  # Save frame 50
+            >>> # With custom labels
+            >>> sam.show_frame(0, show_ids={1: "Player A", 2: "Player B"})
         """
         if self.outputs_per_frame is None:
             raise ValueError("No masks to show. Please run generate_masks() first.")
@@ -2837,10 +2908,15 @@ class SamGeo3Video:
                 ys, xs = np.where(mask_np > 0)
                 if len(xs) > 0 and len(ys) > 0:
                     cx, cy = np.mean(xs), np.mean(ys)
+                    # Determine label text
+                    if isinstance(show_ids, dict):
+                        label = show_ids.get(obj_id, str(obj_id))
+                    else:
+                        label = str(obj_id)
                     plt.text(
                         cx,
                         cy,
-                        str(obj_id),
+                        label,
                         color="white",
                         fontsize=12,
                         fontweight="bold",
@@ -2867,7 +2943,7 @@ class SamGeo3Video:
         ncols: int = 3,
         figsize_per_frame: Tuple[int, int] = (6, 4),
         alpha: float = 0.6,
-        show_ids: bool = False,
+        show_ids: Union[bool, Dict[int, str]] = False,
     ) -> None:
         """Display multiple frames with mask overlays in a grid.
 
@@ -2876,11 +2952,16 @@ class SamGeo3Video:
             ncols (int): Number of columns in the grid. Defaults to 3.
             figsize_per_frame (Tuple[int, int]): Size per subplot. Defaults to (6, 4).
             alpha (float): Opacity for mask overlay. Defaults to 0.6.
-            show_ids (bool): Whether to show object IDs. Defaults to False.
+            show_ids (Union[bool, Dict[int, str]]): Whether to show object IDs.
+                If True, shows numeric IDs. If False, hides IDs.
+                If a dict, maps object IDs to custom labels (e.g., player names).
+                Defaults to False.
 
         Example:
             >>> sam.generate_masks("person")
             >>> sam.show_frames(frame_stride=30, ncols=4)
+            >>> # With custom labels
+            >>> sam.show_frames(show_ids={1: "Player A", 2: "Player B"})
         """
         if self.outputs_per_frame is None:
             raise ValueError("No masks to show. Please run generate_masks() first.")
@@ -2946,10 +3027,15 @@ class SamGeo3Video:
                         ys, xs = np.where(mask_np > 0)
                         if len(xs) > 0 and len(ys) > 0:
                             cx, cy = np.mean(xs), np.mean(ys)
+                            # Determine label text
+                            if isinstance(show_ids, dict):
+                                label = show_ids.get(obj_id, str(obj_id))
+                            else:
+                                label = str(obj_id)
                             ax.text(
                                 cx,
                                 cy,
-                                str(obj_id),
+                                label,
                                 color="white",
                                 fontsize=10,
                                 fontweight="bold",
