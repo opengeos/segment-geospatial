@@ -76,6 +76,7 @@ nav:
           - examples/sam3_automated_segmentation.ipynb
           - examples/sam3_object_tracking.ipynb
           - examples/sam3_point_prompts.ipynb
+          - examples/sam3_point_prompts_batch.ipynb
           - examples/image_captioning.ipynb
     - Workshops:
           - workshops/purdue.ipynb
