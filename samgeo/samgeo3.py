@@ -2874,6 +2874,8 @@ class SamGeo3:
             self.save_masks(
                 output,
                 unique=unique,
+                min_size=min_size,
+                max_size=max_size,
                 dtype=dtype,
                 **kwargs,
             )
