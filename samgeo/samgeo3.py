@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
-from transformers.utils import logging as hf_logging
+
 
 try:
     from sam3.model_builder import build_sam3_image_model, build_sam3_video_predictor
@@ -41,7 +41,12 @@ except ImportError as e:
 from samgeo import common
 from .common import show_image
 
-hf_logging.set_verbosity_error()  # silence HF load reports
+try:
+    from transformers.utils import logging as hf_logging
+
+    hf_logging.set_verbosity_error()  # silence HF load reports
+except ImportError:
+    pass
 
 
 class SamGeo3:
