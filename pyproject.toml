@@ -77,7 +77,7 @@ samgeo3 = [
     "leafmap",
     "localtileserver",
     "spacy",
-    "triton>=3.5.1",
+    "triton>=3.5.1; sys_platform == 'linux'",
     "transformers>=5.0.0rc0"
 ]
 text = [
