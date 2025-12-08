@@ -2617,6 +2617,8 @@ class SamGeo3:
         output: Optional[str] = None,
         index: Optional[int] = None,
         unique: bool = True,
+        min_size: int = 0,
+        max_size: Optional[int] = None,
         dtype: str = "int32",
         multimask_output: bool = False,
         return_results: bool = False,
@@ -2654,7 +2656,10 @@ class SamGeo3:
             unique (bool): If True, each mask gets a unique integer value
                 (1, 2, 3, ...). If False, all masks are combined into a binary
                 mask. Defaults to True.
-            mask_multiplier (int): Multiplier for mask values. Defaults to 255.
+            min_size (int): Minimum mask size in pixels. Masks smaller than this
+                will be filtered out. Defaults to 0.
+            max_size (int, optional): Maximum mask size in pixels. Masks larger
+                than this will be filtered out. Defaults to None (no maximum).
             dtype (str): Data type for the output mask array. Defaults to "int32".
             multimask_output (bool): If True, the model returns 3 masks per prompt.
                 Defaults to False for cleaner batch results.
@@ -2749,14 +2754,21 @@ class SamGeo3:
                 gdf.crs = point_crs
 
             # Extract point coordinates from geometry
-            points = gdf.geometry.apply(lambda geom: [geom.x, geom.y])
-            coordinates_array = np.array([[point] for point in points])
+            points_list = gdf.geometry.apply(lambda geom: [geom.x, geom.y]).tolist()
+            coordinates_array = np.array([[point] for point in points_list])
 
             # Convert coordinates to pixel coordinates
-            points, _ = common.coords_to_xy(
+            points, out_of_bounds = common.coords_to_xy(
                 self.source, coordinates_array, gdf.crs, return_out_of_bounds=True
             )
             num_points = points.shape[0]
+
+            # Filter labels to match filtered coordinates
+            if point_labels_batch is not None and len(out_of_bounds) > 0:
+                valid_indices = [
+                    i for i in range(len(points_list)) if i not in out_of_bounds
+                ]
+                point_labels_batch = [point_labels_batch[i] for i in valid_indices]
 
             if point_labels_batch is None:
                 labels = np.array([[1] for _ in range(num_points)])
@@ -2764,22 +2776,30 @@ class SamGeo3:
                 labels = np.array([[label] for label in point_labels_batch])
 
         elif isinstance(point_coords_batch, list):
-            num_points = len(point_coords_batch)
-
             if point_crs is not None:
                 # Convert from CRS to pixel coordinates
                 point_coords_array = np.array(point_coords_batch)
-                point_coords_xy, _ = common.coords_to_xy(
+                point_coords_xy, out_of_bounds = common.coords_to_xy(
                     self.source,
                     point_coords_array,
                     point_crs,
                     return_out_of_bounds=True,
                 )
+                # Filter labels to match filtered coordinates
+                if point_labels_batch is not None:
+                    # Create a mask for valid (in-bounds) indices
+                    valid_indices = [
+                        i
+                        for i in range(len(point_coords_batch))
+                        if i not in out_of_bounds
+                    ]
+                    point_labels_batch = [point_labels_batch[i] for i in valid_indices]
             else:
                 point_coords_xy = np.array(point_coords_batch)
 
             # Format points for batch processing: each point as separate prompt
             points = np.array([[point] for point in point_coords_xy])
+            num_points = len(points)
 
             if point_labels_batch is None:
                 labels = np.array([[1] for _ in range(num_points)])
