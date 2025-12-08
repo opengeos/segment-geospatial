@@ -2614,7 +2614,6 @@ class SamGeo3:
         output: Optional[str] = None,
         index: Optional[int] = None,
         unique: bool = True,
-        mask_multiplier: int = 255,
         dtype: str = "int32",
         multimask_output: bool = False,
         return_results: bool = False,
