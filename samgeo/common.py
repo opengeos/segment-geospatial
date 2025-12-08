@@ -2244,7 +2244,7 @@ def sam_map_gui(
                                 min_size=min_size,
                                 max_size=max_size,
                             )
-                            sam.save_masks(output=filename)
+                            sam.save_masks(output=filename, min_size=min_size, max_size=max_size)
                         if m.find_layer("Masks") is not None:
                             m.remove_layer(m.find_layer("Masks"))
                         if m.find_layer("Regularized") is not None:
