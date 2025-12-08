@@ -2751,7 +2751,7 @@ class SamGeo3:
 
             # Convert coordinates to pixel coordinates
             points, _ = common.coords_to_xy(
-                self.source, coordinates_array, point_crs, return_out_of_bounds=True
+                self.source, coordinates_array, gdf.crs, return_out_of_bounds=True
             )
             num_points = points.shape[0]
 
