@@ -1819,14 +1819,24 @@ def update_package(out_dir=None, keep=False, **kwargs):
         raise Exception(e)
 
 
-def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwargs):
+def sam_map_gui(
+    sam,
+    basemap="SATELLITE",
+    repeat_mode=True,
+    out_dir=None,
+    min_size=0,
+    max_size=None,
+    **kwargs,
+):
     """Display the SAM Map GUI.
 
     Args:
-        sam (SamGeo):
+        sam (SamGeo): The SamGeo, SamGeo2, or SamGeo3 object.
         basemap (str, optional): The basemap to use. Defaults to "SATELLITE".
         repeat_mode (bool, optional): Whether to use the repeat mode for the draw control. Defaults to True.
         out_dir (str, optional): The output directory. Defaults to None.
+        min_size (int, optional): Minimum mask size in pixels. Defaults to 0.
+        max_size (int, optional): Maximum mask size in pixels. Defaults to None.
 
     """
     try:
@@ -1848,7 +1858,8 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
 
     m = leafmap.Map(repeat_mode=repeat_mode, **kwargs)
     m.default_style = {"cursor": "crosshair"}
-    m.add_basemap(basemap, show=False)
+    if basemap is not None:
+        m.add_basemap(basemap, show=False)
 
     # Skip the image layer if localtileserver is not available
     try:
@@ -2225,6 +2236,15 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
                                 point_crs="EPSG:4326",
                                 output=filename,
                             )
+                        elif sam.model_version == "sam3":
+                            sam.generate_masks_by_points_patch(
+                                point_coords_batch=point_coords,
+                                point_labels_batch=point_labels,
+                                point_crs="EPSG:4326",
+                                min_size=min_size,
+                                max_size=max_size,
+                            )
+                            sam.save_masks(output=filename)
                         if m.find_layer("Masks") is not None:
                             m.remove_layer(m.find_layer("Masks"))
                         if m.find_layer("Regularized") is not None:
@@ -2569,7 +2589,8 @@ def text_sam_gui(
 
     m = leafmap.Map(**kwargs)
     m.default_style = {"cursor": "crosshair"}
-    m.add_basemap(basemap, show=False)
+    if basemap is not None:
+        m.add_basemap(basemap, show=False)
 
     # Skip the image layer if localtileserver is not available
     try:

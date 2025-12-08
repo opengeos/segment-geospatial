@@ -2213,6 +2213,7 @@ class SamGeo3:
         out_dir=None,
         min_size=10,
         max_size=None,
+        prompt="text",
         **kwargs,
     ):
         """Show the interactive map.
@@ -2225,16 +2226,28 @@ class SamGeo3:
         Returns:
             leafmap.Map: The map object.
         """
-        return common.text_sam_gui(
-            self,
-            basemap=basemap,
-            out_dir=out_dir,
-            box_threshold=self.confidence_threshold,
-            text_threshold=self.mask_threshold,
-            min_size=min_size,
-            max_size=max_size,
-            **kwargs,
-        )
+        if prompt.lower() == "text":
+            return common.text_sam_gui(
+                self,
+                basemap=basemap,
+                out_dir=out_dir,
+                box_threshold=self.confidence_threshold,
+                text_threshold=self.mask_threshold,
+                min_size=min_size,
+                max_size=max_size,
+                **kwargs,
+            )
+        elif prompt.lower() == "point":
+            return common.sam_map_gui(
+                self,
+                basemap=basemap,
+                out_dir=out_dir,
+                min_size=min_size,
+                max_size=max_size,
+                **kwargs,
+            )
+        else:
+            raise ValueError(f"Invalid prompt: {prompt}. Please use 'text' or 'point'.")
 
     def show_canvas(
         self,
@@ -2592,6 +2605,290 @@ class SamGeo3:
         )
 
         return masks_batch, scores_batch, logits_batch
+
+    def generate_masks_by_points_patch(
+        self,
+        point_coords_batch: Union[List[List[float]], str, Any] = None,
+        point_labels_batch: Optional[List[int]] = None,
+        point_crs: Optional[str] = None,
+        output: Optional[str] = None,
+        index: Optional[int] = None,
+        unique: bool = True,
+        mask_multiplier: int = 255,
+        dtype: str = "int32",
+        multimask_output: bool = False,
+        return_results: bool = False,
+        **kwargs: Any,
+    ) -> Optional[Tuple[List[Dict], List[np.ndarray], List[np.ndarray]]]:
+        """
+        Generate masks for multiple point prompts using batch processing.
+
+        This method is similar to SamGeo2.predict_by_points but uses SAM3's
+        predict_inst_batch for efficient batch processing of point prompts on
+        a single image. Each point is treated as a separate prompt to generate
+        a separate mask.
+
+        Note: This method requires the model to be initialized with
+        `enable_inst_interactivity=True` (Meta backend only).
+
+        Args:
+            point_coords_batch (List[List[float]] | str | GeoDataFrame): Point
+                coordinates for batch processing. Can be:
+                - A list of [x, y] coordinates
+                - A file path to a vector file (GeoJSON, Shapefile, etc.)
+                - A GeoDataFrame with point geometries
+            point_labels_batch (List[int], optional): Labels for each point.
+                1 = foreground (include), 0 = background (exclude).
+                If None, all points are treated as foreground (label=1).
+            point_crs (str, optional): Coordinate reference system for point
+                coordinates (e.g., "EPSG:4326"). If provided, coordinates will
+                be converted from the CRS to pixel coordinates. Required when
+                using geographic coordinates with a GeoTIFF source image.
+            output (str, optional): Path to save the output mask as a GeoTIFF.
+                If None, masks are stored in memory only.
+            index (int, optional): If multimask_output is True, select this
+                specific mask index from each prediction. If None, selects the
+                mask with the highest score for each point.
+            unique (bool): If True, each mask gets a unique integer value
+                (1, 2, 3, ...). If False, all masks are combined into a binary
+                mask. Defaults to True.
+            mask_multiplier (int): Multiplier for mask values. Defaults to 255.
+            dtype (str): Data type for the output mask array. Defaults to "int32".
+            multimask_output (bool): If True, the model returns 3 masks per prompt.
+                Defaults to False for cleaner batch results.
+            return_results (bool): If True, returns the masks, scores, and logits.
+                Defaults to False.
+            **kwargs: Additional keyword arguments passed to save_masks().
+
+        Returns:
+            If return_results is True:
+                Tuple[List[Dict], List[np.ndarray], List[np.ndarray]]: Tuple of
+                    (output_masks, scores, logits) where output_masks is a list
+                    of dictionaries with 'segmentation' and 'area' keys.
+            If return_results is False:
+                None
+
+        Example:
+            >>> # Initialize with instance interactivity enabled
+            >>> sam = SamGeo3(backend="meta", enable_inst_interactivity=True)
+            >>> sam.set_image("satellite.tif")
+            >>>
+            >>> # Using a list of geographic coordinates
+            >>> point_coords = [
+            ...     [-117.599896, 47.655345],
+            ...     [-117.59992, 47.655167],
+            ...     [-117.599928, 47.654974],
+            ...     [-117.599518, 47.655337],
+            ... ]
+            >>> sam.generate_masks_by_points_patch(
+            ...     point_coords_batch=point_coords,
+            ...     point_crs="EPSG:4326",
+            ...     output="masks.tif",
+            ...     dtype="uint8",
+            ... )
+            >>>
+            >>> # Using a vector file (GeoJSON, Shapefile, etc.)
+            >>> sam.generate_masks_by_points_patch(
+            ...     point_coords_batch="building_centroids.geojson",
+            ...     point_crs="EPSG:4326",
+            ...     output="building_masks.tif",
+            ... )
+            >>>
+            >>> # Using a GeoDataFrame
+            >>> import geopandas as gpd
+            >>> gdf = gpd.read_file("points.geojson")
+            >>> sam.generate_masks_by_points_patch(
+            ...     point_coords_batch=gdf,
+            ...     point_crs="EPSG:4326",
+            ...     output="masks.tif",
+            ... )
+        """
+        import geopandas as gpd
+
+        if self.backend != "meta":
+            raise NotImplementedError(
+                "generate_masks_by_points_patch is only available for the Meta backend. "
+                "Please initialize with backend='meta' and enable_inst_interactivity=True."
+            )
+
+        if self.source is None:
+            raise ValueError(
+                "No source image set. This method requires a file path to be provided "
+                "to set_image() for georeferencing support."
+            )
+
+        if self.inference_state is None:
+            raise ValueError("No image set. Please call set_image() first.")
+
+        if (
+            not hasattr(self.model, "inst_interactive_predictor")
+            or self.model.inst_interactive_predictor is None
+        ):
+            raise ValueError(
+                "Instance interactivity not enabled. Please initialize with "
+                "enable_inst_interactivity=True."
+            )
+
+        # Process point coordinates based on input type
+        if isinstance(point_coords_batch, dict):
+            # GeoJSON-like dict
+            point_coords_batch = gpd.GeoDataFrame.from_features(point_coords_batch)
+
+        if isinstance(point_coords_batch, str) or isinstance(
+            point_coords_batch, gpd.GeoDataFrame
+        ):
+            # File path or GeoDataFrame
+            if isinstance(point_coords_batch, str):
+                gdf = gpd.read_file(point_coords_batch)
+            else:
+                gdf = point_coords_batch
+
+            if gdf.crs is None and point_crs is not None:
+                gdf.crs = point_crs
+
+            # Extract point coordinates from geometry
+            points = gdf.geometry.apply(lambda geom: [geom.x, geom.y])
+            coordinates_array = np.array([[point] for point in points])
+
+            # Convert coordinates to pixel coordinates
+            points, _ = common.coords_to_xy(
+                self.source, coordinates_array, point_crs, return_out_of_bounds=True
+            )
+            num_points = points.shape[0]
+
+            if point_labels_batch is None:
+                labels = np.array([[1] for _ in range(num_points)])
+            else:
+                labels = np.array([[label] for label in point_labels_batch])
+
+        elif isinstance(point_coords_batch, list):
+            num_points = len(point_coords_batch)
+
+            if point_crs is not None:
+                # Convert from CRS to pixel coordinates
+                point_coords_array = np.array(point_coords_batch)
+                point_coords_xy, _ = common.coords_to_xy(
+                    self.source,
+                    point_coords_array,
+                    point_crs,
+                    return_out_of_bounds=True,
+                )
+            else:
+                point_coords_xy = np.array(point_coords_batch)
+
+            # Format points for batch processing: each point as separate prompt
+            points = np.array([[point] for point in point_coords_xy])
+
+            if point_labels_batch is None:
+                labels = np.array([[1] for _ in range(num_points)])
+            elif isinstance(point_labels_batch, list):
+                labels = np.array([[label] for label in point_labels_batch])
+            else:
+                labels = point_labels_batch
+
+        elif isinstance(point_coords_batch, np.ndarray):
+            points = point_coords_batch
+            labels = point_labels_batch
+            if labels is None:
+                num_points = points.shape[0]
+                labels = np.array([[1] for _ in range(num_points)])
+        else:
+            raise ValueError(
+                "point_coords_batch must be a list, GeoDataFrame, file path, or numpy array."
+            )
+
+        # Set up batch state for single image batch processing
+        # Use set_image_batch with the current image
+        if self.images_batch is None:
+            pil_image = Image.fromarray(self.image)
+            self.batch_state = self.processor.set_image_batch([pil_image], state=None)
+            self.images_batch = [self.image]
+            self.sources_batch = [self.source]
+
+        # Call predict_inst_batch with the formatted points
+        # predict_inst_batch expects batches per image, we have one image with multiple points
+        masks_batch, scores_batch, logits_batch = self.model.predict_inst_batch(
+            self.batch_state,
+            [points],  # One entry for our single image
+            [labels],  # One entry for our single image
+            box_batch=None,
+            mask_input_batch=None,
+            multimask_output=multimask_output,
+            return_logits=False,
+            normalize_coords=True,
+        )
+
+        # Extract results for our single image
+        masks = masks_batch[0]
+        scores = scores_batch[0]
+        logits = logits_batch[0]
+
+        # Handle multimask output - select best mask per prompt if index not specified
+        if multimask_output and index is not None:
+            masks = masks[:, index, :, :]
+        elif multimask_output and masks.ndim == 4:
+            # Select best mask for each prompt based on scores
+            best_masks = []
+            best_scores = []
+            for i in range(masks.shape[0]):
+                best_idx = np.argmax(scores[i])
+                best_masks.append(masks[i, best_idx])
+                best_scores.append(scores[i, best_idx])
+            masks = np.array(best_masks)
+            scores = np.array(best_scores)
+
+        if masks.ndim > 3:
+            masks = masks.squeeze()
+
+        # Ensure masks is 3D (num_masks, H, W)
+        if masks.ndim == 2:
+            masks = masks[np.newaxis, ...]  # Add batch dimension
+
+        # Store results in the format expected by show_anns/show_masks/save_masks
+        self.masks = [masks[i] for i in range(len(masks))]
+        self.scores = scores if isinstance(scores, list) else list(scores.flatten())
+        self.logits = logits
+
+        # Create output mask list with segmentation dict format for return value
+        output_masks = []
+        sums = np.sum(masks, axis=(1, 2))
+        for idx, mask in enumerate(masks):
+            item = {
+                "segmentation": mask.astype("bool"),
+                "area": sums[idx],
+            }
+            output_masks.append(item)
+
+        # Compute bounding boxes from masks
+        self.boxes = []
+        for mask in self.masks:
+            if mask.ndim > 2:
+                mask = mask.squeeze()
+            ys, xs = np.where(mask > 0)
+            if len(xs) > 0 and len(ys) > 0:
+                self.boxes.append(np.array([xs.min(), ys.min(), xs.max(), ys.max()]))
+            else:
+                self.boxes.append(np.array([0, 0, 0, 0]))
+
+        # Save masks if output path is provided
+        if output is not None:
+            self.save_masks(
+                output,
+                unique=unique,
+                dtype=dtype,
+                **kwargs,
+            )
+
+        num_objects = len(self.masks)
+        if num_objects == 0:
+            print("No objects found. Please check your point prompts.")
+        elif num_objects == 1:
+            print("Found one object.")
+        else:
+            print(f"Found {num_objects} objects.")
+
+        if return_results:
+            return output_masks, scores, logits
 
     def show_inst_masks(
         self,
