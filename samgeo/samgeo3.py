@@ -11,6 +11,7 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
+
 try:
     from sam3.model_builder import build_sam3_image_model, build_sam3_video_predictor
     from sam3.model.sam3_image_processor import Sam3Processor as MetaSam3Processor
@@ -38,6 +39,14 @@ except ImportError as e:
     print(f"To use SamGeo 3, install it as:\n\tpip install segment-geospatial[samgeo3]")
 
 from samgeo import common
+from .common import show_image
+
+try:
+    from transformers.utils import logging as hf_logging
+
+    hf_logging.set_verbosity_error()  # silence HF load reports
+except ImportError:
+    pass
 
 
 class SamGeo3:
@@ -73,12 +82,30 @@ class SamGeo3:
             checkpoint_path (str, optional): Optional path to model checkpoint (Meta backend only).
             load_from_HF (bool, optional): Whether to load the model from HuggingFace (Meta backend only).
             enable_segmentation (bool, optional): Whether to enable segmentation head (Meta backend only).
-            enable_inst_interactivity (bool, optional): Whether to enable instance interactivity (SAM 1 task) (Meta backend only).
+            enable_inst_interactivity (bool, optional): Whether to enable instance interactivity
+                (SAM 1 task) (Meta backend only). Set to True to use predict_inst() and
+                predict_inst_batch() methods for interactive point and box prompts.
+                When True, the model loads additional components for SAM1-style
+                interactive instance segmentation. Defaults to False.
             compile_mode (bool, optional): To enable compilation, set to "default" (Meta backend only).
             resolution (int, optional): Resolution of the image (Meta backend only).
             confidence_threshold (float, optional): Confidence threshold for the model.
             mask_threshold (float, optional): Mask threshold for post-processing (Transformers backend only).
             **kwargs: Additional keyword arguments.
+
+        Example:
+            >>> # For text-based segmentation
+            >>> sam = SamGeo3(backend="meta")
+            >>> sam.set_image("image.jpg")
+            >>> sam.generate_masks("tree")
+            >>>
+            >>> # For interactive point/box prompts (SAM1-style)
+            >>> sam = SamGeo3(backend="meta", enable_inst_interactivity=True)
+            >>> sam.set_image("image.jpg")
+            >>> masks, scores, logits = sam.predict_inst(
+            ...     point_coords=np.array([[520, 375]]),
+            ...     point_labels=np.array([1]),
+            ... )
         """
 
         if backend not in ["meta", "transformers"]:
@@ -1249,6 +1276,289 @@ class SamGeo3:
         else:
             print(f"Found {num_objects} objects.")
 
+    def generate_masks_by_points(
+        self,
+        point_coords: List[List[float]],
+        point_labels: Optional[List[int]] = None,
+        point_crs: Optional[str] = None,
+        multimask_output: bool = True,
+        min_size: int = 0,
+        max_size: Optional[int] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """
+        Generate masks using point prompts.
+
+        This is a high-level method that wraps predict_inst() for ease of use.
+        It stores the results in self.masks, self.scores, and self.boxes for
+        subsequent use with show_anns(), show_masks(), and save_masks().
+
+        Note: This method requires the model to be initialized with
+        `enable_inst_interactivity=True` (Meta backend only).
+
+        Args:
+            point_coords (List[List[float]]): List of point coordinates [[x, y], ...].
+                If point_crs is None: pixel coordinates.
+                If point_crs is specified: coordinates in the given CRS (e.g., "EPSG:4326").
+            point_labels (List[int], optional): List of labels for each point.
+                1 = foreground (include), 0 = background (exclude).
+                If None, all points are treated as foreground (label=1).
+            point_crs (str, optional): Coordinate reference system for point coordinates
+                (e.g., "EPSG:4326" for lat/lon). Only used if the source image is a GeoTIFF.
+                If None, points are assumed to be in pixel coordinates.
+            multimask_output (bool): If True, the model returns 3 masks and the best
+                one is selected by score. Recommended for ambiguous prompts like single
+                points. If False, returns single mask directly. Defaults to True.
+            min_size (int): Minimum mask size in pixels. Masks smaller than this
+                will be filtered out. Defaults to 0.
+            max_size (int, optional): Maximum mask size in pixels. Masks larger than
+                this will be filtered out. Defaults to None (no maximum).
+            **kwargs: Additional keyword arguments passed to predict_inst().
+
+        Returns:
+            Dict[str, Any]: Dictionary containing masks, scores, and logits.
+
+        Example:
+            # Initialize with instance interactivity enabled
+            sam = SamGeo3(backend="meta", enable_inst_interactivity=True)
+            sam.set_image("image.jpg")
+
+            # Single foreground point (pixel coordinates)
+            sam.generate_masks_by_points([[520, 375]])
+            sam.show_anns()
+            sam.save_masks("mask.png")
+
+            # Multiple points with labels
+            sam.generate_masks_by_points(
+                [[500, 375], [1125, 625]],
+                point_labels=[1, 0]  # foreground, background
+            )
+
+            # Geographic coordinates (GeoTIFF)
+            sam.generate_masks_by_points(
+                [[-122.258, 37.871]],
+                point_crs="EPSG:4326"
+            )
+        """
+        if self.backend != "meta":
+            raise NotImplementedError(
+                "generate_masks_by_points is only available for the Meta backend. "
+                "Please initialize with backend='meta' and enable_inst_interactivity=True."
+            )
+
+        if self.inference_state is None:
+            raise ValueError("No image set. Please call set_image() first.")
+
+        if (
+            not hasattr(self.model, "inst_interactive_predictor")
+            or self.model.inst_interactive_predictor is None
+        ):
+            raise ValueError(
+                "Instance interactivity not enabled. Please initialize with "
+                "enable_inst_interactivity=True."
+            )
+
+        # Convert to numpy array if it's a list
+        point_coords = np.array(point_coords)
+
+        # Default all points to foreground if no labels provided
+        if point_labels is None:
+            point_labels = np.ones(len(point_coords), dtype=np.int32)
+        else:
+            point_labels = np.array(point_labels, dtype=np.int32)
+
+        if len(point_coords) != len(point_labels):
+            raise ValueError(
+                f"Number of points ({len(point_coords)}) must match number of labels ({len(point_labels)})"
+            )
+
+        # Call predict_inst with the prompts
+        masks, scores, logits = self.predict_inst(
+            point_coords=point_coords,
+            point_labels=point_labels,
+            multimask_output=multimask_output,
+            point_crs=point_crs,
+            **kwargs,
+        )
+
+        # If multimask_output=True, select the best mask by score
+        if multimask_output and len(masks) > 1:
+            best_idx = np.argmax(scores)
+            masks = masks[best_idx : best_idx + 1]
+            scores = scores[best_idx : best_idx + 1]
+            logits = logits[best_idx : best_idx + 1]
+
+        # Store results in the format expected by show_anns/show_masks/save_masks
+        self.masks = (
+            [masks[i] for i in range(len(masks))] if masks.ndim > 2 else [masks]
+        )
+        self.scores = list(scores) if isinstance(scores, np.ndarray) else [scores]
+        self.logits = logits
+
+        # Compute bounding boxes from masks
+        self.boxes = []
+        for mask in self.masks:
+            if mask.ndim > 2:
+                mask = mask.squeeze()
+            ys, xs = np.where(mask > 0)
+            if len(xs) > 0 and len(ys) > 0:
+                self.boxes.append(np.array([xs.min(), ys.min(), xs.max(), ys.max()]))
+            else:
+                self.boxes.append(np.array([0, 0, 0, 0]))
+
+        # Filter masks by size if min_size or max_size is specified
+        if min_size > 0 or max_size is not None:
+            self._filter_masks_by_size(min_size, max_size)
+
+        num_objects = len(self.masks)
+        if num_objects == 0:
+            print("No objects found. Please check your point prompts.")
+        elif num_objects == 1:
+            print("Found one object.")
+        else:
+            print(f"Found {num_objects} objects.")
+
+    def generate_masks_by_boxes_inst(
+        self,
+        boxes: List[List[float]],
+        box_crs: Optional[str] = None,
+        multimask_output: bool = True,
+        min_size: int = 0,
+        max_size: Optional[int] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """
+        Generate masks using bounding box prompts with instance interactivity.
+
+        This is a high-level method that wraps predict_inst() for ease of use.
+        It stores the results in self.masks, self.scores, and self.boxes for
+        subsequent use with show_anns(), show_masks(), and save_masks().
+
+        Note: This method requires the model to be initialized with
+        `enable_inst_interactivity=True` (Meta backend only).
+
+        Args:
+            boxes (List[List[float]]): List of bounding boxes in XYXY format
+                [[xmin, ymin, xmax, ymax], ...].
+                If box_crs is None: pixel coordinates.
+                If box_crs is specified: coordinates in the given CRS (e.g., "EPSG:4326").
+            box_crs (str, optional): Coordinate reference system for box coordinates
+                (e.g., "EPSG:4326" for lat/lon). Only used if the source image is a GeoTIFF.
+                If None, boxes are assumed to be in pixel coordinates.
+            multimask_output (bool): If True, the model returns 3 masks per box and the
+                best one is selected by score. If False, returns single mask directly.
+                Defaults to True.
+            min_size (int): Minimum mask size in pixels. Masks smaller than this
+                will be filtered out. Defaults to 0.
+            max_size (int, optional): Maximum mask size in pixels. Masks larger than
+                this will be filtered out. Defaults to None (no maximum).
+            **kwargs: Additional keyword arguments passed to predict_inst().
+
+        Returns:
+            Dict[str, Any]: Dictionary containing masks, scores, and logits.
+
+        Example:
+            # Initialize with instance interactivity enabled
+            sam = SamGeo3(backend="meta", enable_inst_interactivity=True)
+            sam.set_image("image.jpg")
+
+            # Single box (pixel coordinates)
+            sam.generate_masks_by_boxes_inst([[425, 600, 700, 875]])
+            sam.show_anns()
+            sam.save_masks("mask.png")
+
+            # Multiple boxes
+            sam.generate_masks_by_boxes_inst([
+                [75, 275, 1725, 850],
+                [425, 600, 700, 875],
+            ])
+        """
+        if self.backend != "meta":
+            raise NotImplementedError(
+                "generate_masks_by_boxes_inst is only available for the Meta backend. "
+                "Please initialize with backend='meta' and enable_inst_interactivity=True."
+            )
+
+        if self.inference_state is None:
+            raise ValueError("No image set. Please call set_image() first.")
+
+        if (
+            not hasattr(self.model, "inst_interactive_predictor")
+            or self.model.inst_interactive_predictor is None
+        ):
+            raise ValueError(
+                "Instance interactivity not enabled. Please initialize with "
+                "enable_inst_interactivity=True."
+            )
+
+        # Convert to numpy array if it's a list
+        boxes_arr = np.array(boxes)
+
+        # Call predict_inst with box prompts
+        masks, scores, logits = self.predict_inst(
+            box=boxes_arr,
+            multimask_output=multimask_output,
+            box_crs=box_crs,
+            **kwargs,
+        )
+
+        # Handle batch output shape (BxCxHxW) vs single (CxHxW)
+        if masks.ndim == 4:
+            # Multiple boxes - flatten into list of masks
+            # Each box produces C masks, take the best one per box
+            all_masks = []
+            all_scores = []
+            for i in range(masks.shape[0]):
+                if multimask_output and masks.shape[1] > 1:
+                    best_idx = np.argmax(scores[i])
+                    all_masks.append(masks[i, best_idx])
+                    all_scores.append(scores[i, best_idx])
+                else:
+                    all_masks.append(masks[i, 0] if masks.shape[1] > 0 else masks[i])
+                    all_scores.append(scores[i, 0] if len(scores[i]) > 0 else scores[i])
+            masks = all_masks
+            scores = all_scores
+        else:
+            # Single box
+            if multimask_output and len(masks) > 1:
+                best_idx = np.argmax(scores)
+                masks = [masks[best_idx]]
+                scores = [scores[best_idx]]
+            else:
+                masks = (
+                    [masks[i] for i in range(len(masks))] if masks.ndim > 2 else [masks]
+                )
+                scores = list(scores) if isinstance(scores, np.ndarray) else [scores]
+
+        # Store results
+        self.masks = masks
+        self.scores = scores
+        self.logits = logits
+
+        # Compute bounding boxes from masks
+        self.boxes = []
+        for mask in self.masks:
+            if hasattr(mask, "ndim") and mask.ndim > 2:
+                mask = mask.squeeze()
+            mask_arr = np.asarray(mask)
+            ys, xs = np.where(mask_arr > 0)
+            if len(xs) > 0 and len(ys) > 0:
+                self.boxes.append(np.array([xs.min(), ys.min(), xs.max(), ys.max()]))
+            else:
+                self.boxes.append(np.array([0, 0, 0, 0]))
+
+        # Filter masks by size if min_size or max_size is specified
+        if min_size > 0 or max_size is not None:
+            self._filter_masks_by_size(min_size, max_size)
+
+        num_objects = len(self.masks)
+        if num_objects == 0:
+            print("No objects found. Please check your box prompts.")
+        elif num_objects == 1:
+            print("Found one object.")
+        else:
+            print(f"Found {num_objects} objects.")
+
     def _convert_results_to_numpy(self) -> None:
         """Convert masks, boxes, and scores from tensors to numpy arrays.
 
@@ -1449,6 +1759,90 @@ class SamGeo3:
         # Display
         plt.figure(figsize=figsize)
         plt.imshow(img)
+        plt.axis(axis)
+        plt.show()
+
+    def show_points(
+        self,
+        point_coords: List[List[float]],
+        point_labels: Optional[List[int]] = None,
+        point_crs: Optional[str] = None,
+        figsize: Tuple[int, int] = (12, 10),
+        axis: str = "off",
+        foreground_color: str = "green",
+        background_color: str = "red",
+        marker: str = "*",
+        marker_size: int = 375,
+    ) -> None:
+        """
+        Visualize point prompts on the image.
+
+        Args:
+            point_coords (List[List[float]]): List of point coordinates [[x, y], ...].
+                If point_crs is None: pixel coordinates.
+                If point_crs is specified: coordinates in the given CRS.
+            point_labels (List[int], optional): List of labels for each point.
+                1 = foreground (shown in green), 0 = background (shown in red).
+                If None, all points shown as foreground.
+            point_crs (str, optional): Coordinate reference system for point coordinates
+                (e.g., "EPSG:4326"). If None, points are in pixel coordinates.
+            figsize (Tuple[int, int]): Figure size for display.
+            axis (str): Whether to show axis ("on" or "off").
+            foreground_color (str): Color for foreground points (label=1).
+            background_color (str): Color for background points (label=0).
+            marker (str): Marker style for points.
+            marker_size (int): Size of the markers.
+
+        Example:
+            sam.show_points([[520, 375]], [1])  # Single foreground point
+            sam.show_points([[500, 375], [600, 400]], [1, 0])  # Mixed points
+        """
+        if self.image is None:
+            raise ValueError("No image set. Please call set_image() first.")
+
+        if point_labels is None:
+            point_labels = [1] * len(point_coords)
+
+        # Convert to numpy arrays
+        point_coords = np.array(point_coords)
+        point_labels = np.array(point_labels)
+
+        # Transform points from CRS to pixel coordinates if needed
+        if point_crs is not None and self.source is not None:
+            point_coords, _ = common.coords_to_xy(
+                self.source, point_coords, point_crs, return_out_of_bounds=True
+            )
+
+        # Display image
+        plt.figure(figsize=figsize)
+        plt.imshow(self.image)
+
+        # Plot foreground points
+        fg_mask = point_labels == 1
+        if np.any(fg_mask):
+            plt.scatter(
+                point_coords[fg_mask, 0],
+                point_coords[fg_mask, 1],
+                color=foreground_color,
+                marker=marker,
+                s=marker_size,
+                edgecolor="white",
+                linewidth=1.25,
+            )
+
+        # Plot background points
+        bg_mask = point_labels == 0
+        if np.any(bg_mask):
+            plt.scatter(
+                point_coords[bg_mask, 0],
+                point_coords[bg_mask, 1],
+                color=background_color,
+                marker=marker,
+                s=marker_size,
+                edgecolor="white",
+                linewidth=1.25,
+            )
+
         plt.axis(axis)
         plt.show()
 
@@ -1872,6 +2266,456 @@ class SamGeo3:
         self.point_labels = point_labels
 
         return fg_points, bg_points
+
+    def predict_inst(
+        self,
+        point_coords: Optional[Union[np.ndarray, List[List[float]]]] = None,
+        point_labels: Optional[Union[np.ndarray, List[int]]] = None,
+        box: Optional[Union[np.ndarray, List[float], List[List[float]]]] = None,
+        mask_input: Optional[np.ndarray] = None,
+        multimask_output: bool = True,
+        return_logits: bool = False,
+        normalize_coords: bool = True,
+        point_crs: Optional[str] = None,
+        box_crs: Optional[str] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Predict masks for the given input prompts using SAM3's interactive instance
+        segmentation (SAM1-style task). This enables point and box prompts for
+        precise object segmentation.
+
+        Note: This method requires the model to be initialized with
+        `enable_inst_interactivity=True` (Meta backend only).
+
+        Args:
+            point_coords (np.ndarray or List, optional): A Nx2 array or list of point
+                prompts to the model. Each point is in (X, Y) pixel coordinates.
+                Can be a numpy array or a Python list like [[x1, y1], [x2, y2]].
+            point_labels (np.ndarray or List, optional): A length N array or list of
+                labels for the point prompts. 1 indicates a foreground point and
+                0 indicates a background point.
+            box (np.ndarray or List, optional): A length 4 array/list or Bx4 array/list
+                of box prompt(s) to the model, in XYXY format.
+            mask_input (np.ndarray, optional): A low resolution mask input to the
+                model, typically coming from a previous prediction iteration.
+                Has form 1xHxW (or BxHxW for batched), where H=W=256 for SAM.
+            multimask_output (bool): If True, the model will return three masks.
+                For ambiguous input prompts (such as a single click), this will
+                often produce better masks than a single prediction. If only a
+                single mask is needed, the model's predicted quality score can
+                be used to select the best mask. For non-ambiguous prompts, such
+                as multiple input prompts, multimask_output=False can give
+                better results. Defaults to True.
+            return_logits (bool): If True, returns un-thresholded mask logits
+                instead of binary masks. Defaults to False.
+            normalize_coords (bool): If True, the point coordinates will be
+                normalized to the range [0, 1] and point_coords is expected to
+                be w.r.t. image dimensions. Defaults to True.
+            point_crs (str, optional): Coordinate reference system for point
+                coordinates (e.g., "EPSG:4326"). Only used if the source image
+                is a GeoTIFF. If None, points are in pixel coordinates.
+            box_crs (str, optional): Coordinate reference system for box
+                coordinates (e.g., "EPSG:4326"). Only used if the source image
+                is a GeoTIFF. If None, box is in pixel coordinates.
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray, np.ndarray]:
+                - masks: The output masks in CxHxW format (or BxCxHxW for batched
+                  box input), where C is the number of masks, and (H, W) is the
+                  original image size.
+                - scores: An array of length C (or BxC) containing the model's
+                  predictions for the quality of each mask.
+                - logits: An array of shape CxHxW (or BxCxHxW), where C is the
+                  number of masks and H=W=256. These low resolution logits can
+                  be passed to a subsequent iteration as mask input.
+
+        Example:
+            >>> # Initialize with instance interactivity enabled
+            >>> sam = SamGeo3(backend="meta", enable_inst_interactivity=True)
+            >>> sam.set_image("image.jpg")
+            >>>
+            >>> # Single point prompt
+            >>> point_coords = np.array([[520, 375]])
+            >>> point_labels = np.array([1])
+            >>> masks, scores, logits = sam.predict_inst(
+            ...     point_coords=point_coords,
+            ...     point_labels=point_labels,
+            ...     multimask_output=True,
+            ... )
+            >>>
+            >>> # Select best mask based on score
+            >>> best_mask_idx = np.argmax(scores)
+            >>> best_mask = masks[best_mask_idx]
+            >>>
+            >>> # Refine with additional points
+            >>> point_coords = np.array([[500, 375], [1125, 625]])
+            >>> point_labels = np.array([1, 0])  # foreground and background
+            >>> masks, scores, logits = sam.predict_inst(
+            ...     point_coords=point_coords,
+            ...     point_labels=point_labels,
+            ...     mask_input=logits[best_mask_idx:best_mask_idx+1],  # Use previous best
+            ...     multimask_output=False,
+            ... )
+            >>>
+            >>> # Box prompt
+            >>> box = np.array([425, 600, 700, 875])
+            >>> masks, scores, logits = sam.predict_inst(box=box, multimask_output=False)
+            >>>
+            >>> # Combined box and point prompt
+            >>> box = np.array([425, 600, 700, 875])
+            >>> point_coords = np.array([[575, 750]])
+            >>> point_labels = np.array([0])  # Exclude this region
+            >>> masks, scores, logits = sam.predict_inst(
+            ...     point_coords=point_coords,
+            ...     point_labels=point_labels,
+            ...     box=box,
+            ...     multimask_output=False,
+            ... )
+        """
+        if self.backend != "meta":
+            raise NotImplementedError(
+                "predict_inst is only available for the Meta backend. "
+                "Please initialize with backend='meta' and enable_inst_interactivity=True."
+            )
+
+        if self.inference_state is None:
+            raise ValueError("No image set. Please call set_image() first.")
+
+        if (
+            not hasattr(self.model, "inst_interactive_predictor")
+            or self.model.inst_interactive_predictor is None
+        ):
+            raise ValueError(
+                "Instance interactivity not enabled. Please initialize with "
+                "enable_inst_interactivity=True."
+            )
+
+        # Convert lists to numpy arrays
+        if point_coords is not None and not isinstance(point_coords, np.ndarray):
+            point_coords = np.array(point_coords)
+        if point_labels is not None and not isinstance(point_labels, np.ndarray):
+            point_labels = np.array(point_labels)
+        if box is not None and not isinstance(box, np.ndarray):
+            box = np.array(box)
+
+        # Transform point coordinates from CRS to pixel coordinates if needed
+        if (
+            point_coords is not None
+            and point_crs is not None
+            and self.source is not None
+        ):
+            point_coords = np.array(point_coords)
+            point_coords, _ = common.coords_to_xy(
+                self.source, point_coords, point_crs, return_out_of_bounds=True
+            )
+
+        # Transform box coordinates from CRS to pixel coordinates if needed
+        if box is not None and box_crs is not None and self.source is not None:
+            box = np.array(box)
+            if box.ndim == 1:
+                # Single box [xmin, ymin, xmax, ymax]
+                xmin, ymin, xmax, ymax = box
+                min_coords = np.array([[xmin, ymin]])
+                max_coords = np.array([[xmax, ymax]])
+                min_xy, _ = common.coords_to_xy(
+                    self.source, min_coords, box_crs, return_out_of_bounds=True
+                )
+                max_xy, _ = common.coords_to_xy(
+                    self.source, max_coords, box_crs, return_out_of_bounds=True
+                )
+                x1_px, y1_px = min_xy[0]
+                x2_px, y2_px = max_xy[0]
+                box = np.array(
+                    [
+                        min(x1_px, x2_px),
+                        min(y1_px, y2_px),
+                        max(x1_px, x2_px),
+                        max(y1_px, y2_px),
+                    ]
+                )
+            else:
+                # Multiple boxes [B, 4]
+                transformed_boxes = []
+                for b in box:
+                    xmin, ymin, xmax, ymax = b
+                    min_coords = np.array([[xmin, ymin]])
+                    max_coords = np.array([[xmax, ymax]])
+                    min_xy, _ = common.coords_to_xy(
+                        self.source, min_coords, box_crs, return_out_of_bounds=True
+                    )
+                    max_xy, _ = common.coords_to_xy(
+                        self.source, max_coords, box_crs, return_out_of_bounds=True
+                    )
+                    x1_px, y1_px = min_xy[0]
+                    x2_px, y2_px = max_xy[0]
+                    transformed_boxes.append(
+                        [
+                            min(x1_px, x2_px),
+                            min(y1_px, y2_px),
+                            max(x1_px, x2_px),
+                            max(y1_px, y2_px),
+                        ]
+                    )
+                box = np.array(transformed_boxes)
+
+        # Call the model's predict_inst method
+        masks, scores, logits = self.model.predict_inst(
+            self.inference_state,
+            point_coords=point_coords,
+            point_labels=point_labels,
+            box=box,
+            mask_input=mask_input,
+            multimask_output=multimask_output,
+            return_logits=return_logits,
+            normalize_coords=normalize_coords,
+        )
+
+        # Store results
+        self.masks = (
+            [masks[i] for i in range(len(masks))] if masks.ndim > 2 else [masks]
+        )
+        self.scores = list(scores) if isinstance(scores, np.ndarray) else [scores]
+        self.logits = logits
+
+        return masks, scores, logits
+
+    def predict_inst_batch(
+        self,
+        point_coords_batch: Optional[List[np.ndarray]] = None,
+        point_labels_batch: Optional[List[np.ndarray]] = None,
+        box_batch: Optional[List[np.ndarray]] = None,
+        mask_input_batch: Optional[List[np.ndarray]] = None,
+        multimask_output: bool = True,
+        return_logits: bool = False,
+        normalize_coords: bool = True,
+    ) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
+        """
+        Predict masks for batched input prompts using SAM3's interactive instance
+        segmentation. This is used when the model is set with multiple images via
+        `set_image_batch()`.
+
+        Note: This method requires the model to be initialized with
+        `enable_inst_interactivity=True` (Meta backend only).
+
+        Args:
+            point_coords_batch (List[np.ndarray], optional): List of Nx2 arrays of
+                point prompts for each image in the batch. Each point is in (X, Y)
+                pixel coordinates.
+            point_labels_batch (List[np.ndarray], optional): List of length N arrays
+                of labels for the point prompts for each image. 1 indicates a
+                foreground point and 0 indicates a background point.
+            box_batch (List[np.ndarray], optional): List of Bx4 arrays of box
+                prompts for each image in the batch, in XYXY format.
+            mask_input_batch (List[np.ndarray], optional): List of low resolution
+                mask inputs for each image, typically from previous iterations.
+            multimask_output (bool): If True, the model will return three masks
+                per prompt. Defaults to True.
+            return_logits (bool): If True, returns un-thresholded mask logits
+                instead of binary masks. Defaults to False.
+            normalize_coords (bool): If True, coordinates are normalized to [0, 1].
+                Defaults to True.
+
+        Returns:
+            Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
+                - masks_batch: List of mask arrays for each image
+                - scores_batch: List of score arrays for each image
+                - logits_batch: List of logit arrays for each image
+
+        Example:
+            >>> sam = SamGeo3(backend="meta", enable_inst_interactivity=True)
+            >>>
+            >>> # Load batch of images
+            >>> image1 = Image.open("truck.jpg")
+            >>> image2 = Image.open("groceries.jpg")
+            >>> sam.set_image_batch([image1, image2])
+            >>>
+            >>> # Define box prompts for each image
+            >>> image1_boxes = np.array([
+            ...     [75, 275, 1725, 850],
+            ...     [425, 600, 700, 875],
+            ... ])
+            >>> image2_boxes = np.array([
+            ...     [450, 170, 520, 350],
+            ...     [350, 190, 450, 350],
+            ... ])
+            >>> boxes_batch = [image1_boxes, image2_boxes]
+            >>>
+            >>> # Predict masks for all images
+            >>> masks_batch, scores_batch, logits_batch = sam.predict_inst_batch(
+            ...     box_batch=boxes_batch,
+            ...     multimask_output=False,
+            ... )
+            >>>
+            >>> # Or use point prompts
+            >>> image1_pts = np.array([[[500, 375]], [[650, 750]]])  # Bx1x2
+            >>> image1_labels = np.array([[1], [1]])
+            >>> image2_pts = np.array([[[400, 300]], [[630, 300]]])
+            >>> image2_labels = np.array([[1], [1]])
+            >>>
+            >>> masks_batch, scores_batch, logits_batch = sam.predict_inst_batch(
+            ...     point_coords_batch=[image1_pts, image2_pts],
+            ...     point_labels_batch=[image1_labels, image2_labels],
+            ...     multimask_output=True,
+            ... )
+        """
+        if self.backend != "meta":
+            raise NotImplementedError(
+                "predict_inst_batch is only available for the Meta backend. "
+                "Please initialize with backend='meta' and enable_inst_interactivity=True."
+            )
+
+        if self.batch_state is None:
+            raise ValueError(
+                "No images set for batch processing. "
+                "Please call set_image_batch() first."
+            )
+
+        if (
+            not hasattr(self.model, "inst_interactive_predictor")
+            or self.model.inst_interactive_predictor is None
+        ):
+            raise ValueError(
+                "Instance interactivity not enabled. Please initialize with "
+                "enable_inst_interactivity=True."
+            )
+
+        # Call the model's predict_inst_batch method
+        masks_batch, scores_batch, logits_batch = self.model.predict_inst_batch(
+            self.batch_state,
+            point_coords_batch,
+            point_labels_batch,
+            box_batch=box_batch,
+            mask_input_batch=mask_input_batch,
+            multimask_output=multimask_output,
+            return_logits=return_logits,
+            normalize_coords=normalize_coords,
+        )
+
+        return masks_batch, scores_batch, logits_batch
+
+    def show_inst_masks(
+        self,
+        masks: np.ndarray,
+        scores: np.ndarray,
+        point_coords: Optional[Union[np.ndarray, List[List[float]]]] = None,
+        point_labels: Optional[Union[np.ndarray, List[int]]] = None,
+        box_coords: Optional[Union[np.ndarray, List[float]]] = None,
+        figsize: Tuple[int, int] = (10, 10),
+        borders: bool = True,
+    ) -> None:
+        """
+        Display masks from predict_inst results with optional point and box overlays.
+
+        Args:
+            masks (np.ndarray): Masks from predict_inst, shape CxHxW.
+            scores (np.ndarray): Scores from predict_inst, shape C.
+            point_coords (np.ndarray or List, optional): Point coordinates used for prompts.
+                Can be a numpy array or a Python list like [[x1, y1], [x2, y2]].
+            point_labels (np.ndarray or List, optional): Point labels (1=foreground, 0=background).
+            box_coords (np.ndarray or List, optional): Box coordinates used for prompt.
+                Can be a numpy array or a Python list like [x1, y1, x2, y2].
+            figsize (Tuple[int, int]): Figure size for each mask display.
+            borders (bool): Whether to draw contour borders on masks.
+
+        Example:
+            >>> sam = SamGeo3(backend="meta", enable_inst_interactivity=True)
+            >>> sam.set_image("image.jpg")
+            >>> masks, scores, logits = sam.predict_inst(
+            ...     point_coords=[[520, 375]],
+            ...     point_labels=[1],
+            ... )
+            >>> sam.show_inst_masks(
+            ...     masks, scores,
+            ...     point_coords=[[520, 375]],
+            ...     point_labels=[1],
+            ... )
+        """
+        if self.image is None:
+            raise ValueError("No image set. Please call set_image() first.")
+
+        # Convert lists to numpy arrays
+        if point_coords is not None and not isinstance(point_coords, np.ndarray):
+            point_coords = np.array(point_coords)
+        if point_labels is not None and not isinstance(point_labels, np.ndarray):
+            point_labels = np.array(point_labels)
+        if box_coords is not None and not isinstance(box_coords, np.ndarray):
+            box_coords = np.array(box_coords)
+
+        # Sort by score (descending)
+        sorted_ind = np.argsort(scores)[::-1]
+        masks = masks[sorted_ind]
+        scores = scores[sorted_ind]
+
+        for i, (mask, score) in enumerate(zip(masks, scores)):
+            fig = plt.figure(figsize=figsize)
+            plt.imshow(self.image)
+
+            # Show mask
+            h, w = mask.shape[-2:]
+            mask_uint8 = mask.astype(np.uint8)
+            color = np.array([30 / 255, 144 / 255, 255 / 255, 0.6])
+            mask_image = mask_uint8.reshape(h, w, 1) * color.reshape(1, 1, -1)
+
+            if borders:
+                contours, _ = cv2.findContours(
+                    mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE
+                )
+                contours = [
+                    cv2.approxPolyDP(contour, epsilon=0.01, closed=True)
+                    for contour in contours
+                ]
+                mask_image = cv2.drawContours(
+                    mask_image, contours, -1, (1, 1, 1, 0.5), thickness=2
+                )
+
+            plt.gca().imshow(mask_image)
+
+            # Show points if provided
+            if point_coords is not None and point_labels is not None:
+                pos_points = point_coords[point_labels == 1]
+                neg_points = point_coords[point_labels == 0]
+                plt.scatter(
+                    pos_points[:, 0],
+                    pos_points[:, 1],
+                    color="green",
+                    marker="*",
+                    s=375,
+                    edgecolor="white",
+                    linewidth=1.25,
+                )
+                plt.scatter(
+                    neg_points[:, 0],
+                    neg_points[:, 1],
+                    color="red",
+                    marker="*",
+                    s=375,
+                    edgecolor="white",
+                    linewidth=1.25,
+                )
+
+            # Show box if provided
+            if box_coords is not None:
+                x0, y0 = box_coords[0], box_coords[1]
+                box_w, box_h = (
+                    box_coords[2] - box_coords[0],
+                    box_coords[3] - box_coords[1],
+                )
+                plt.gca().add_patch(
+                    plt.Rectangle(
+                        (x0, y0),
+                        box_w,
+                        box_h,
+                        edgecolor="green",
+                        facecolor=(0, 0, 0, 0),
+                        lw=2,
+                    )
+                )
+
+            if len(scores) > 1:
+                plt.title(f"Mask {i+1}, Score: {score:.3f}", fontsize=18)
+
+            plt.axis("off")
+            plt.show()
 
 
 def generate_colors(n_colors: int = 256, n_samples: int = 5000) -> np.ndarray:

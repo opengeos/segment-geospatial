@@ -7,12 +7,6 @@ import torch
 from PIL.Image import Image
 from tqdm import tqdm
 
-try:
-    from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
-    from sam2.sam2_image_predictor import SAM2ImagePredictor
-    from sam2.sam2_video_predictor import SAM2VideoPredictor
-except ImportError as e:
-    print(f"To use SamGeo 2, install it as:\n\tpip install segment-geospatial[samgeo2]")
 
 from samgeo import common
 
@@ -112,6 +106,16 @@ class SamGeo2:
             **kwargs (Any): Additional keyword arguments to pass to
                 SAM2AutomaticMaskGenerator.from_pretrained() or SAM2ImagePredictor.from_pretrained().
         """
+
+        try:
+            from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
+            from sam2.sam2_image_predictor import SAM2ImagePredictor
+            from sam2.sam2_video_predictor import SAM2VideoPredictor
+        except ImportError as e:
+            raise ImportError(
+                f"To use SamGeo 2, install it as:\n\tpip install segment-geospatial[samgeo2]"
+            )
+
         if isinstance(model_id, str):
             if not model_id.startswith("facebook/"):
                 model_id = f"facebook/{model_id}"
