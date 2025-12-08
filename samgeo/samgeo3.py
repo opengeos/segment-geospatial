@@ -1432,7 +1432,7 @@ class SamGeo3:
 
         This is a high-level method that wraps predict_inst() for ease of use.
         It stores the results in self.masks, self.scores, and self.boxes for
-        subsequent use with show_anns(), show_masks(), and save_masks().
+        subsequent use with show_anns(), show_masks(), and save_mOasks().
 
         Note: This method requires the model to be initialized with
         `enable_inst_interactivity=True` (Meta backend only).
@@ -2223,6 +2223,9 @@ class SamGeo3:
             out_dir (str, optional): The path to the output directory. Defaults to None.
             min_size (int, optional): The minimum size of the object. Defaults to 10.
             max_size (int, optional): The maximum size of the object. Defaults to None.
+            prompt (str, optional): The prompt type. Defaults to "text".
+                Valid options include "text" and "point".
+
         Returns:
             leafmap.Map: The map object.
         """
