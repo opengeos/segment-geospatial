@@ -77,7 +77,8 @@ samgeo3 = [
     "leafmap",
     "localtileserver",
     "spacy",
-    "triton>=3.5.1"
+    "triton>=3.5.1",
+    "transformers>=5.0.0rc0"
 ]
 text = [
     "segment_geospatial[samgeo2]",
