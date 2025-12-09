@@ -1560,12 +1560,12 @@ class SamGeo3:
             filtered_count = 0
             for box in boxes_list:
                 xmin, ymin, xmax, ymax = box
-                # Check if box is within image bounds
+                # Check if box overlaps with image bounds
                 if (
-                    xmin >= xmin_img
-                    and xmax <= xmax_img
-                    and ymin >= ymin_img
-                    and ymax <= ymax_img
+                    xmax > xmin_img
+                    and xmin < xmax_img
+                    and ymax > ymin_img
+                    and ymin < ymax_img
                 ):
                     valid_boxes.append(box)
                 else:
