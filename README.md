@@ -9,7 +9,7 @@
 [![Conda Recipe](https://img.shields.io/badge/recipe-segment--geospatial-green.svg)](https://github.com/conda-forge/segment-geospatial-feedstock)
 [![Conda Downloads](https://anaconda.org/conda-forge/segment-geospatial/badges/downloads.svg)](https://anaconda.org/conda-forge/segment-geospatial)
 [![DOI](https://joss.theoj.org/papers/10.21105/joss.05663/status.svg)](https://doi.org/10.21105/joss.05663)
-[![QGIS](https://img.shields.io/badge/QGIS-plguin-orange.svg)](https://github.com/opengeos/qgis-samgeo-plugin)
+[![QGIS](https://img.shields.io/badge/QGIS-plugin-orange.svg)](https://github.com/opengeos/qgis-samgeo-plugin)
 
 
 [![logo](https://raw.githubusercontent.com/opengeos/segment-geospatial/main/docs/assets/logo_rect.png)](https://github.com/opengeos/segment-geospatial/blob/main/docs/assets/logo.png)
