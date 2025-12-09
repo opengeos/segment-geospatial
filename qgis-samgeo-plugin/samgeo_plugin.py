@@ -5,7 +5,7 @@ SamGeo QGIS Plugin - Main Plugin Class
 import os
 from pathlib import Path
 
-from qgis.PyQt.QtCore import Qt, QSettings, QTranslator, QCoreApplication
+from qgis.PyQt.QtCore import Qt, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import (
     QAction,
