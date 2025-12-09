@@ -18,6 +18,6 @@ tags=segmentation, sam, deep learning, remote sensing, geospatial, ai, machine l
 homepage=https://samgeo.gishub.org
 category=Raster
 icon=icons/icon.png
-experimental=False
+experimental=True
 deprecated=False
 changelog=1.0.0 - Initial release
