@@ -1420,11 +1420,13 @@ class SamGeo3:
 
     def generate_masks_by_boxes_inst(
         self,
-        boxes: List[List[float]],
+        boxes: Union[List[List[float]], str, "gpd.GeoDataFrame", dict, np.ndarray],
         box_crs: Optional[str] = None,
+        output: Optional[str] = None,
         multimask_output: bool = True,
         min_size: int = 0,
         max_size: Optional[int] = None,
+        dtype: str = "uint8",
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """
@@ -1432,19 +1434,24 @@ class SamGeo3:
 
         This is a high-level method that wraps predict_inst() for ease of use.
         It stores the results in self.masks, self.scores, and self.boxes for
-        subsequent use with show_anns(), show_masks(), and save_mOasks().
+        subsequent use with show_anns(), show_masks(), and save_masks().
 
         Note: This method requires the model to be initialized with
         `enable_inst_interactivity=True` (Meta backend only).
 
         Args:
-            boxes (List[List[float]]): List of bounding boxes in XYXY format
-                [[xmin, ymin, xmax, ymax], ...].
-                If box_crs is None: pixel coordinates.
+            boxes (List[List[float]] | str | GeoDataFrame): Bounding boxes for
+                segmentation. Can be:
+                - A list of [xmin, ymin, xmax, ymax] coordinates
+                - A file path to a vector file (GeoJSON, Shapefile, etc.)
+                - A GeoDataFrame with polygon geometries
+                If box_crs is None: pixel coordinates (for list input).
                 If box_crs is specified: coordinates in the given CRS (e.g., "EPSG:4326").
             box_crs (str, optional): Coordinate reference system for box coordinates
                 (e.g., "EPSG:4326" for lat/lon). Only used if the source image is a GeoTIFF.
                 If None, boxes are assumed to be in pixel coordinates.
+            output (str, optional): Path to save the output mask as a GeoTIFF.
+                If None, masks are stored in memory only.
             multimask_output (bool): If True, the model returns 3 masks per box and the
                 best one is selected by score. If False, returns single mask directly.
                 Defaults to True.
@@ -1452,27 +1459,47 @@ class SamGeo3:
                 will be filtered out. Defaults to 0.
             max_size (int, optional): Maximum mask size in pixels. Masks larger than
                 this will be filtered out. Defaults to None (no maximum).
-            **kwargs: Additional keyword arguments passed to predict_inst().
+            dtype (str): Data type for the output mask array. Defaults to "uint8".
+            **kwargs: Additional keyword arguments passed to predict_inst() or save_masks().
 
         Returns:
             Dict[str, Any]: Dictionary containing masks, scores, and logits.
 
         Example:
-            # Initialize with instance interactivity enabled
-            sam = SamGeo3(backend="meta", enable_inst_interactivity=True)
-            sam.set_image("image.jpg")
-
-            # Single box (pixel coordinates)
-            sam.generate_masks_by_boxes_inst([[425, 600, 700, 875]])
-            sam.show_anns()
-            sam.save_masks("mask.png")
-
-            # Multiple boxes
-            sam.generate_masks_by_boxes_inst([
-                [75, 275, 1725, 850],
-                [425, 600, 700, 875],
-            ])
+            >>> # Initialize with instance interactivity enabled
+            >>> sam = SamGeo3(backend="meta", enable_inst_interactivity=True)
+            >>> sam.set_image("satellite.tif")
+            >>>
+            >>> # Single box (pixel coordinates)
+            >>> sam.generate_masks_by_boxes_inst([[425, 600, 700, 875]])
+            >>> sam.show_anns()
+            >>> sam.save_masks("mask.png")
+            >>>
+            >>> # Multiple boxes with geographic coordinates
+            >>> sam.generate_masks_by_boxes_inst([
+            ...     [-117.5995, 47.6518, -117.5988, 47.652],
+            ...     [-117.5987, 47.6518, -117.5979, 47.652],
+            ... ], box_crs="EPSG:4326", output="mask.tif")
+            >>>
+            >>> # Using a vector file (GeoJSON, Shapefile, etc.)
+            >>> sam.generate_masks_by_boxes_inst(
+            ...     "building_bboxes.geojson",
+            ...     box_crs="EPSG:4326",
+            ...     output="building_masks.tif",
+            ...     dtype="uint16",
+            ... )
+            >>>
+            >>> # Using a GeoDataFrame
+            >>> import geopandas as gpd
+            >>> gdf = gpd.read_file("polygons.geojson")
+            >>> sam.generate_masks_by_boxes_inst(
+            ...     gdf,
+            ...     box_crs="EPSG:4326",
+            ...     output="masks.tif",
+            ... )
         """
+        import geopandas as gpd
+
         if self.backend != "meta":
             raise NotImplementedError(
                 "generate_masks_by_boxes_inst is only available for the Meta backend. "
@@ -1491,15 +1518,82 @@ class SamGeo3:
                 "enable_inst_interactivity=True."
             )
 
-        # Convert to numpy array if it's a list
-        boxes_arr = np.array(boxes)
+        # Process boxes based on input type
+        if isinstance(boxes, dict):
+            # GeoJSON-like dict
+            boxes = gpd.GeoDataFrame.from_features(boxes)
+
+        if isinstance(boxes, (str, gpd.GeoDataFrame)):
+            # File path or GeoDataFrame
+            if isinstance(boxes, str):
+                gdf = gpd.read_file(boxes)
+            else:
+                gdf = boxes
+
+            if gdf.crs is None and box_crs is not None:
+                gdf.crs = box_crs
+            elif gdf.crs is not None and box_crs is None:
+                box_crs = str(gdf.crs)
+
+            # Extract bounding boxes from geometries
+            boxes_list = gdf.geometry.apply(lambda geom: list(geom.bounds)).tolist()
+        elif isinstance(boxes, list):
+            boxes_list = boxes
+        elif isinstance(boxes, np.ndarray):
+            boxes_list = boxes.tolist()
+        else:
+            raise ValueError(
+                "boxes must be a list, GeoDataFrame, file path, or numpy array."
+            )
+
+        # Filter boxes that are out of image bounds if box_crs is provided
+        if box_crs is not None and self.source is not None:
+            import rasterio
+            from rasterio.warp import transform_bounds
+
+            with rasterio.open(self.source) as src:
+                img_bounds = transform_bounds(src.crs, box_crs, *src.bounds)
+
+            xmin_img, ymin_img, xmax_img, ymax_img = img_bounds
+
+            valid_boxes = []
+            filtered_count = 0
+            for box in boxes_list:
+                xmin, ymin, xmax, ymax = box
+                # Check if box overlaps with image bounds
+                if (
+                    xmax > xmin_img
+                    and xmin < xmax_img
+                    and ymax > ymin_img
+                    and ymin < ymax_img
+                ):
+                    valid_boxes.append(box)
+                else:
+                    filtered_count += 1
+
+            if filtered_count > 0:
+                print(
+                    f"Filtered {filtered_count} boxes outside image bounds. "
+                    f"Using {len(valid_boxes)} valid boxes."
+                )
+
+            if len(valid_boxes) == 0:
+                print("No valid boxes found within image bounds.")
+                self.masks = []
+                self.scores = []
+                self.boxes = []
+                return
+
+            boxes_list = valid_boxes
+
+        # Convert to numpy array
+        boxes_arr = np.array(boxes_list)
 
         # Call predict_inst with box prompts
         masks, scores, logits = self.predict_inst(
             box=boxes_arr,
             multimask_output=multimask_output,
             box_crs=box_crs,
-            **kwargs,
         )
 
         # Handle batch output shape (BxCxHxW) vs single (CxHxW)
@@ -1558,6 +1652,16 @@ class SamGeo3:
             print("Found one object.")
         else:
             print(f"Found {num_objects} objects.")
+
+        # Save masks if output path is provided
+        if output is not None:
+            self.save_masks(
+                output,
+                min_size=min_size,
+                max_size=max_size,
+                dtype=dtype,
+                **kwargs,
+            )
 
     def _convert_results_to_numpy(self) -> None:
         """Convert masks, boxes, and scores from tensors to numpy arrays.
