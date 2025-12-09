@@ -81,7 +81,7 @@ Run the following commands to start QGIS and use the SamGeo plugin:
 
 ```bash
 conda activate geo
-conda run qgis
+qgis
 ```
 
 ### Opening the Plugin
