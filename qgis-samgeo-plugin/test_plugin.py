@@ -190,6 +190,7 @@ def run_tests():
         if iface is not None:
             results.append(("Plugin in QGIS", test_plugin_in_qgis()))
     except ImportError:
+        # QGIS is not available; skip QGIS-specific test.
         pass
 
     # Summary
