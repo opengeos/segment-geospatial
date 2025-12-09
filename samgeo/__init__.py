@@ -2,7 +2,7 @@
 
 __author__ = """Qiusheng Wu"""
 __email__ = "giswqs@gmail.com"
-__version__ = "0.16.0"
+__version__ = "1.0.0"
 
 
 from .samgeo import *  # noqa: F403
