@@ -109,6 +109,7 @@ conda run qgis
 
 - Select a raster layer from the dropdown and click **Set Image from Layer**, or
 - Browse for an image file and click **Set Image from File**
+- You can download a sample image from [here](https://huggingface.co/datasets/giswqs/geospatial/resolve/main/uc_berkeley.tif)
 
    ![](https://github.com/user-attachments/assets/b7c6a430-c4c3-4359-855c-b198cdcf2c91)
 
