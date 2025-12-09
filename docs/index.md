@@ -9,6 +9,7 @@
 [![Conda Recipe](https://img.shields.io/badge/recipe-segment--geospatial-green.svg)](https://github.com/conda-forge/segment-geospatial-feedstock)
 [![Conda Downloads](https://anaconda.org/conda-forge/segment-geospatial/badges/downloads.svg)](https://anaconda.org/conda-forge/segment-geospatial)
 [![DOI](https://joss.theoj.org/papers/10.21105/joss.05663/status.svg)](https://doi.org/10.21105/joss.05663)
+[![QGIS](https://img.shields.io/badge/QGIS-plguin-orange.svg)](https://github.com/opengeos/qgis-samgeo-plugin)
 
 [![logo](https://raw.githubusercontent.com/opengeos/segment-geospatial/main/docs/assets/logo_rect.png)](https://github.com/opengeos/segment-geospatial/blob/main/docs/assets/logo.png)
 
@@ -37,6 +38,12 @@ The **segment-geospatial** package draws its inspiration from [segment-anything-
 -   Save input prompts as GeoJSON files
 -   Visualize segmentation results on interactive maps
 -   Segment objects from timeseries remote sensing imagery
+
+## QGIS Plugin
+
+SamGeo is also available as a QGIS plugin. Check out <https://github.com/opengeos/qgis-samgeo-plugin>.
+
+![QGIS](https://github.com/user-attachments/assets/21805e83-15a7-4619-92f4-391b90315eff)
 
 ## Examples
 
