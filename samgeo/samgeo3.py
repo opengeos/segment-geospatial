@@ -1523,7 +1523,7 @@ class SamGeo3:
             # GeoJSON-like dict
             boxes = gpd.GeoDataFrame.from_features(boxes)
 
-        if isinstance(boxes, str) or isinstance(boxes, gpd.GeoDataFrame):
+        if isinstance(boxes, (str, gpd.GeoDataFrame)):
             # File path or GeoDataFrame
             if isinstance(boxes, str):
                 gdf = gpd.read_file(boxes)
