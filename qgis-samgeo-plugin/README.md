@@ -23,7 +23,7 @@ A QGIS plugin for remote sensing image segmentation using [SamGeo](https://samge
 
 ### 1. Install SamGeo
 
-First, install SamGeo in your QGIS Python environment. It is recommended to create a new conda environment install QGIS and SamGeo:
+First, install SamGeo in your QGIS Python environment. It is recommended to create a new conda environment **and** install QGIS and SamGeo:
 
 ```bash
 conda create -n geo python=3.12
