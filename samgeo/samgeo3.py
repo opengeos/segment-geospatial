@@ -3795,9 +3795,8 @@ class SamGeo3Video:
             >>> sam = SamGeo3Video()
             >>> sam.set_video("frames/")  # Load video frames
             >>>
-            >>> # Step 3: Initialize tracker with a text prompt first
-            >>> # (Required to set up internal tracking state)
-            >>> sam.generate_masks("object")  # Use any relevant prompt
+            >>> # Step 3: Initialize tracker for external masks
+            >>> sam.init_tracker()  # Initialize tracker for external masks
             >>>
             >>> # Step 4: Add external masks for tracking (use new obj_ids)
             >>> for i, mask in enumerate(external_masks):
