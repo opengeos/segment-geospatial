@@ -1,0 +1,23 @@
+[general]
+name=SamGeo
+qgisMinimumVersion=3.22
+description=Segment remote sensing images using SAM (Segment Anything Model) with text, point, and box prompts.
+version=1.0.0
+author=Qiusheng Wu
+email=giswqs@gmail.com
+about=A QGIS plugin for remote sensing image segmentation powered by Meta's Segment Anything Model (SAM).
+    Features include:
+    - Text-based segmentation (describe what you want to segment)
+    - Interactive point prompts (click to segment objects)
+    - Box prompts (draw rectangles to segment regions)
+    - Save results as vector layers or GeoTIFF rasters
+    - Support for GeoTIFF and common image formats
+tracker=https://github.com/opengeos/qgis-samgeo-plugin/issues
+repository=https://github.com/opengeos/qgis-samgeo-plugin
+tags=segmentation, sam, deep learning, remote sensing, geospatial, ai, machine learning
+homepage=https://samgeo.gishub.org
+category=Raster
+icon=icons/icon.png
+experimental=True
+deprecated=False
+changelog=1.0.0 - Initial release
