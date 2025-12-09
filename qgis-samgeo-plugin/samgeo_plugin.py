@@ -1338,26 +1338,26 @@ class SamGeoPlugin:
                 temp_raster = tempfile.NamedTemporaryFile(
                     suffix=".tif", delete=False
                 ).name
-                self.sam.save_masks(output=temp_raster, unique=unique)
+                try:
+                    self.sam.save_masks(output=temp_raster, unique=unique)
 
-                # Convert raster to vector
-                from samgeo import common
+                    # Convert raster to vector
+                    from samgeo import common
 
-                common.raster_to_vector(temp_raster, output_path)
+                    common.raster_to_vector(temp_raster, output_path)
 
-                # Clean up temp raster file
-                os.remove(temp_raster)
-
-                if self.add_to_map_check.isChecked():
-                    layer_name = (
-                        "samgeo_masks"
-                        if use_temp_file
-                        else os.path.basename(output_path)
-                    )
-                    layer = QgsVectorLayer(output_path, layer_name, "ogr")
-                    if layer.isValid():
-                        QgsProject.instance().addMapLayer(layer)
-
+                    if self.add_to_map_check.isChecked():
+                        layer_name = (
+                            "samgeo_masks"
+                            if use_temp_file
+                            else os.path.basename(output_path)
+                        )
+                        layer = QgsVectorLayer(output_path, layer_name, "ogr")
+                        if layer.isValid():
+                            QgsProject.instance().addMapLayer(layer)
+                finally:
+                    if os.path.exists(temp_raster):
+                        os.remove(temp_raster)
             self.results_text.append(f"\nSaved to: {output_path}")
             self.log_message(f"Masks saved to: {output_path}")
 
