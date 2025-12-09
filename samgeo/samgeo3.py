@@ -1420,7 +1420,7 @@ class SamGeo3:
 
     def generate_masks_by_boxes_inst(
         self,
-        boxes: Union[List[List[float]], str, Any],
+        boxes: Union[List[List[float]], str, "gpd.GeoDataFrame", dict, np.ndarray],
         box_crs: Optional[str] = None,
         output: Optional[str] = None,
         multimask_output: bool = True,
