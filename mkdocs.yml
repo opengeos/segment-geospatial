@@ -74,6 +74,8 @@ nav:
           - examples/sam3_interactive.ipynb
           - examples/sam3_batch_segmentation.ipynb
           - examples/sam3_video_segmentation.ipynb
+          - examples/sam3_video_prompts.ipynb
+          - examples/sam3_video_masks.ipynb
           - examples/sam3_automated_segmentation.ipynb
           - examples/sam3_object_tracking.ipynb
           - examples/sam3_point_prompts.ipynb
