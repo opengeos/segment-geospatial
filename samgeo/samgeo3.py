@@ -3765,7 +3765,7 @@ class SamGeo3Video:
         using SAM3's point prompt capability to segment and track the object.
 
         **Important**: The tracker must be initialized first by calling
-        `generate_masks()` with any text prompt before using `add_mask_prompt()`.
+        `init_tracker()` (recommended) or `generate_masks()` (alternative) with any text prompt before using `add_mask_prompt()`.
         This is a requirement of SAM3's video tracking architecture.
 
         Args:
