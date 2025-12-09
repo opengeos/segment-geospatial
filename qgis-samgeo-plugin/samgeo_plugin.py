@@ -28,7 +28,6 @@ from qgis.PyQt.QtWidgets import (
     QTextEdit,
     QListWidget,
     QListWidgetItem,
-    QSplitter,
 )
 from qgis.core import (
     QgsProject,
