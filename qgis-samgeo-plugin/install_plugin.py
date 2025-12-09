@@ -66,8 +66,15 @@ def install_plugin(plugins_dir, plugin_dir):
         # Fall back to copying
         print(f"Could not create symlink: {e}")
         print("Copying plugin instead...")
-        shutil.copytree(plugin_dir, target)
-        print(f"Plugin copied to: {target}")
+        try:
+            shutil.copytree(plugin_dir, target)
+            print(f"Plugin copied to: {target}")
+        except Exception as copy_exc:
+            print(f"Failed to copy plugin: {copy_exc}")
+            # Clean up partially copied directory
+            if target.exists():
+                shutil.rmtree(target, ignore_errors=True)
+            print("Cleaned up partially copied plugin directory due to error.")
 
     print()
     print("To use the plugin:")
