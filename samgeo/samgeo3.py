@@ -3807,7 +3807,7 @@ class SamGeo3Video:
             >>> sam.save_video("tracked_output.mp4")
 
         Note:
-            - The tracker MUST be initialized with generate_masks() first
+            - The tracker MUST be initialized first by calling either `init_tracker()` or `generate_masks()`
             - Each call to add_mask_prompt adds one object for tracking
             - Use different obj_id values for different objects
             - Use obj_ids different from those detected by generate_masks()
