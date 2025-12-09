@@ -38,10 +38,6 @@ from qgis.core import (
     QgsMessageLog,
 )
 from qgis.gui import (
-    QgsMapTool,
-    QgsMapToolEmitPoint,
-    QgsRubberBand,
-    QgsMapCanvas,
 )
 
 # Import the map tools
