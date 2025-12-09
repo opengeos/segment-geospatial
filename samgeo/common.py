@@ -839,8 +839,10 @@ def coords_to_xy(
     result = [[col, row] for col, row in zip(cols, rows)]
 
     output = []
+    all_coords = []  # Include all coordinates for return_out_of_bounds=True
 
     for i, (x, y) in enumerate(result):
+        all_coords.append([x, y])
         if x >= 0 and y >= 0 and x < width and y < height:
             output.append([x, y])
         else:
@@ -848,8 +850,12 @@ def coords_to_xy(
 
     # Convert the output back to the original shape if input was 3D
     output = np.array(output)
+    all_coords = np.array(all_coords)
     if input_is_3d:
-        output = output.reshape(original_shape)
+        if len(output) > 0:
+            output = output.reshape(original_shape)
+        if len(all_coords) > 0:
+            all_coords = all_coords.reshape(original_shape)
 
     # Handle cases where no valid pixel coordinates are found
     if len(output) == 0:
@@ -858,7 +864,9 @@ def coords_to_xy(
         print("Some coordinates are out of the image boundary.")
 
     if return_out_of_bounds:
-        return output, out_of_bounds
+        # Return all coordinates (including out-of-bounds) when return_out_of_bounds=True
+        # This allows callers to handle out-of-bounds coordinates themselves
+        return all_coords, out_of_bounds
     else:
         return output
 
