@@ -3,7 +3,7 @@ Map tools for interactive segmentation prompts.
 """
 
 from qgis.PyQt.QtCore import Qt, pyqtSignal
-from qgis.PyQt.QtGui import QColor, QCursor
+from qgis.PyQt.QtGui import QColor
 from qgis.core import QgsPointXY, QgsRectangle, QgsWkbTypes
 from qgis.gui import QgsMapTool, QgsRubberBand, QgsVertexMarker
 
