@@ -3925,7 +3925,7 @@ class SamGeo3Video:
             >>> # Initialize SAM3 and tracker
             >>> sam = SamGeo3Video()
             >>> sam.set_video("video.mp4")
-            >>> sam.generate_masks("object")  # Initialize tracker first!
+            >>> sam.init_tracker()  # Initialize tracker first!
             >>>
             >>> # Add all masks for tracking
             >>> sam.add_masks_prompt(masks)  # Adds masks with IDs 100, 101, ...
