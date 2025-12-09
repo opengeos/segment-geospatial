@@ -64,9 +64,9 @@ chmod +x install_plugin.sh
    - macOS: `~/Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins`
    - Windows: `%APPDATA%\QGIS\QGIS3\profiles\default\python\plugins`
 
-2. Copy or symlink this entire folder (qgis-samgeo-plugin) to the plugins directory and rename it to `samgeo`:
+2. Copy or symlink this entire folder (qgis-samgeo-plugin) to the plugins directory and rename it to `samgeo_plugin`:
    ```bash
-   ln -s /path/to/qgis-samgeo-plugin ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/samgeo
+   ln -s /path/to/qgis-samgeo-plugin ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/samgeo_plugin
    ```
 
 3. Restart QGIS
