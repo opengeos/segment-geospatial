@@ -3,7 +3,6 @@ SamGeo QGIS Plugin - Main Plugin Class
 """
 
 import os
-from pathlib import Path
 
 from qgis.PyQt.QtCore import Qt, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
@@ -36,8 +35,6 @@ from qgis.core import (
     QgsWkbTypes,
     Qgis,
     QgsMessageLog,
-)
-from qgis.gui import (
 )
 
 # Import the map tools
