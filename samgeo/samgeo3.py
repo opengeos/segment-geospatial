@@ -2167,12 +2167,16 @@ class SamGeo3:
         output: Optional[str] = None,
         blend: bool = True,
         alpha: float = 0.5,
+        font_scale: float = 0.8,
         **kwargs: Any,
     ) -> None:
         """Show the annotations (objects with random color) on the input image.
 
+        This method uses OpenCV for fast rendering, which is significantly faster
+        than matplotlib when there are many objects to plot.
+
         Args:
-            figsize (tuple): The figure size.
+            figsize (tuple): The figure size (used for display).
             axis (str): Whether to show the axis.
             show_bbox (bool): Whether to show the bounding box.
             show_score (bool): Whether to show the score.
@@ -2181,8 +2185,8 @@ class SamGeo3:
             blend (bool): Whether to show the input image as background. If False,
                 only annotations will be shown on a white background.
             alpha (float): The alpha value for the annotations.
-            **kwargs: Additional keyword arguments passed to plt.savefig() when
-                output is provided (e.g., dpi, bbox_inches, pad_inches).
+            font_scale (float): The font scale for labels. Defaults to 0.8.
+            **kwargs: Additional keyword arguments (kept for backward compatibility).
         """
 
         if self.image is None:
@@ -2192,65 +2196,98 @@ class SamGeo3:
         if self.masks is None or len(self.masks) == 0:
             return
 
-        # Create results dict matching SAM3's format
-        results = {
-            "masks": self.masks,
-            "boxes": self.boxes,
-            "scores": self.scores,
-        }
+        # Create the blended image using OpenCV (much faster than matplotlib)
+        blended = self._render_anns_opencv(
+            show_bbox=show_bbox,
+            show_score=show_score,
+            blend=blend,
+            alpha=alpha,
+            font_scale=font_scale,
+        )
 
-        # Convert numpy array to PIL Image to match SAM3's plot_results expectations
-        img_pil = Image.fromarray(self.image)
+        if output is not None:
+            # Save directly using OpenCV
+            cv2.imwrite(output, cv2.cvtColor(blended, cv2.COLOR_RGB2BGR))
+            print(f"Saved annotations to {output}")
+        else:
+            # Display the image
+            self._display_image(blended, figsize=figsize, axis=axis)
 
-        # Create figure
-        fig = plt.figure(figsize=figsize)
+    def _render_anns_opencv(
+        self,
+        show_bbox: bool = True,
+        show_score: bool = True,
+        blend: bool = True,
+        alpha: float = 0.5,
+        font_scale: float = 0.8,
+    ) -> np.ndarray:
+        """Render annotations using OpenCV for fast performance.
 
+        Args:
+            show_bbox (bool): Whether to show the bounding box.
+            show_score (bool): Whether to show the score.
+            blend (bool): Whether to show the input image as background.
+            alpha (float): The alpha value for the annotations.
+            font_scale (float): The font scale for labels.
+
+        Returns:
+            np.ndarray: The rendered image as RGB numpy array.
+        """
+        # Get image dimensions
+        h, w = self.image.shape[:2]
+
+        # Create base image
         if blend:
-            # Show image as background
-            plt.imshow(img_pil)
+            frame_np = self.image.astype(np.float32)
         else:
-            # Create white background with same dimensions
-            white_background = np.ones_like(self.image) * 255
-            plt.imshow(white_background)
+            frame_np = np.ones((h, w, 3), dtype=np.float32) * 255
 
-        nb_objects = len(results["scores"])
+        nb_objects = len(self.scores)
 
-        # Use original dimensions from inference_state (boxes are scaled to these)
-        if (
-            self.backend == "meta"
-            and self.inference_state
-            and "original_width" in self.inference_state
-        ):
-            w = self.inference_state["original_width"]
-            h = self.inference_state["original_height"]
-        else:
-            # Fallback to image dimensions
-            w, h = img_pil.size
-
+        # Use the same color generation as the original method for consistency
         COLORS = generate_colors(n_colors=128, n_samples=5000)
+        # Convert from 0-1 float RGB to 0-255 int RGB for OpenCV
+        colors_rgb = [(int(c[0] * 255), int(c[1] * 255), int(c[2] * 255)) for c in COLORS]
+
+        # Create overlay for all masks
+        overlay = np.zeros((h, w, 3), dtype=np.float32)
+        mask_combined = np.zeros((h, w), dtype=np.float32)
+        labels_to_draw = []
 
         for i in range(nb_objects):
-            color = COLORS[i % len(COLORS)]
+            color = colors_rgb[i % len(colors_rgb)]
 
             # Handle both tensor and numpy array formats
-            mask = results["masks"][i]
+            mask = self.masks[i]
             if hasattr(mask, "cpu"):
-                mask = mask.squeeze().cpu().numpy()
+                mask_np = mask.squeeze().cpu().numpy()
             elif hasattr(mask, "numpy"):
-                mask = mask.squeeze().numpy()
+                mask_np = mask.squeeze().numpy()
             else:
-                # Already numpy array
-                mask = np.squeeze(mask)
+                mask_np = np.squeeze(mask)
 
             # Ensure mask is 2D
-            if mask.ndim > 2:
-                mask = mask[0]
+            if mask_np.ndim > 2:
+                mask_np = mask_np[0]
 
-            plot_mask(mask, color=color, alpha=alpha)
+            # Resize mask if it doesn't match frame dimensions
+            if mask_np.shape != (h, w):
+                mask_np = cv2.resize(
+                    mask_np.astype(np.float32),
+                    (w, h),
+                    interpolation=cv2.INTER_NEAREST,
+                )
 
-            if show_bbox:
+            # Add color to overlay where mask is present
+            mask_bool = mask_np > 0
+            for c in range(3):
+                overlay[:, :, c] = np.where(mask_bool, color[c], overlay[:, :, c])
+            mask_combined = np.maximum(mask_combined, mask_np.astype(np.float32))
+
+            # Collect label info for bounding boxes
+            if show_bbox and self.boxes is not None:
                 # Handle score extraction
-                score = results["scores"][i]
+                score = self.scores[i]
                 if hasattr(score, "item"):
                     prob = score.item()
                 else:
@@ -2262,35 +2299,115 @@ class SamGeo3:
                     text = f"(id={i})"
 
                 # Handle box extraction
-                box = results["boxes"][i]
+                box = self.boxes[i]
                 if hasattr(box, "cpu"):
-                    box = box.cpu()
+                    box = box.cpu().numpy()
+                elif hasattr(box, "numpy"):
+                    box = box.numpy()
+                else:
+                    box = np.array(box)
 
-                plot_bbox(
-                    h,
-                    w,
-                    box,
-                    text=text,
-                    box_format="XYXY",
-                    color=color,
-                    relative_coords=False,
-                )
+                labels_to_draw.append((box, text, color))
 
-        plt.axis(axis)
+        # Blend overlay with frame
+        mask_3d = mask_combined[:, :, np.newaxis]
+        blended = frame_np * (1 - mask_3d * alpha) + overlay * (mask_3d * alpha)
+        blended = np.clip(blended, 0, 255).astype(np.uint8)
 
-        if output is not None:
-            # Save the figure
-            save_kwargs = {
-                "bbox_inches": "tight",
-                "pad_inches": 0.1,
-                "dpi": 100,
-            }
-            save_kwargs.update(kwargs)
-            plt.savefig(output, **save_kwargs)
-            print(f"Saved annotations to {output}")
-            plt.close(fig)
-        else:
-            # Display the figure
+        # Draw bounding boxes and labels using OpenCV
+        for box, text, color in labels_to_draw:
+            x1, y1, x2, y2 = map(lambda v: int(round(v)), box[:4])
+            # Clip bounding box coordinates to image boundaries
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(w, x2), min(h, y2)
+
+            # Draw bounding box
+            cv2.rectangle(blended, (x1, y1), (x2, y2), color, 2)
+
+            # Get text size for background rectangle
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            thickness = max(1, int(font_scale * 2.5))
+            (text_w, text_h), baseline = cv2.getTextSize(
+                text, font, font_scale, thickness
+            )
+
+            # Draw background rectangle for text
+            pad = 2
+            text_x = x1
+            text_y = y1 - 5
+            if text_y - text_h - pad < 0:
+                text_y = y2 + text_h + 5
+
+            # Semi-transparent background for text
+            bg_x1 = text_x - pad
+            bg_y1 = text_y - text_h - pad
+            bg_x2 = text_x + text_w + pad
+            bg_y2 = text_y + pad + baseline
+
+            # Clip to image boundaries
+            bg_x1, bg_y1 = max(0, bg_x1), max(0, bg_y1)
+            bg_x2, bg_y2 = min(w, bg_x2), min(h, bg_y2)
+
+            if bg_x2 > bg_x1 and bg_y2 > bg_y1:
+                sub_img = blended[bg_y1:bg_y2, bg_x1:bg_x2].astype(np.float32)
+                bg_color = np.array(color, dtype=np.float32)
+                blend_rect = (sub_img * 0.3 + bg_color * 0.7).astype(np.uint8)
+                blended[bg_y1:bg_y2, bg_x1:bg_x2] = blend_rect
+
+            # Draw text
+            cv2.putText(
+                blended,
+                text,
+                (text_x, text_y),
+                font,
+                font_scale,
+                (255, 255, 255),
+                thickness,
+                cv2.LINE_AA,
+            )
+
+        return blended
+
+    def _display_image(
+        self,
+        image: np.ndarray,
+        figsize: Tuple[int, int] = (12, 10),
+        axis: str = "off",
+    ) -> None:
+        """Display an image, using IPython display if available for better performance.
+
+        Args:
+            image (np.ndarray): The image to display (RGB format).
+            figsize (tuple): The figure size.
+            axis (str): Whether to show the axis.
+        """
+        try:
+            # Try to use IPython display for better notebook performance
+            from IPython.display import display
+
+            # Save to temporary file and display
+            temp_dir = common.make_temp_dir()
+            temp_path = os.path.join(temp_dir, "temp_anns.png")
+            cv2.imwrite(temp_path, cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+
+            # Display using PIL Image (works well in notebooks)
+            img_display = Image.open(temp_path)
+
+            # Resize for display based on figsize (assuming 100 DPI)
+            display_width = figsize[0] * 100
+            aspect_ratio = image.shape[0] / image.shape[1]
+            display_height = int(display_width * aspect_ratio)
+            img_display = img_display.resize(
+                (display_width, display_height), Image.Resampling.LANCZOS
+            )
+
+            display(img_display)
+
+        except ImportError:
+            # Fall back to matplotlib for non-notebook environments
+            plt.figure(figsize=figsize)
+            plt.imshow(image)
+            plt.axis(axis)
             plt.show()
 
     def raster_to_vector(
