@@ -2316,7 +2316,10 @@ class SamGeo3:
 
         # Draw bounding boxes and labels using OpenCV
         for box, text, color in labels_to_draw:
-            x1, y1, x2, y2 = map(int, box[:4])
+            x1, y1, x2, y2 = map(lambda v: int(round(v)), box[:4])
+            # Clip bounding box coordinates to image boundaries
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(w, x2), min(h, y2)
 
             # Draw bounding box
             cv2.rectangle(blended, (x1, y1), (x2, y2), color, 2)
