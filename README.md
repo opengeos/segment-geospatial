@@ -1,4 +1,4 @@
-# segment-geospatial
+# SamGeo
 
 [![image](https://studiolab.sagemaker.aws/studiolab.svg)](https://studiolab.sagemaker.aws/import/github/opengeos/segment-geospatial/blob/main/docs/examples/satellite.ipynb)
 [![image](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/opengeos/segment-geospatial/blob/main/docs/examples/satellite.ipynb)
@@ -11,14 +11,13 @@
 [![DOI](https://joss.theoj.org/papers/10.21105/joss.05663/status.svg)](https://doi.org/10.21105/joss.05663)
 [![QGIS](https://img.shields.io/badge/QGIS-plugin-orange.svg)](https://github.com/opengeos/qgis-samgeo-plugin)
 
-
 [![logo](https://raw.githubusercontent.com/opengeos/segment-geospatial/main/docs/assets/logo_rect.png)](https://github.com/opengeos/segment-geospatial/blob/main/docs/assets/logo.png)
 
 **A Python package for segmenting geospatial data with the Segment Anything Model (SAM)**
 
 ## Introduction
 
-The **segment-geospatial** package draws its inspiration from [segment-anything-eo](https://github.com/aliaksandr960/segment-anything-eo) repository authored by [Aliaksandr Hancharenka](https://github.com/aliaksandr960). To facilitate the use of the Segment Anything Model (SAM) for geospatial data, I have developed the [segment-anything-py](https://github.com/opengeos/segment-anything) and [segment-geospatial](https://github.com/opengeos/segment-geospatial) Python packages, which are now available on PyPI and conda-forge. My primary objective is to simplify the process of leveraging SAM for geospatial data analysis by enabling users to achieve this with minimal coding effort. I have adapted the source code of segment-geospatial from the [segment-anything-eo](https://github.com/aliaksandr960/segment-anything-eo) repository, and credit for its original version goes to Aliaksandr Hancharenka.
+The **SamGeo** package draws its inspiration from [segment-anything-eo](https://github.com/aliaksandr960/segment-anything-eo) repository authored by [Aliaksandr Hancharenka](https://github.com/aliaksandr960). The primary objective of SamGeo is to simplify the process of leveraging SAM for geospatial data analysis by enabling users to achieve this with minimal coding effort. The source code of SamGeo was adapted from the [segment-anything-eo](https://github.com/aliaksandr960/segment-anything-eo) repository, and credit for its original version goes to Aliaksandr Hancharenka.
 
 -   Free software: MIT license
 -   Documentation: <https://samgeo.gishub.org>
@@ -42,9 +41,9 @@ The **segment-geospatial** package draws its inspiration from [segment-anything-
 
 ## QGIS Plugin
 
-SamGeo is also available as a QGIS plugin. Check out <https://github.com/opengeos/qgis-samgeo-plugin>.
+SamGeo is also available as a [QGIS plugin](https://github.com/opengeos/qgis-samgeo-plugin). Check out this [short video demo](https://youtu.be/DKKrQKeU3Ik) and [full video tutorial](https://youtu.be/oPZc7BvDsHE) on how to use the plugin.
 
-![QGIS](https://github.com/user-attachments/assets/21805e83-15a7-4619-92f4-391b90315eff)
+[![](https://github.com/user-attachments/assets/0a9dbc4a-98fa-4a14-8238-be5b871926fa)](https://youtu.be/oPZc7BvDsHE)
 
 ## Installation
 
@@ -53,25 +52,28 @@ SamGeo is also available as a QGIS plugin. Check out <https://github.com/opengeo
 **segment-geospatial** is available on [PyPI](https://pypi.org/project/segment-geospatial/) and can be installed in several ways so that its dependencies can be controlled more granularly. This reduces package size for CI environments, since not every time all of the models will be used.
 
 Depending on what tools you need to use, you might want to do:
-* `segment-geospatial` or `segment-geospatial[samgeo]`: Installs only the minimum required dependencies to run SAMGeo
-* `segment-geospatial[samgeo2]`: Installs the dependencies to run SAMGeo 2
-* `segment-geospatial[fast]`: Installs the dependencies to run Fast SAM
-* `segment-geospatial[hq]`: Installs the dependencies to run HQ-SAM
-* `segment-geospatial[text]`: Installs Grounding DINO to use SAMGeo 1 and 2 with text prompts
-* `segment-geospatial[fer]`: Installs the dependencies to run the feature
-edge reconstruction algorithm
+
+-   `segment-geospatial` or `segment-geospatial[samgeo]`: Installs only the minimum required dependencies to run SAMGeo
+-   `segment-geospatial[samgeo2]`: Installs the dependencies to run SAMGeo 2
+-   `segment-geospatial[samgeo3]`: Installs the dependencies to run SAMGeo 3
+-   `segment-geospatial[fast]`: Installs the dependencies to run Fast SAM
+-   `segment-geospatial[hq]`: Installs the dependencies to run HQ-SAM
+-   `segment-geospatial[text]`: Installs Grounding DINO to use SAMGeo 1 and 2 with text prompts
+-   `segment-geospatial[fer]`: Installs the dependencies to run the feature
+    edge reconstruction algorithm
 
 Additionally, these other two optional imports are defined:
-* `segment-geospatial[all]`: Installs the dependencies to run all of the SAMGeo models
-* `segment-geospatial[extra]`: Installs the dependencies to run all of the SAMGeo models and other utilities to run the examples like Jupyter notebook support, `leafmap`, etc.
+
+-   `segment-geospatial[all]`: Installs the dependencies to run all of the SAMGeo models
+-   `segment-geospatial[extra]`: Installs the dependencies to run all of the SAMGeo models and other utilities to run the examples like Jupyter notebook support, `leafmap`, etc.
 
 Simply running the following should install the dependencies for each use case:
 
 ```bash
-pip install segment-geospatial[samgeo2] # Or any other choice of the above
+pip install "segment-geospatial[samgeo3]" # Or any other choice of the above
 ```
-To see more in detail what packages come with each choice, please refer to `pyproject.toml`.
 
+To see more in detail what packages come with each choice, please refer to `pyproject.toml`.
 
 ### Install from conda-forge
 
@@ -81,20 +83,19 @@ To see more in detail what packages come with each choice, please refer to `pypr
 ```bash
 conda create -n geo python
 conda activate geo
-conda install -c conda-forge mamba
-mamba install -c conda-forge segment-geospatial
+conda install -c conda-forge segment-geospatial
 ```
 
 If your system has a GPU, but the above commands do not install the GPU version of pytorch, you can force the installation of the GPU version of pytorch using the following command:
 
 ```bash
-mamba install -c conda-forge segment-geospatial "pytorch=*=cuda*"
+conda install -c conda-forge segment-geospatial "pytorch=*=cuda*"
 ```
 
 Samgeo-geospatial has some optional dependencies that are not included in the default conda environment. To install these dependencies, run the following command:
 
 ```bash
-mamba install -c conda-forge groundingdino-py segment-anything-fast
+conda install -c conda-forge groundingdino-py segment-anything-fast
 ```
 
 ## Examples
@@ -145,8 +146,8 @@ Video tutorials are available on my [YouTube Channel](https://youtube.com/@giswq
 
 ## Using SAM with Desktop GIS
 
--   **QGIS**: Check out the [Geometric Attributes plugin for QGIS](https://github.com/BjornNyberg/Geometric-Attributes-Toolbox/wiki/User-Guide#segment-anything-model). Credit goes to [Bjorn Nyberg](https://github.com/BjornNyberg).
--   **ArcGIS**: Check out the [Segment Anything Model (SAM) Toolbox for ArcGIS](https://www.arcgis.com/home/item.html?id=9b67b441f29f4ce6810979f5f0667ebe) and the [Resources for Unlocking the Power of Deep Learning Applications Using ArcGIS](https://community.esri.com/t5/education-blog/resources-for-unlocking-the-power-of-deep-learning/ba-p/1293098). Credit goes to [Esri](https://www.esri.com).
+-   **QGIS**: Check out the [SamGeo QGIS Plugin](https://github.com/opengeos/qgis-samgeo-plugin).
+-   **ArcGIS**: Check out the [Segment Anything Model (SAM) Toolbox for ArcGIS](https://www.arcgis.com/home/item.html?id=9b67b441f29f4ce6810979f5f0667ebe) and the [Resources for Unlocking the Power of Deep Learning Applications Using ArcGIS](https://community.esri.com/t5/education-blog/resources-for-unlocking-the-power-of-deep-learning/ba-p/1293098).
 
 ## Computing Resources
 
@@ -167,6 +168,7 @@ This project is based upon work partially supported by the National Aeronautics 
 This project is also supported by Amazon Web Services ([AWS](https://aws.amazon.com/)). In addition, this package was made possible by the following open source projects. Credit goes to the developers of these projects.
 
 -   [segment-anything](https://github.com/facebookresearch/segment-anything)
+-   [SAM 3](https://github.com/facebookresearch/sam3)
 -   [segment-anything-eo](https://github.com/aliaksandr960/segment-anything-eo)
 -   [tms2geotiff](https://github.com/gumblex/tms2geotiff)
 -   [GroundingDINO](https://github.com/IDEA-Research/GroundingDINO)
