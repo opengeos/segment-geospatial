@@ -2402,7 +2402,7 @@ class SamGeo3:
 
         except ImportError:
             # Fall back to matplotlib for non-notebook environments
-            fig = plt.figure(figsize=figsize)
+            plt.figure(figsize=figsize)
             plt.imshow(image)
             plt.axis(axis)
             plt.show()
