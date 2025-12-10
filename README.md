@@ -98,6 +98,18 @@ Samgeo-geospatial has some optional dependencies that are not included in the de
 conda install -c conda-forge groundingdino-py segment-anything-fast
 ```
 
+### Install SAM 3 on Windows
+
+It is a bit tricky to install SAM 3 on Windows. Run the following commands on Windows to install SamGeo:
+
+```bash
+conda create -n geo python=3.12
+conda activate geo
+conda install pytorch torchvision pytorch-cuda=12.1 -c pytorch -c nvidia
+pip install "segment-geospatial[samgeo3]"
+pip install triton-windows ipykernel jupyterlab
+```
+
 ## Examples
 
 -   [Segmenting remote sensing imagery](https://samgeo.gishub.org/examples/satellite)
