@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "segment-geospatial"
-version = "0.12.4"
+version = "1.0.0"
 dynamic = [
     "dependencies",
 ]
@@ -26,7 +26,76 @@ classifiers = [
 authors = [{name = "Qiusheng Wu", email = "giswqs@gmail.com"}]
 
 [project.optional-dependencies]
-all = ["groundingdino-py"]
+core = [
+    "gdown",
+    "geopandas",
+    "numpy",
+    "opencv-python-headless",
+    "patool",
+    "Pillow",
+    "pyproj>=3.7.2",
+    "rasterio",
+    "segment_anything",
+    "shapely",
+    "torch",
+    "tqdm",
+]
+fast = [
+    "segment_geospatial[core]",
+    "segment-anything-fast",
+    "sam2",
+    ]
+fer = [
+    "segment_geospatial[core]",
+    "gdal",
+    ]
+hq = [
+    "segment_geospatial[core]",
+    "segment_anything_hq",
+    "sam2",
+    "timm",
+    ]
+samgeo = [
+    "segment_geospatial[core]",
+    "huggingface_hub",
+]
+samgeo2 = [
+    "segment_geospatial[samgeo]",
+    "sam2",
+    "xarray",
+    "rioxarray",
+    "scikit-image",
+    "scipy",
+]
+samgeo3 = [
+    "segment_geospatial[core]",
+    "sam3",
+    "scikit-learn",
+    "scikit-image",
+    "transformers",
+    "buildingregulariser",
+    "leafmap",
+    "localtileserver",
+    "spacy",
+    "triton>=3.5.1; sys_platform == 'linux'",
+    "triton-windows>=3.3.0.post19; sys_platform == 'windows'",
+    "transformers>=5.0.0rc0"
+]
+text = [
+    "segment_geospatial[samgeo2]",
+    "groundingdino-py",
+]
+all = [
+    "segment-geospatial[fast, hq, fer, samgeo, samgeo2, samgeo3, text]",
+]
+extra = [
+    "leafmap",
+    "segment-geospatial[all]",
+    "localtileserver",
+    "ipykernel",
+    "fiona",
+    "matplotlib",
+]
 
 [tool]
 [tool.setuptools.packages.find]
@@ -41,7 +110,7 @@ dependencies = {file = ["requirements.txt"]}
 universal = true
 
 [tool.bumpversion]
-current_version = "0.12.4"
+current_version = "1.0.0"
 commit = true
 tag = true
 

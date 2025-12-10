@@ -3,12 +3,40 @@ The source code is adapted from https://github.com/aliaksandr960/segment-anythin
 """
 
 import os
-import cv2
-import torch
-import numpy as np
-from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
 
-from .common import *
+import cv2
+import geopandas as gpd
+import numpy as np
+import torch
+from segment_anything import SamAutomaticMaskGenerator, SamPredictor, sam_model_registry
+
+from samgeo.common import (
+    array_to_image,
+    bbox_to_xy,
+    blend_images,
+    coords_to_xy,
+    download_checkpoint,
+    download_file,
+    draw_tile,
+    geojson_to_coords,
+    get_crs,
+    get_features,
+    get_pixel_coords,
+    get_profile,
+    image_to_image,
+    raster_to_geojson,
+    raster_to_gpkg,
+    raster_to_shp,
+    raster_to_vector,
+    sam_map_gui,
+    set_transform,
+    show_canvas,
+    tiff_to_tiff,
+    transform_coords,
+    vector_to_geojson,
+    write_features,
+    write_raster,
+)
 
 
 class SamGeo:
@@ -425,11 +453,11 @@ class SamGeo:
             img[m] = color_mask
         ax.imshow(img)
 
-        if "dpi" not in kwargs:
-            kwargs["dpi"] = 100
+        # if "dpi" not in kwargs:
+        #     kwargs["dpi"] = 100
 
-        if "bbox_inches" not in kwargs:
-            kwargs["bbox_inches"] = "tight"
+        # if "bbox_inches" not in kwargs:
+        #     kwargs["bbox_inches"] = "tight"
 
         plt.axis(axis)
 
@@ -442,7 +470,7 @@ class SamGeo:
                 )
             else:
                 array = self.annotations
-            array_to_image(array, output, self.source)
+            array_to_image(array, output, self.source, **kwargs)
 
     def set_image(self, image, image_format="RGB"):
         """Set the input image as a numpy array.

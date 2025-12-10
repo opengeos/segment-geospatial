@@ -1,16 +1,14 @@
 import os
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import cv2
-import torch
 import numpy as np
-import matplotlib.pyplot as plt
+import torch
 from PIL.Image import Image
 from tqdm import tqdm
-from typing import Any, Dict, List, Optional, Tuple, Union
-from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
-from sam2.sam2_image_predictor import SAM2ImagePredictor
-from sam2.sam2_video_predictor import SAM2VideoPredictor
 
-from . import common
+
+from samgeo import common
 
 
 class SamGeo2:
@@ -108,6 +106,16 @@ class SamGeo2:
             **kwargs (Any): Additional keyword arguments to pass to
                 SAM2AutomaticMaskGenerator.from_pretrained() or SAM2ImagePredictor.from_pretrained().
         """
+
+        try:
+            from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
+            from sam2.sam2_image_predictor import SAM2ImagePredictor
+            from sam2.sam2_video_predictor import SAM2VideoPredictor
+        except ImportError as e:
+            raise ImportError(
+                f"To use SamGeo 2, install it as:\n\tpip install segment-geospatial[samgeo2]"
+            )
+
         if isinstance(model_id, str):
             if not model_id.startswith("facebook/"):
                 model_id = f"facebook/{model_id}"
@@ -456,11 +464,11 @@ class SamGeo2:
             img[m] = color_mask
         ax.imshow(img)
 
-        if "dpi" not in kwargs:
-            kwargs["dpi"] = 100
+        # if "dpi" not in kwargs:
+        #     kwargs["dpi"] = 100
 
-        if "bbox_inches" not in kwargs:
-            kwargs["bbox_inches"] = "tight"
+        # if "bbox_inches" not in kwargs:
+        #     kwargs["bbox_inches"] = "tight"
 
         plt.axis(axis)
 
@@ -473,7 +481,7 @@ class SamGeo2:
                 )
             else:
                 array = self.annotations
-            common.array_to_image(array, output, self.source)
+            common.array_to_image(array, output, self.source, **kwargs)
 
     @torch.no_grad()
     def set_image(
@@ -1241,7 +1249,6 @@ class SamGeo2:
             if video_path.startswith("http"):
                 video_path = common.download_file(video_path)
             if os.path.isfile(video_path):
-
                 if output_dir is None:
                     output_dir = common.make_temp_dir()
                     if not os.path.exists(output_dir):
@@ -1329,7 +1336,6 @@ class SamGeo2:
         predictor = self.predictor
         inference_state = self.inference_state
         for obj_id, prompt in prompts.items():
-
             points = prompt.get("points", None)
             labels = prompt.get("labels", None)
             box = prompt.get("box", None)
@@ -1451,7 +1457,7 @@ class SamGeo2:
             output_video (Optional[str]): The path to the output video file. Defaults to None.
             fps (int): The frames per second for the output video. Defaults to 30.
         """
-
+        import matplotlib.pyplot as plt
         from PIL import Image
 
         def show_mask(mask, ax, obj_id=None, random_color=False):
@@ -1552,6 +1558,7 @@ class SamGeo2:
 
         """
 
+        import matplotlib.pyplot as plt
         from PIL import Image
 
         def show_mask(mask, ax, obj_id=None, random_color=random_color):

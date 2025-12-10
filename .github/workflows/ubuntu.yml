@@ -21,18 +21,22 @@ jobs:
 
         env:
             SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+        defaults:
+            run:
+                shell: bash -el {0}
         steps:
             - name: CHECKOUT CODE
-              uses: actions/checkout@v4
-            - name: SETUP PYTHON
-              uses: actions/setup-python@v5
+              uses: actions/checkout@v6
+            - name: Setup micromamba
+              uses: mamba-org/setup-micromamba@v2
               with:
-                  python-version: ${{ matrix.config.py }}
-            - name: Install GDAL
-              run: |
-                  python -m pip install --upgrade pip
-                  pip install --no-cache-dir Cython
-                  pip install --find-links=https://girder.github.io/large_image_wheels --no-cache GDAL
+                  environment-name: test-env
+                  create-args: >-
+                      python=${{ matrix.config.py }}
+                      gdal
+                      pyproj
+                      -c conda-forge
+                  cache-environment: true
             - name: Test GDAL installation
               run: |
                   python -c "from osgeo import gdal"

@@ -4,25 +4,23 @@ The source code is adapted from https://github.com/aliaksandr960/segment-anythin
 
 import os
 import tempfile
+from typing import Any, List, Optional, Tuple, Union
+
 import cv2
+import geopandas as gpd
 import numpy as np
-from tqdm import tqdm
-from typing import List, Optional, Union, Tuple, Any
-import shapely
 import pyproj
 import rasterio
-import geopandas as gpd
-import matplotlib.pyplot as plt
+import shapely
+import torch
+from tqdm import tqdm
 
 
 def is_colab():
     """Tests if the code is being executed within Google Colab."""
     import sys
 
-    if "google.colab" in sys.modules:
-        return True
-    else:
-        return False
+    return "google.colab" in sys.modules
 
 
 def check_file_path(file_path, make_dirs=True):
@@ -330,7 +328,7 @@ def reproject(
 
     """
     import rasterio as rio
-    from rasterio.warp import calculate_default_transform, reproject, Resampling
+    from rasterio.warp import Resampling, calculate_default_transform, reproject
 
     if isinstance(resampling, str):
         resampling = getattr(Resampling, resampling)
@@ -404,11 +402,11 @@ def tms_to_geotiff(
 
     """
 
-    import re
-    import io
-    import math
-    import itertools
     import concurrent.futures
+    import io
+    import itertools
+    import math
+    import re
 
     from PIL import Image
 
@@ -841,8 +839,10 @@ def coords_to_xy(
     result = [[col, row] for col, row in zip(cols, rows)]
 
     output = []
+    all_coords = []  # Include all coordinates for return_out_of_bounds=True
 
     for i, (x, y) in enumerate(result):
+        all_coords.append([x, y])
         if x >= 0 and y >= 0 and x < width and y < height:
             output.append([x, y])
         else:
@@ -850,8 +850,12 @@ def coords_to_xy(
 
     # Convert the output back to the original shape if input was 3D
     output = np.array(output)
+    all_coords = np.array(all_coords)
     if input_is_3d:
-        output = output.reshape(original_shape)
+        if len(output) > 0:
+            output = output.reshape(original_shape)
+        if len(all_coords) > 0:
+            all_coords = all_coords.reshape(original_shape)
 
     # Handle cases where no valid pixel coordinates are found
     if len(output) == 0:
@@ -860,7 +864,9 @@ def coords_to_xy(
         print("Some coordinates are out of the image boundary.")
 
     if return_out_of_bounds:
-        return output, out_of_bounds
+        # Return all coordinates (including out-of-bounds) when return_out_of_bounds=True
+        # This allows callers to handle out-of-bounds coordinates themselves
+        return all_coords, out_of_bounds
     else:
         return output
 
@@ -1382,6 +1388,7 @@ def get_xyz_dict(free_only=True):
         dict: A dictionary of xyz services.
     """
     import collections
+
     import xyzservices.providers as xyz
 
     def _unpack_sub_parameters(var, param):
@@ -1458,12 +1465,16 @@ def array_to_image(
         array = cv2.imread(array)
         array = cv2.cvtColor(array, cv2.COLOR_BGR2RGB)
 
-    if output.endswith(".tif") and source is not None:
-        with rasterio.open(source) as src:
-            crs = src.crs
-            transform = src.transform
-            if compress is None:
-                compress = src.compression
+    if output.endswith(".tif"):
+        if source is not None:
+            with rasterio.open(source) as src:
+                crs = src.crs
+                transform = src.transform
+                if compress is None:
+                    compress = src.compression
+        else:
+            crs = kwargs.get("crs", None)
+            transform = kwargs.get("transform", None)
 
         # Determine the minimum and maximum values in the array
 
@@ -1531,6 +1542,8 @@ def array_to_image(
 def show_image(
     source, figsize=(12, 10), cmap=None, axis="off", fig_args={}, show_args={}, **kwargs
 ):
+    import matplotlib.pyplot as plt
+
     if isinstance(source, str):
         if source.startswith("http"):
             source = download_file(source)
@@ -1548,6 +1561,8 @@ def show_image(
 
 
 def show_mask(mask, random_color=False):
+    import matplotlib.pyplot as plt
+
     ax = plt.gca()
     if random_color:
         color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
@@ -1569,6 +1584,8 @@ def show_points(
     mask=None,
     **kwargs,
 ):
+    import matplotlib.pyplot as plt
+
     if isinstance(image, str):
         if image.startswith("http"):
             image = download_file(image)
@@ -1609,6 +1626,8 @@ def show_points(
 
 
 def show_box(box, ax):
+    import matplotlib.pyplot as plt
+
     ax = plt.gca()
     x0, y0 = box[0], box[1]
     w, h = box[2] - box[0], box[3] - box[1]
@@ -1639,7 +1658,9 @@ def overlay_images(
 
     """
     import sys
+
     import matplotlib
+    import matplotlib.pyplot as plt
     import matplotlib.widgets as mpwidgets
 
     if "google.colab" in sys.modules:
@@ -1751,6 +1772,8 @@ def blend_images(
         array_to_image(blend_img, output, img2)
 
     if show:
+        import matplotlib.pyplot as plt
+
         plt.figure(figsize=figsize)
         plt.imshow(blend_img)
         plt.axis(axis)
@@ -1804,27 +1827,38 @@ def update_package(out_dir=None, keep=False, **kwargs):
         raise Exception(e)
 
 
-def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwargs):
+def sam_map_gui(
+    sam,
+    basemap="SATELLITE",
+    repeat_mode=True,
+    out_dir=None,
+    min_size=0,
+    max_size=None,
+    **kwargs,
+):
     """Display the SAM Map GUI.
 
     Args:
-        sam (SamGeo):
+        sam (SamGeo): The SamGeo, SamGeo2, or SamGeo3 object.
         basemap (str, optional): The basemap to use. Defaults to "SATELLITE".
         repeat_mode (bool, optional): Whether to use the repeat mode for the draw control. Defaults to True.
         out_dir (str, optional): The output directory. Defaults to None.
+        min_size (int, optional): Minimum mask size in pixels. Defaults to 0.
+        max_size (int, optional): Maximum mask size in pixels. Defaults to None.
 
     """
     try:
         import shutil
         import tempfile
-        import leafmap
-        import ipyleaflet
+
         import ipyevents
+        import ipyleaflet
         import ipywidgets as widgets
+        import leafmap
         from ipyfilechooser import FileChooser
     except ImportError:
         raise ImportError(
-            "The sam_map function requires the leafmap package. Please install it first."
+            "The sam_map function requires the leafmap package. Please install it first or install the full samgeo package with: pip install segment-geospatial[all]."
         )
 
     if out_dir is None:
@@ -1832,7 +1866,8 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
 
     m = leafmap.Map(repeat_mode=repeat_mode, **kwargs)
     m.default_style = {"cursor": "crosshair"}
-    m.add_basemap(basemap, show=False)
+    if basemap is not None:
+        m.add_basemap(basemap, show=False)
 
     # Skip the image layer if localtileserver is not available
     try:
@@ -1893,6 +1928,16 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
         style=style,
         layout=widgets.Layout(width=widget_width, padding=padding),
     )
+
+    def on_radio_button_click(change):
+        # Set a flag to indicate UI interaction is happening
+        m._ui_interaction = True
+        # Use a small delay to reset the flag after the event is processed
+        import threading
+
+        threading.Timer(0.1, lambda: setattr(m, "_ui_interaction", False)).start()
+
+    radio_buttons.observe(on_radio_button_click, "value")
 
     fg_count = widgets.IntText(
         value=0,
@@ -2110,6 +2155,9 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
     def handle_map_interaction(**kwargs):
         try:
             if kwargs.get("type") == "click":
+                # Skip if we're interacting with UI
+                if hasattr(m, "_ui_interaction") and m._ui_interaction:
+                    return
                 latlon = kwargs.get("coordinates")
                 if radio_buttons.value == "Foreground":
                     if is_colab():
@@ -2195,6 +2243,17 @@ def sam_map_gui(sam, basemap="SATELLITE", repeat_mode=True, out_dir=None, **kwar
                                 point_labels_batch=point_labels,
                                 point_crs="EPSG:4326",
                                 output=filename,
+                            )
+                        elif sam.model_version == "sam3":
+                            sam.generate_masks_by_points_patch(
+                                point_coords_batch=point_coords,
+                                point_labels_batch=point_labels,
+                                point_crs="EPSG:4326",
+                                min_size=min_size,
+                                max_size=max_size,
+                            )
+                            sam.save_masks(
+                                output=filename, min_size=min_size, max_size=max_size
                             )
                         if m.find_layer("Masks") is not None:
                             m.remove_layer(m.find_layer("Masks"))
@@ -2502,6 +2561,8 @@ def text_sam_gui(
     text_threshold=0.25,
     cmap="viridis",
     opacity=0.7,
+    min_size=10,
+    max_size=None,
     **kwargs,
 ):
     """Display the SAM Map GUI.
@@ -2510,15 +2571,22 @@ def text_sam_gui(
         sam (SamGeo):
         basemap (str, optional): The basemap to use. Defaults to "SATELLITE".
         out_dir (str, optional): The output directory. Defaults to None.
+        box_threshold (float, optional): The threshold for the box. Defaults to 0.25.
+        text_threshold (float, optional): The threshold for the text. Defaults to 0.25.
+        cmap (str, optional): The colormap to use. Defaults to "viridis".
+        opacity (float, optional): The opacity of the mask. Defaults to 0.7.
+        min_size (int, optional): The minimum size of the object. Defaults to 10.
+        max_size (int, optional): The maximum size of the object. Defaults to None.
 
     """
     try:
         import shutil
         import tempfile
-        import leafmap
-        import ipyleaflet
+
         import ipyevents
+        import ipyleaflet
         import ipywidgets as widgets
+        import leafmap
         import leafmap.colormaps as cm
         from ipyfilechooser import FileChooser
     except ImportError:
@@ -2531,7 +2599,8 @@ def text_sam_gui(
 
     m = leafmap.Map(**kwargs)
     m.default_style = {"cursor": "crosshair"}
-    m.add_basemap(basemap, show=False)
+    if basemap is not None:
+        m.add_basemap(basemap, show=False)
 
     # Skip the image layer if localtileserver is not available
     try:
@@ -2577,6 +2646,9 @@ def text_sam_gui(
         style=style,
     )
 
+    if sam.model_version == "sam3":
+        box_slider.description = "Conf. threshold:"
+
     text_slider = widgets.FloatSlider(
         description="Text threshold:",
         min=0,
@@ -2588,6 +2660,9 @@ def text_sam_gui(
         layout=widgets.Layout(width=widget_width, padding=padding),
         style=style,
     )
+
+    if sam.model_version == "sam3":
+        text_slider.description = "Mask threshold:"
 
     cmap_dropdown = widgets.Dropdown(
         description="Palette:",
@@ -2714,24 +2789,58 @@ def text_sam_gui(
             segment_button.value = False
             with output:
                 output.clear_output()
-                if len(text_prompt.value) == 0:
-                    print("Please enter a text prompt first.")
+                if len(text_prompt.value) == 0 and m.user_roi_bounds() is None:
+                    print(
+                        "Please enter a text prompt or draw a region of interest first."
+                    )
                 elif sam.source is None:
                     print("Please run sam.set_image() first.")
                 else:
                     print("Segmenting...")
-                    layer_name = text_prompt.value.replace(" ", "_")
+                    if len(text_prompt.value) > 0:
+                        layer_name = text_prompt.value.replace(" ", "_")
+                    elif m.user_roi_bounds() is not None:
+                        layer_name = "masks"
+
                     filename = os.path.join(
                         out_dir, f"{layer_name}_{random_string()}.tif"
                     )
                     try:
-                        sam.predict(
-                            sam.source,
-                            text_prompt.value,
-                            box_slider.value,
-                            text_slider.value,
-                            output=filename,
-                        )
+                        if sam.model_version == "sam2":
+                            sam.predict(
+                                sam.source,
+                                text_prompt.value,
+                                box_slider.value,
+                                text_slider.value,
+                                output=filename,
+                            )
+                        elif sam.model_version == "sam3":
+                            sam.confidence_threshold = box_slider.value
+                            sam.mask_threshold = text_slider.value
+                            if len(text_prompt.value) > 0:
+                                sam.generate_masks(
+                                    prompt=text_prompt.value,
+                                    min_size=min_size,
+                                    max_size=max_size,
+                                )
+                            elif m.user_roi_bounds() is not None:
+                                sam.generate_masks_by_boxes(
+                                    boxes=[m.user_roi_bounds()],
+                                    box_crs="EPSG:4326",
+                                    min_size=min_size,
+                                    max_size=max_size,
+                                )
+                            else:
+                                print(
+                                    "Please enter a text prompt or draw a region of interest first."
+                                )
+                                return
+                            sam.save_masks(output=filename)
+                        else:
+                            print(
+                                f"Unknown or unsupported model_version: {getattr(sam, 'model_version', None)}. Please set sam.model_version to 'sam2' or 'sam3'."
+                            )
+                            return
                         sam.output = filename
                         if m.find_layer(layer_name) is not None:
                             m.remove_layer(m.find_layer(layer_name))
@@ -2767,6 +2876,9 @@ def text_sam_gui(
                                 )
 
                             output.clear_output()
+
+                            if sam.model_version == "sam3":
+                                print(f"Found {len(sam.masks)} objects.")
                         except Exception as e:
                             print(e)
 
@@ -2827,8 +2939,13 @@ def text_sam_gui(
             save_button.value = False
             reset_button.value = False
             opacity_slider.value = 0.7
-            box_slider.value = 0.25
-            text_slider.value = 0.25
+            model_version = getattr(sam, "model_version", "sam2")
+            if model_version == "sam2":
+                box_slider.value = 0.25
+                text_slider.value = 0.25
+            elif model_version == "sam3":
+                box_slider.value = 0.5
+                text_slider.value = 0.5
             cmap_dropdown.value = "viridis"
             text_prompt.value = ""
             output.clear_output()
@@ -2850,7 +2967,104 @@ def text_sam_gui(
     return m
 
 
-def regularize(source, output=None, crs="EPSG:4326", **kwargs):
+def regularize(
+    data: Union[gpd.GeoDataFrame, str],
+    output_path: Optional[str] = None,
+    parallel_threshold: float = 1.0,
+    target_crs: Optional[Union[str, "pyproj.CRS"]] = None,
+    simplify: bool = True,
+    simplify_tolerance: float = 0.5,
+    allow_45_degree: bool = True,
+    diagonal_threshold_reduction: float = 15,
+    allow_circles: bool = True,
+    circle_threshold: float = 0.9,
+    num_cores: int = 1,
+    include_metadata: bool = False,
+    **kwargs: Any,
+) -> Any:
+    """Regularizes polygon geometries in a GeoDataFrame by aligning edges.
+
+    Aligns edges to be parallel or perpendicular (optionally also 45 degrees)
+    to their main direction. Handles reprojection, initial simplification,
+    regularization, geometry cleanup, and parallel processing.
+
+    This function is a wrapper around the `regularize_geodataframe` function
+    from the `buildingregulariser` package. Credits to the original author
+    Nick Wright. Check out the repo at https://github.com/DPIRD-DMA/Building-Regulariser.
+
+    Args:
+        data (Union[gpd.GeoDataFrame, str]): Input GeoDataFrame with polygon or multipolygon geometries,
+            or a file path to the GeoDataFrame.
+        output_path (Optional[str], optional): Path to save the output GeoDataFrame. If None, the output is
+            not saved. Defaults to None.
+        parallel_threshold (float, optional): Distance threshold for merging nearly parallel adjacent edges
+            during regularization. Defaults to 1.0.
+        target_crs (Optional[Union[str, "pyproj.CRS"]], optional): Target Coordinate Reference System for
+            processing. If None, uses the input GeoDataFrame's CRS. Processing is more reliable in a
+            projected CRS. Defaults to None.
+        simplify (bool, optional): If True, applies initial simplification to the geometry before
+            regularization. Defaults to True.
+        simplify_tolerance (float, optional): Tolerance for the initial simplification step (if `simplify`
+            is True). Also used for geometry cleanup steps. Defaults to 0.5.
+        allow_45_degree (bool, optional): If True, allows edges to be oriented at 45-degree angles relative
+            to the main direction during regularization. Defaults to True.
+        diagonal_threshold_reduction (float, optional): Reduction factor in degrees to reduce the likelihood
+            of diagonal edges being created. Larger values reduce the likelihood of diagonal edges.
+            Defaults to 15.
+        allow_circles (bool, optional): If True, attempts to detect polygons that are nearly circular and
+            replaces them with perfect circles. Defaults to True.
+        circle_threshold (float, optional): Intersection over Union (IoU) threshold used for circle detection
+            (if `allow_circles` is True). Value between 0 and 1. Defaults to 0.9.
+        num_cores (int, optional): Number of CPU cores to use for parallel processing. If 1, processing is
+            done sequentially. Defaults to 1.
+        include_metadata (bool, optional): If True, includes metadata about the regularization process in the
+            output GeoDataFrame. Defaults to False.
+
+        **kwargs: Additional keyword arguments to pass to the `to_file` method when saving the output.
+
+    Returns:
+        gpd.GeoDataFrame: A new GeoDataFrame with regularized polygon geometries. Original attributes are
+        preserved. Geometries that failed processing might be dropped.
+
+    Raises:
+        ValueError: If the input data is not a GeoDataFrame or a file path, or if the input GeoDataFrame is empty.
+    """
+    try:
+        from buildingregulariser import regularize_geodataframe
+    except ImportError:
+        install_package("buildingregulariser")
+        from buildingregulariser import regularize_geodataframe
+
+    if isinstance(data, str):
+        data = gpd.read_file(data)
+    elif not isinstance(data, gpd.GeoDataFrame):
+        raise ValueError("Input data must be a GeoDataFrame or a file path.")
+
+    # Check if the input data is empty
+    if data.empty:
+        raise ValueError("Input GeoDataFrame is empty.")
+
+    gdf = regularize_geodataframe(
+        data,
+        parallel_threshold=parallel_threshold,
+        target_crs=target_crs,
+        simplify=simplify,
+        simplify_tolerance=simplify_tolerance,
+        allow_45_degree=allow_45_degree,
+        diagonal_threshold_reduction=diagonal_threshold_reduction,
+        allow_circles=allow_circles,
+        circle_threshold=circle_threshold,
+        num_cores=num_cores,
+        include_metadata=include_metadata,
+    )
+
+    if output_path:
+        gdf.to_file(output_path, **kwargs)
+
+    return gdf
+
+
+def regularize_legacy(source, output=None, crs="EPSG:4326", **kwargs):
     """Regularize a polygon GeoDataFrame.
 
     Args:
@@ -3306,6 +3520,7 @@ def images_to_video(
         height, width, _ = frame.shape
         video_size = (width, height)
 
+    # TODO: This video codec is giving me some problems, not sure if it's the correct one
     fourcc = cv2.VideoWriter_fourcc(*"avc1")  # Define the codec for mp4
     video_writer = cv2.VideoWriter(output_video, fourcc, fps, video_size)
 
@@ -3399,14 +3614,20 @@ def show_image_gui(path: str) -> None:
     """
 
     from PIL import Image
-    from ipywidgets import interact, IntSlider
-    import matplotlib
+
+    try:
+        import matplotlib
+        from ipywidgets import IntSlider, interact
+    except ImportError as e:
+        print(
+            f"There was an error importing {e.name}, which is a dependency of leafmap. Install it with pip install leafmap or pip install segment-geospatial[all]"
+        )
 
     def setup_interactive_matplotlib():
         """Sets up ipympl backend for interactive plotting in Jupyter."""
         # Use the ipympl backend for interactive plotting
         try:
-            import ipympl
+            import ipympl  # noqa: F401
 
             matplotlib.use("module://ipympl.backend_nbagg")
         except ImportError:
@@ -3448,6 +3669,8 @@ def show_image_gui(path: str) -> None:
         return
 
     # Set up interactive plotting
+    import matplotlib.pyplot as plt
+
     setup_interactive_matplotlib()
 
     fig, ax = plt.subplots()
@@ -3623,11 +3846,11 @@ def region_groups(
     Returns:
         Union[Tuple[np.ndarray, pd.DataFrame], Tuple[xr.DataArray, pd.DataFrame]]: Labeled image and properties DataFrame.
     """
+    import pandas as pd
     import rioxarray as rxr
+    import scipy.ndimage as ndi
     import xarray as xr
     from skimage import measure
-    import pandas as pd
-    import scipy.ndimage as ndi
 
     if isinstance(image, str):
         ds = rxr.open_rasterio(image)
@@ -3675,7 +3898,6 @@ def region_groups(
         ]
 
         if intensity_image is not None:
-
             properties += [
                 "intensity_max",
                 "intensity_mean",
@@ -3792,366 +4014,14 @@ def region_groups(
         return da, df
 
 
-def orthogonalize(filepath, output=None, maxAngleChange=15, skewTolerance=15):
-    """Orthogonalizes polygon by making all angles 90 or 180 degrees. The source
-        code is adapted from https://github.com/Mashin6/orthogonalize-polygon, which
-        is distributed under the terms of the GNU General Public License v3.0.
-        Credits to the original author Martin Machyna.
-
-    Args:
-        filepath (str | geopandas.GeoDataFrame): The path to the input file or a GeoDataFrame.
-        output (str, optional): The path to the output file. Defaults to None.
-        maxAngleChange (int, optional): angle (0,45> degrees. Sets the maximum angle deviation
-                            from the cardinal direction for the segment to be still
-                            considered to continue in the same direction as the
-                            previous segment.
-        skewTolerance (int, optional): angle <0,45> degrees. Sets skew tolerance for segments that
-                            are at 45˚±Tolerance angle from the overall rectangular shape
-                            of the polygon. Useful when preserving e.g. bay windows on a
-                            house.
+def get_device() -> torch.device:
     """
-
-    from shapely.geometry import Polygon
-    from shapely.geometry import MultiPolygon
-    import math
-    import statistics
-
-    def calculate_initial_compass_bearing(pointA, pointB):
-        """
-        Calculates the bearing between two points.
-
-        The formulae used is the following:
-            θ = atan2(sin(Δlong).cos(lat2),
-                    cos(lat1).sin(lat2) − sin(lat1).cos(lat2).cos(Δlong))
-
-        :Parameters:
-        - `pointA: The tuple representing the latitude/longitude for the
-            first point. Latitude and longitude must be in decimal degrees
-        - `pointB: The tuple representing the latitude/longitude for the
-            second point. Latitude and longitude must be in decimal degrees
-
-        :Returns:
-        The bearing in degrees
-
-        :Returns Type:
-        float
-        """
-        if (type(pointA) != tuple) or (type(pointB) != tuple):
-            raise TypeError("Only tuples are supported as arguments")
-
-        lat1 = math.radians(pointA[0])
-        lat2 = math.radians(pointB[0])
-
-        diffLong = math.radians(pointB[1] - pointA[1])
-
-        x = math.sin(diffLong) * math.cos(lat2)
-        y = math.cos(lat1) * math.sin(lat2) - (
-            math.sin(lat1) * math.cos(lat2) * math.cos(diffLong)
-        )
-
-        initial_bearing = math.atan2(x, y)
-
-        # Now we have the initial bearing but math.atan2 return values
-        # from -180° to + 180° which is not what we want for a compass bearing
-        # The solution is to normalize the initial bearing as shown below
-        initial_bearing = math.degrees(initial_bearing)
-        compass_bearing = (initial_bearing + 360) % 360
-
-        return compass_bearing
-
-    def calculate_segment_angles(polySimple, maxAngleChange=45):
-        """
-        Calculates angles of all polygon segments to cardinal directions.
-
-        :Parameters:
-        - `polySimple: shapely polygon object containing simplified building.
-        - `maxAngleChange: angle (0,45> degrees. Sets the maximum angle deviation
-                            from the cardinal direction for the segment to be still
-                            considered to continue in the same direction as the
-                            previous segment.
-
-        :Returns:
-        - orgAngle: Segments bearing
-        - corAngle: Segments angles to closest cardinal direction
-        - dirAngle: Segments direction [N, E, S, W] as [0, 1, 2, 3]
-
-        :Returns Type:
-        list
-        """
-        # Convert limit angle to angle for subtraction
-        maxAngleChange = 45 - maxAngleChange
-
-        # Get points Lat/Lon
-        simple_X = polySimple.exterior.xy[0]
-        simple_Y = polySimple.exterior.xy[1]
-
-        # Calculate angle to cardinal directions for each segment of polygon
-        orgAngle = []  # Original angles
-        corAngle = []  # Correction angles used for rotation
-        dirAngle = []  # 0,1,2,3 = N,E,S,W
-        limit = [0] * 4
-
-        for i in range(0, (len(simple_X) - 1)):
-            point1 = (simple_Y[i], simple_X[i])
-            point2 = (simple_Y[i + 1], simple_X[i + 1])
-            angle = calculate_initial_compass_bearing(point1, point2)
-
-            if angle > (45 + limit[1]) and angle <= (135 - limit[1]):
-                orgAngle.append(angle)
-                corAngle.append(angle - 90)
-                dirAngle.append(1)
-
-            elif angle > (135 + limit[2]) and angle <= (225 - limit[2]):
-                orgAngle.append(angle)
-                corAngle.append(angle - 180)
-                dirAngle.append(2)
-
-            elif angle > (225 + limit[3]) and angle <= (315 - limit[3]):
-                orgAngle.append(angle)
-                corAngle.append(angle - 270)
-                dirAngle.append(3)
-
-            elif angle > (315 + limit[0]) and angle <= 360:
-                orgAngle.append(angle)
-                corAngle.append(angle - 360)
-                dirAngle.append(0)
-
-            elif angle >= 0 and angle <= (45 - limit[0]):
-                orgAngle.append(angle)
-                corAngle.append(angle)
-                dirAngle.append(0)
-
-            limit = [0] * 4
-            limit[dirAngle[i]] = (
-                maxAngleChange  # Set angle limit for the current direction
-            )
-            limit[(dirAngle[i] + 1) % 4] = (
-                -maxAngleChange
-            )  # Extend the angles for the adjacent directions
-            limit[(dirAngle[i] - 1) % 4] = -maxAngleChange
-
-        return orgAngle, corAngle, dirAngle
-
-    def rotate_polygon(polySimple, angle):
-        """Rotates polygon around its centroid for given angle."""
-        if polySimple.is_empty or not polySimple.is_valid:
-            return polySimple
-
-        try:
-            # Create WGS84 referenced GeoSeries
-            bS = gpd.GeoDataFrame(geometry=[polySimple], crs="EPSG:4326")
-
-            # Temporary reproject to Mercator and rotate
-            bSR = bS.to_crs("epsg:3857")
-            if len(bSR) == 0:
-                return polySimple
-
-            bSR = bSR.rotate(angle, origin="centroid", use_radians=False)
-            bSR = bSR.to_crs("epsg:4326")
-
-            # Validate result before returning
-            if len(bSR) == 0 or bSR.geometry.is_empty.any():
-                return polySimple
-
-            return bSR.geometry.iloc[0]
-
-        except Exception as e:
-            print(f"Rotation failed: {str(e)}")
-            return polySimple
-
-    def orthogonalize_polygon(polygon, maxAngleChange=15, skewTolerance=15):
-        """
-        Master function that makes all angles in polygon outer and inner rings either 90 or 180 degrees.
-        Idea adapted from JOSM function orthogonalize
-        1) Calculate bearing [0-360 deg] of each polygon segment
-        2) From bearing determine general direction [N, E, S ,W], then calculate angle deviation from nearest cardinal direction for each segment
-        3) Rotate polygon by median deviation angle to align segments with xy coord axes (cardinal directions)
-        4) For vertical segments replace X coordinates of their points with mean value
-        For horizontal segments replace Y coordinates of their points with mean value
-        5) Rotate back
-
-        :Parameters:
-        - `polygon: shapely polygon object containing simplified building.
-        - `maxAngleChange: angle (0,45> degrees. Sets the maximum angle deviation
-                            from the cardinal direction for the segment to be still
-                            considered to continue in the same direction as the
-                            previous segment.
-        - `skewTolerance: angle <0,45> degrees. Sets skew tolerance for segments that
-                            are at 45˚±Tolerance angle from the overall rectangular shape
-                            of the polygon. Useful when preserving e.g. bay windows on a
-                            house.
-
-        :Returns:
-        - polyOrthog: orthogonalized shapely polygon where all angles are 90 or 180 degrees
-
-        :Returns Type:
-        shapely Polygon
-        """
-        # Check if polygon has inner rings that we want to orthogonalize as well
-        rings = [Polygon(polygon.exterior)]
-        for inner in list(polygon.interiors):
-            rings.append(Polygon(inner))
-
-        polyOrthog = []
-        for polySimple in rings:
-
-            # Get angles from cardinal directions of all segments
-            orgAngle, corAngle, dirAngle = calculate_segment_angles(polySimple)
-
-            # Calculate median angle that will be used for rotation
-            if statistics.stdev(corAngle) < 30:
-                medAngle = statistics.median(corAngle)
-                # avAngle = statistics.mean(corAngle)
-            else:
-                medAngle = 45  # Account for cases when building is at ~45˚ and we can't decide if to turn clockwise or anti-clockwise
-
-            # Rotate polygon to align its edges to cardinal directions
-            polySimpleR = rotate_polygon(polySimple, medAngle)
-
-            # Get directions of rotated polygon segments
-            orgAngle, corAngle, dirAngle = calculate_segment_angles(
-                polySimpleR, maxAngleChange
-            )
-
-            # Get Lat/Lon of rotated polygon points
-            rotatedX = polySimpleR.exterior.xy[0].tolist()
-            rotatedY = polySimpleR.exterior.xy[1].tolist()
-
-            # Scan backwards to check if starting segment is a continuation of straight region in the same direction
-            shift = 0
-            for i in range(1, len(dirAngle)):
-                if dirAngle[0] == dirAngle[-i]:
-                    shift = i
-                else:
-                    break
-            # If the first segment is part of continuing straight region then reset the index to its beginning
-            if shift != 0:
-                dirAngle = dirAngle[-shift:] + dirAngle[:-shift]
-                orgAngle = orgAngle[-shift:] + orgAngle[:-shift]
-                rotatedX = (
-                    rotatedX[-shift - 1 : -1] + rotatedX[:-shift]
-                )  # First and last points are the same in closed polygons
-                rotatedY = rotatedY[-shift - 1 : -1] + rotatedY[:-shift]
-
-            # Fix 180 degree turns (N->S, S->N, E->W, W->E)
-            # Subtract two adjacent directions and if the difference is 2, which means we have 180˚ turn (0,1,3 are OK) then use the direction of the previous segment
-            dirAngleRoll = dirAngle[1:] + dirAngle[0:1]
-            dirAngle = [
-                (
-                    dirAngle[i - 1]
-                    if abs(dirAngle[i] - dirAngleRoll[i]) == 2
-                    else dirAngle[i]
-                )
-                for i in range(len(dirAngle))
-            ]
-
-            # Cycle through all segments
-            # Adjust points coordinates by taking the average of points in segment
-            dirAngle.append(dirAngle[0])  # Append dummy value
-            orgAngle.append(orgAngle[0])  # Append dummy value
-            segmentBuffer = (
-                []
-            )  # Buffer for determining which segments are part of one large straight line
-
-            for i in range(0, len(dirAngle) - 1):
-                # Preserving skewed walls: Leave walls that are obviously meant to be skewed 45˚+/- tolerance˚ (e.g.angle 30-60 degrees) off main walls as untouched
-                if orgAngle[i] % 90 > (45 - skewTolerance) and orgAngle[i] % 90 < (
-                    45 + skewTolerance
-                ):
-                    continue
-
-                # Dealing with adjacent segments following the same direction
-                segmentBuffer.append(i)
-                if (
-                    dirAngle[i] == dirAngle[i + 1]
-                ):  # If next segment is of same orientation, we need 180 deg angle for straight line. Keep checking.
-                    if orgAngle[i + 1] % 90 > (45 - skewTolerance) and orgAngle[
-                        i + 1
-                    ] % 90 < (45 + skewTolerance):
-                        pass
-                    else:
-                        continue
-
-                if dirAngle[i] in {0, 2}:  # for N,S segments avereage x coordinate
-                    tempX = statistics.mean(
-                        rotatedX[segmentBuffer[0] : segmentBuffer[-1] + 2]
-                    )
-                    # Update with new coordinates
-                    rotatedX[segmentBuffer[0] : segmentBuffer[-1] + 2] = [tempX] * (
-                        len(segmentBuffer) + 1
-                    )  # Segment has 2 points therefore +1
-                elif dirAngle[i] in {1, 3}:  # for E,W segments avereage y coordinate
-                    tempY = statistics.mean(
-                        rotatedY[segmentBuffer[0] : segmentBuffer[-1] + 2]
-                    )
-                    # Update with new coordinates
-                    rotatedY[segmentBuffer[0] : segmentBuffer[-1] + 2] = [tempY] * (
-                        len(segmentBuffer) + 1
-                    )
-
-                if (
-                    0 in segmentBuffer
-                ):  # Copy change in first point to its last point so we don't lose it during Reverse shift
-                    rotatedX[-1] = rotatedX[0]
-                    rotatedY[-1] = rotatedY[0]
-
-                segmentBuffer = []
-
-            # Reverse shift so we get polygon with the same start/end point as before
-            if shift != 0:
-                rotatedX = (
-                    rotatedX[shift:] + rotatedX[1 : shift + 1]
-                )  # First and last points are the same in closed polygons
-                rotatedY = rotatedY[shift:] + rotatedY[1 : shift + 1]
-            else:
-                rotatedX[0] = rotatedX[-1]  # Copy updated coordinates to first node
-                rotatedY[0] = rotatedY[-1]
-
-            # Create polygon from new points
-            polyNew = Polygon(zip(rotatedX, rotatedY))
-
-            # Rotate polygon back
-            polyNew = rotate_polygon(polyNew, -medAngle)
-
-            # Add to list of finihed rings
-            polyOrthog.append(polyNew)
-
-        # Recreate the original object
-        polyOrthog = Polygon(
-            polyOrthog[0].exterior, [inner.exterior for inner in polyOrthog[1:]]
-        )
-        return polyOrthog
-
-    if isinstance(filepath, str):
-
-        buildings = gpd.read_file(filepath)
-    elif isinstance(filepath, gpd.GeoDataFrame):
-        buildings = filepath
+    Returns the best available device for deep learning in the order:
+    CUDA (NVIDIA GPU) > MPS (Apple Silicon GPU) > CPU
+    """
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        return torch.device("mps")
     else:
-        raise TypeError("Input must be a file path or a GeoDataFrame.")
-
-    for i in range(0, len(buildings)):
-        build = buildings.loc[i, "geometry"]
-
-        if build.geom_type == "MultiPolygon":  # Multipolygons
-            multipolygon = []
-
-            for poly in build:
-                buildOrtho = orthogonalize_polygon(poly, maxAngleChange, skewTolerance)
-                multipolygon.append(buildOrtho)
-
-            buildings.loc[i, "geometry"] = gpd.GeoSeries(
-                MultiPolygon(multipolygon)
-            ).values  # Workaround for Pandas/Geopandas bug
-            # buildings.loc[i, 'geometry'] = MultiPolygon(multipolygon)   # Does not work
-
-        else:  # Polygons
-
-            buildOrtho = orthogonalize_polygon(build)
-
-            buildings.loc[i, "geometry"] = buildOrtho
-
-    if output is not None:
-        buildings.to_file(output)
-    else:
-        return buildings
+        return torch.device("cpu")

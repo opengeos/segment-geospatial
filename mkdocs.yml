@@ -58,7 +58,7 @@ nav:
           - examples/text_prompts.ipynb
           - examples/text_prompts_batch.ipynb
           - examples/fast_sam.ipynb
-          - examples/swimming_pools.ipynb
+          - examples/text_swimming_pools.ipynb
           - examples/arcgis.ipynb
           - examples/maxar_open_data.ipynb
           - examples/sam2_automatic.ipynb
@@ -68,15 +68,30 @@ nav:
           - examples/sam2_point_prompts.ipynb
           - examples/sam2_text_prompts.ipynb
           - examples/tree_mapping.ipynb
+          - examples/image_captioning.ipynb
+          - examples/sam3_image_segmentation.ipynb
+          - examples/sam3_image_segmentation_jpg.ipynb
+          - examples/sam3_interactive.ipynb
+          - examples/sam3_batch_segmentation.ipynb
+          - examples/sam3_video_segmentation.ipynb
+          - examples/sam3_video_prompts.ipynb
+          - examples/sam3_video_masks.ipynb
+          - examples/sam3_automated_segmentation.ipynb
+          - examples/sam3_object_tracking.ipynb
+          - examples/sam3_point_prompts.ipynb
+          - examples/sam3_point_prompts_batch.ipynb
+          - examples/sam3_box_prompts.ipynb
     - Workshops:
           - workshops/purdue.ipynb
           - workshops/cn_workshop.ipynb
           - workshops/IPPN_2024.ipynb
           - workshops/AIforGood_2025.ipynb
     - API Reference:
+          - caption module: caption.md
           - common module: common.md
           - samgeo module: samgeo.md
           - samgeo2 module: samgeo2.md
+          - samgeo3 module: samgeo3.md
           - fast_sam module: fast_sam.md
           - hq_sam module: hq_sam.md
           - text_sam module: text_sam.md

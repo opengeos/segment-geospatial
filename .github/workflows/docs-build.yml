@@ -6,17 +6,23 @@ on:
 jobs:
     deploy:
         runs-on: ubuntu-latest
+        defaults:
+            run:
+                shell: bash -el {0}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
               with:
                   fetch-depth: 0
-            - uses: actions/setup-python@v5
+            - name: Setup micromamba
+              uses: mamba-org/setup-micromamba@v2
               with:
-                  python-version: "3.12"
-            - name: Install GDAL
-              run: |
-                  python -m pip install --upgrade pip
-                  pip install --find-links=https://girder.github.io/large_image_wheels --no-cache GDAL pyproj
+                  environment-name: docs-env
+                  create-args: >-
+                      python=3.12
+                      gdal
+                      pyproj
+                      -c conda-forge
+                  cache-environment: true
             - name: Test GDAL installation
               run: |
                   python -c "from osgeo import gdal"

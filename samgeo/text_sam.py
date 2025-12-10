@@ -7,23 +7,34 @@ import argparse
 import inspect
 import os
 import warnings
+from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from PIL import Image
-from segment_anything import sam_model_registry
-from segment_anything import SamPredictor
 from huggingface_hub import hf_hub_download
-from .common import *
+from PIL import Image
+from segment_anything import SamPredictor, sam_model_registry
+
+from samgeo.common import (
+    array_to_image,
+    boxes_to_vector,
+    download_file,
+    install_package,
+    merge_rasters,
+    raster_to_vector,
+    rowcol_to_xy,
+    text_sam_gui,
+)
+
 from .samgeo2 import SamGeo2
+
+warnings.filterwarnings("ignore")
 
 try:
     import rasterio
 except ImportError:
     print("Installing rasterio...")
     install_package("rasterio")
-
-warnings.filterwarnings("ignore")
 
 
 try:
@@ -134,6 +145,7 @@ class LangSAM:
         self.phrases = None
         self.logits = None
         self.prediction = None
+        self.model_version = "sam2"
 
     def build_sam(self, model_type, checkpoint_url=None):
         """Build the SAM model.
@@ -229,7 +241,6 @@ class LangSAM:
             )
             return masks.cpu()
         elif self._sam_version == 2:
-
             if isinstance(self.source, str):
                 self.sam.set_image(self.source)
             # If no source is set provide PIL image
@@ -362,7 +373,6 @@ class LangSAM:
 
             # Validate the detection_filter argument
             if detection_filter is not None:
-
                 if not callable(detection_filter):
                     raise ValueError("detection_filter must be callable.")
 
@@ -375,7 +385,6 @@ class LangSAM:
             for i, (box, mask, logit, phrase) in enumerate(
                 zip(boxes, masks, logits, phrases)
             ):
-
                 # Convert tensor to numpy array if necessary and ensure it contains integers
                 if isinstance(mask, torch.Tensor):
                     mask = (
@@ -460,7 +469,7 @@ class LangSAM:
             basename = os.path.splitext(os.path.basename(image))[0]
             if verbose:
                 print(
-                    f"Processing image {str(i+1).zfill(len(str(len(images))))} of {len(images)}: {image}..."
+                    f"Processing image {str(i + 1).zfill(len(str(len(images))))} of {len(images)}: {image}..."
                 )
             output = os.path.join(out_dir, f"{basename}_mask.tif")
             self.predict(
@@ -532,8 +541,9 @@ class LangSAM:
         """
 
         import warnings
-        import matplotlib.pyplot as plt
+
         import matplotlib.patches as patches
+        import matplotlib.pyplot as plt
 
         warnings.filterwarnings("ignore")
 

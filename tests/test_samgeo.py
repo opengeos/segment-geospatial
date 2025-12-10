@@ -5,7 +5,7 @@
 import os
 import unittest
 
-from samgeo import samgeo
+from samgeo import common, samgeo
 
 
 class TestSamgeo(unittest.TestCase):
@@ -15,7 +15,7 @@ class TestSamgeo(unittest.TestCase):
         """Set up test fixtures, if any."""
         bbox = [-122.1497, 37.6311, -122.1203, 37.6458]
         image = "satellite.tif"
-        samgeo.tms_to_geotiff(
+        common.tms_to_geotiff(
             output=image, bbox=bbox, zoom=15, source="Satellite", overwrite=True
         )
         self.source = image

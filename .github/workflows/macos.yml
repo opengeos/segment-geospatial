@@ -22,34 +22,18 @@ jobs:
         env:
             SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
 
-            - name: Setup Python
-              uses: conda-incubator/setup-miniconda@v3
+            - name: Setup micromamba
+              uses: mamba-org/setup-micromamba@v2
               with:
-                  auto-activate-base: true
-                  python-version: ${{ matrix.config.py }}
-                  channels: conda-forge,defaults
-                  channel-priority: true
-                  miniconda-version: latest
-
-            - name: Cache dependencies
-              uses: actions/cache@v4
-              with:
-                  path: ~/.cache/pip
-                  key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
-                  restore-keys: |
-                      ${{ runner.os }}-pip-
-
-            - name: Testing conda
-              run: |
-                  conda info
-                  conda list
-
-            - name: Install GDAL
-              run: |
-                  conda install -c conda-forge mamba --yes
-                  mamba install -c conda-forge gdal pyproj --yes
+                  environment-name: test-env
+                  create-args: >-
+                      python=${{ matrix.config.py }}
+                      gdal
+                      pyproj
+                      -c conda-forge
+                  cache-environment: true
 
             - name: Test GDAL installation
               run: |

@@ -2,17 +2,26 @@
 https://github.com/opengeos/FastSAM
 """
 
-import matplotlib.pyplot as plt
+import os
+
+import cv2
 import numpy as np
 import torch
-from .common import *
+
+from samgeo.common import (
+    array_to_image,
+    download_file,
+    raster_to_vector,
+    show_image,
+    temp_file_path,
+)
 
 try:
     from fastsam import FastSAM, FastSAMPrompt
-except ImportError:
-    print("FastSAM not installed. Installing...")
-    install_package("segment-anything-fast")
-    from fastsam import FastSAM, FastSAMPrompt
+except ImportError as e:
+    print(
+        f"There was an error importing {e.name}. To use FAST-SAM, install it as:\n\tpip install segment-geospatial[fast]"
+    )
 
 
 class SamGeo(FastSAM):
