@@ -197,7 +197,7 @@ class SamGeo3:
             if not os.path.exists(bpe_path):
                 bpe_dir = os.path.dirname(bpe_path)
                 os.makedirs(bpe_dir, exist_ok=True)
-                url = "https://github.com/facebookresearch/sam3/raw/refs/heads/main/assets/bpe_simple_vocab_16e6.txt.gz"
+                url = "https://huggingface.co/datasets/giswqs/geospatial/resolve/main/bpe_simple_vocab_16e6.txt.gz"
                 bpe_path = common.download_file(url, bpe_path, quiet=True)
 
         model = build_sam3_image_model(
