@@ -3737,27 +3737,50 @@ def make_temp_dir(**kwargs) -> str:
     return temp_dir
 
 
-def geotiff_to_jpg(geotiff_path: str, output_path: str) -> None:
+def geotiff_to_jpg(
+    geotiff_path: str,
+    output_path: str,
+    bands: Optional[List[int]] = None,
+) -> None:
     """Convert a GeoTIFF file to a JPG file.
 
     Args:
         geotiff_path (str): The path to the input GeoTIFF file.
         output_path (str): The path to the output JPG file.
+        bands (List[int], optional): List of band indices (1-based) to use for RGB.
+            For example, [4, 3, 2] for NIR-R-G false color composite.
+            If None, uses the first 3 bands. Defaults to None.
     """
 
     from PIL import Image
 
     # Open the GeoTIFF file
     with rasterio.open(geotiff_path) as src:
-        # Read the first band (for grayscale) or all bands
-        array = src.read()
+        if bands is not None:
+            # Validate band indices (1-based)
+            if len(bands) != 3:
+                raise ValueError("bands must contain exactly 3 band indices for RGB.")
+            for band in bands:
+                if band < 1 or band > src.count:
+                    raise ValueError(
+                        f"Band index {band} is out of range. "
+                        f"Image has {src.count} bands (1-indexed)."
+                    )
+            # Read specified bands (rasterio uses 1-based indexing)
+            array = np.stack([src.read(b) for b in bands], axis=0)
+        else:
+            # Read all bands
+            array = src.read()
 
-        # If the array has more than 3 bands, reduce it to the first 3 (RGB)
-        if array.shape[0] >= 3:
-            array = array[:3, :, :]  # Select the first 3 bands (R, G, B)
-        elif array.shape[0] == 1:
-            # For single-band images, repeat the band to create a grayscale RGB
-            array = np.repeat(array, 3, axis=0)
+            # If the array has more than 3 bands, reduce it to the first 3 (RGB)
+            if array.shape[0] >= 3:
+                array = array[:3, :, :]  # Select the first 3 bands (R, G, B)
+            elif array.shape[0] == 1:
+                # For single-band images, repeat the band to create a grayscale RGB
+                array = np.repeat(array, 3, axis=0)
+            elif array.shape[0] == 2:
+                # For two-band images, repeat the first band to create a 3-band image
+                array = np.concatenate([array, array[0:1, :, :]], axis=0)
 
         # Transpose the array from (bands, height, width) to (height, width, bands)
         array = np.transpose(array, (1, 2, 0))
@@ -3774,12 +3797,19 @@ def geotiff_to_jpg(geotiff_path: str, output_path: str) -> None:
         image.save(output_path)
 
 
-def geotiff_to_jpg_batch(input_folder: str, output_folder: str = None) -> str:
+def geotiff_to_jpg_batch(
+    input_folder: str,
+    output_folder: str = None,
+    bands: Optional[List[int]] = None,
+) -> str:
     """Convert all GeoTIFF files in a folder to JPG files.
 
     Args:
         input_folder (str): The path to the folder containing GeoTIFF files.
         output_folder (str): The path to the folder to save the output JPG files.
+        bands (List[int], optional): List of band indices (1-based) to use for RGB.
+            For example, [4, 3, 2] for NIR-R-G false color composite.
+            If None, uses the first 3 bands. Defaults to None.
 
     Returns:
         str: The path to the output folder containing the JPG files.
@@ -3800,7 +3830,7 @@ def geotiff_to_jpg_batch(input_folder: str, output_folder: str = None) -> str:
         geotiff_path = os.path.join(input_folder, filename)
         jpg_filename = os.path.splitext(filename)[0] + ".jpg"
         output_path = os.path.join(output_folder, jpg_filename)
-        geotiff_to_jpg(geotiff_path, output_path)
+        geotiff_to_jpg(geotiff_path, output_path, bands=bands)
 
     return output_folder
 
