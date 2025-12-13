@@ -293,7 +293,9 @@ class SamGeo3:
                             array = array[:3, :, :]
                         elif array.shape[0] == 1:
                             array = np.repeat(array, 3, axis=0)
-
+                        elif array.shape[0] == 2:
+                            # Repeat the first band to make 3 bands: [band1, band2, band1]
+                            array = np.concatenate([array, array[0:1, :, :]], axis=0)
                     # Transpose from (bands, height, width) to (height, width, bands)
                     array = np.transpose(array, (1, 2, 0))
 
