@@ -3778,6 +3778,9 @@ def geotiff_to_jpg(
             elif array.shape[0] == 1:
                 # For single-band images, repeat the band to create a grayscale RGB
                 array = np.repeat(array, 3, axis=0)
+            elif array.shape[0] == 2:
+                # For two-band images, repeat the first band to create a 3-band image
+                array = np.concatenate([array, array[0:1, :, :]], axis=0)
 
         # Transpose the array from (bands, height, width) to (height, width, bands)
         array = np.transpose(array, (1, 2, 0))
