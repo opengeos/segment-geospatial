@@ -244,6 +244,7 @@ class SamGeo3:
         self,
         image: Union[str, np.ndarray],
         state=None,
+        bands: Optional[List[int]] = None,
     ) -> None:
         """Set the input image as a numpy array.
 
@@ -251,6 +252,10 @@ class SamGeo3:
             image (Union[str, np.ndarray, Image]): The input image as a path,
                 a numpy array, or an Image.
             state (optional): An optional state object to pass to the processor's set_image method (Meta backend only).
+            bands (List[int], optional): List of band indices (1-based) to use for RGB
+                when the input is a GeoTIFF with more than 3 bands. For example,
+                [4, 3, 2] for NIR-R-G false color composite. If None, uses the
+                first 3 bands for multi-band images. Defaults to None.
         """
         if isinstance(image, str):
             if image.startswith("http"):
@@ -260,8 +265,48 @@ class SamGeo3:
                 raise ValueError(f"Input path {image} does not exist.")
 
             self.source = image
-            image = cv2.imread(image)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+            # Check if image is a GeoTIFF and handle band selection
+            if image.lower().endswith((".tif", ".tiff")):
+                import rasterio
+
+                with rasterio.open(image) as src:
+                    if bands is not None:
+                        # Validate band indices (1-based)
+                        if len(bands) != 3:
+                            raise ValueError(
+                                "bands must contain exactly 3 band indices for RGB."
+                            )
+                        for band in bands:
+                            if band < 1 or band > src.count:
+                                raise ValueError(
+                                    f"Band index {band} is out of range. "
+                                    f"Image has {src.count} bands (1-indexed)."
+                                )
+                        # Read specified bands (rasterio uses 1-based indexing)
+                        array = np.stack([src.read(b) for b in bands], axis=0)
+                    else:
+                        # Read all bands
+                        array = src.read()
+                        # If more than 3 bands, use first 3
+                        if array.shape[0] >= 3:
+                            array = array[:3, :, :]
+                        elif array.shape[0] == 1:
+                            array = np.repeat(array, 3, axis=0)
+
+                    # Transpose from (bands, height, width) to (height, width, bands)
+                    array = np.transpose(array, (1, 2, 0))
+
+                    # Normalize to 8-bit (0-255) range
+                    array = array.astype(np.float32)
+                    array -= array.min()
+                    if array.max() > 0:
+                        array /= array.max()
+                    array *= 255
+                    image = array.astype(np.uint8)
+            else:
+                image = cv2.imread(image)
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             self.image = image
         elif isinstance(image, np.ndarray):
             self.image = image
@@ -3492,6 +3537,7 @@ class SamGeo3Video:
         output_dir: Optional[str] = None,
         frame_rate: Optional[int] = None,
         prefix: str = "",
+        bands: Optional[List[int]] = None,
     ) -> None:
         """Load a video or time series images for segmentation.
 
@@ -3507,12 +3553,17 @@ class SamGeo3Video:
             frame_rate (int, optional): Frame rate for extracting frames from video.
                 Only used when video_path is an MP4 file. Defaults to None.
             prefix (str): Prefix for extracted frame filenames. Defaults to "".
+            bands (List[int], optional): List of band indices (1-based) to use for RGB
+                when the input is a GeoTIFF directory with multi-band images. For example,
+                [4, 3, 2] for NIR-R-G false color composite. If None, uses the
+                first 3 bands for multi-band images. Defaults to None.
 
         Example:
             >>> sam = SamGeo3Video()
             >>> sam.set_video("video.mp4")  # Load MP4 video
             >>> sam.set_video("frames/")  # Load from JPEG frames directory
             >>> sam.set_video("landsat_ts/")  # Load GeoTIFF time series
+            >>> sam.set_video("landsat_ts/", bands=[4, 3, 2])  # NIR-R-G composite
         """
         if isinstance(video_path, str):
             if video_path.startswith("http"):
@@ -3541,7 +3592,7 @@ class SamGeo3Video:
                     self._tif_dir = video_path
                     self._tif_names = files
                     # Convert GeoTIFFs to JPEGs for SAM3
-                    video_path = common.geotiff_to_jpg_batch(video_path)
+                    video_path = common.geotiff_to_jpg_batch(video_path, bands=bands)
                     print(f"Converted GeoTIFFs to JPEGs: {video_path}")
 
             if not os.path.exists(video_path):
