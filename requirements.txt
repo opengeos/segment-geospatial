@@ -10,6 +10,7 @@ pyproj
 rasterio
 segment_anything
 shapely
+smoothify
 torch
 torchvision
 tqdm
