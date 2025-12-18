@@ -1389,9 +1389,9 @@ class SamGeo3:
                         if unique:
                             current_max_id += 1
                             if current_max_id > max_objects:
-                                print(
-                                    f"Warning: Maximum number of objects ({max_objects}) exceeded. "
-                                    f"Consider using a larger dtype."
+                                raise ValueError(
+                                    f"Maximum number of objects ({max_objects}) exceeded. "
+                                    "Consider using a larger dtype or reducing the number of objects."
                                 )
                             tile_mask_array[mask_bool] = current_max_id
                         else:
