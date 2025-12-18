@@ -4219,7 +4219,7 @@ def smooth_vector(
     **kwargs: Any,
 ) -> gpd.GeoDataFrame:
     """Smooth a vector data using the smoothify library.
-        See https://github.com/DPIRD-DMA/Smoothify for more details.
+    See https://github.com/DPIRD-DMA/Smoothify for more details.
 
     Args:
         vector_data: The vector data to smooth.
