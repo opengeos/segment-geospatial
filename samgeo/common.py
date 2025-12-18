@@ -4110,7 +4110,7 @@ def get_raster_stats(raster_path: str, divide_by: float = 1.0) -> Dict[str, Any]
     Args:
         raster_path (str): Path to the raster file
         divide_by (float, optional): Value to divide pixel values by.
-            Defaults to 1.0, which keeps the original pixel
+            Defaults to 1.0, which keeps the original pixel values unchanged.
 
     Returns:
         dict: Dictionary containing lists of statistics with keys:
