@@ -4,7 +4,7 @@ The source code is adapted from https://github.com/aliaksandr960/segment-anythin
 
 import os
 import tempfile
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import cv2
 import geopandas as gpd
@@ -4055,3 +4055,220 @@ def get_device() -> torch.device:
         return torch.device("mps")
     else:
         return torch.device("cpu")
+
+
+def get_raster_info(raster_path: str) -> Dict[str, Any]:
+    """Display basic information about a raster dataset.
+
+    Args:
+        raster_path (str): Path to the raster file
+
+    Returns:
+        dict: Dictionary containing the basic information about the raster
+    """
+    # Open the raster dataset
+    with rasterio.open(raster_path) as src:
+        # Get basic metadata
+        info = {
+            "driver": src.driver,
+            "width": src.width,
+            "height": src.height,
+            "count": src.count,
+            "dtype": src.dtypes[0],
+            "crs": src.crs.to_string() if src.crs else "No CRS defined",
+            "transform": src.transform,
+            "bounds": src.bounds,
+            "resolution": (src.transform[0], -src.transform[4]),
+            "nodata": src.nodata,
+        }
+
+        # Calculate statistics for each band
+        stats = []
+        for i in range(1, src.count + 1):
+            band = src.read(i, masked=True)
+            band_stats = {
+                "band": i,
+                "min": float(band.min()),
+                "max": float(band.max()),
+                "mean": float(band.mean()),
+                "std": float(band.std()),
+            }
+            stats.append(band_stats)
+
+        info["band_stats"] = stats
+
+    return info
+
+
+def get_raster_stats(raster_path: str, divide_by: float = 1.0) -> Dict[str, Any]:
+    """Calculate statistics for each band in a raster dataset.
+
+    This function computes min, max, mean, and standard deviation values
+    for each band in the provided raster, returning results in a dictionary
+    with lists for each statistic type.
+
+    Args:
+        raster_path (str): Path to the raster file
+        divide_by (float, optional): Value to divide pixel values by.
+            Defaults to 1.0, which keeps the original pixel values unchanged.
+
+    Returns:
+        dict: Dictionary containing lists of statistics with keys:
+            - 'min': List of minimum values for each band
+            - 'max': List of maximum values for each band
+            - 'mean': List of mean values for each band
+            - 'std': List of standard deviation values for each band
+    """
+    # Initialize the results dictionary with empty lists
+    stats = {"min": [], "max": [], "mean": [], "std": []}
+
+    # Open the raster dataset
+    with rasterio.open(raster_path) as src:
+        # Calculate statistics for each band
+        for i in range(1, src.count + 1):
+            band = src.read(i, masked=True)
+
+            # Append statistics for this band to each list
+            stats["min"].append(float(band.min()) / divide_by)
+            stats["max"].append(float(band.max()) / divide_by)
+            stats["mean"].append(float(band.mean()) / divide_by)
+            stats["std"].append(float(band.std()) / divide_by)
+
+    return stats
+
+
+def print_raster_info(
+    raster_path: str, show_preview: bool = True, figsize: Tuple[int, int] = (10, 8)
+) -> Optional[Dict[str, Any]]:
+    """Print formatted information about a raster dataset and optionally show a preview.
+
+    Args:
+        raster_path (str): Path to the raster file
+        show_preview (bool, optional): Whether to display a visual preview of the raster.
+            Defaults to True.
+        figsize (tuple, optional): Figure size as (width, height). Defaults to (10, 8).
+
+    Returns:
+        dict: Dictionary containing raster information if successful, None otherwise
+    """
+    import matplotlib.pyplot as plt
+    from rasterio.plot import show
+
+    try:
+        info = get_raster_info(raster_path)
+
+        # Print basic information
+        print(f"===== RASTER INFORMATION: {raster_path} =====")
+        print(f"Driver: {info['driver']}")
+        print(f"Dimensions: {info['width']} x {info['height']} pixels")
+        print(f"Number of bands: {info['count']}")
+        print(f"Data type: {info['dtype']}")
+        print(f"Coordinate Reference System: {info['crs']}")
+        print(f"Georeferenced Bounds: {info['bounds']}")
+        print(f"Pixel Resolution: {info['resolution'][0]}, {info['resolution'][1]}")
+        print(f"NoData Value: {info['nodata']}")
+
+        # Print band statistics
+        print("\n----- Band Statistics -----")
+        for band_stat in info["band_stats"]:
+            print(f"Band {band_stat['band']}:")
+            print(f"  Min: {band_stat['min']:.2f}")
+            print(f"  Max: {band_stat['max']:.2f}")
+            print(f"  Mean: {band_stat['mean']:.2f}")
+            print(f"  Std Dev: {band_stat['std']:.2f}")
+
+        # Show a preview if requested
+        if show_preview:
+            with rasterio.open(raster_path) as src:
+                # For multi-band images, show RGB composite or first band
+                if src.count >= 3:
+                    # Try to show RGB composite
+                    rgb = np.dstack([src.read(i) for i in range(1, 4)])
+                    plt.figure(figsize=figsize)
+                    plt.imshow(rgb)
+                    plt.title(f"RGB Preview: {raster_path}")
+                else:
+                    # Show first band for single-band images
+                    plt.figure(figsize=figsize)
+                    show(
+                        src.read(1),
+                        cmap="viridis",
+                        title=f"Band 1 Preview: {raster_path}",
+                    )
+                    plt.colorbar(label="Pixel Value")
+                plt.show()
+
+        return info
+
+    except Exception as e:
+        print(f"Error reading raster: {str(e)}")
+        return None
+
+
+def smooth_vector(
+    vector_data: Union[str, gpd.GeoDataFrame],
+    output_path: str = None,
+    segment_length: float = None,
+    smooth_iterations: int = 3,
+    num_cores: int = 0,
+    merge_collection: bool = True,
+    merge_field: str = None,
+    merge_multipolygons: bool = True,
+    preserve_area: bool = True,
+    area_tolerance: float = 0.01,
+    **kwargs: Any,
+) -> gpd.GeoDataFrame:
+    """Smooth a vector data using the smoothify library.
+    See https://github.com/DPIRD-DMA/Smoothify for more details.
+
+    Args:
+        vector_data: The vector data to smooth.
+        output_path: The path to save the smoothed vector data. If None, returns the smoothed vector data.
+        segment_length: Resolution of the original raster data in map units. If None (default), automatically
+            detects by finding the minimum segment length (from a data sample). Recommended to specify explicitly when known.
+        smooth_iterations: The number of iterations to smooth the vector data.
+        num_cores: Number of cores to use for parallel processing. If 0 (default), uses all available cores.
+        merge_collection: Whether to merge/dissolve adjacent geometries in collections before smoothing.
+        merge_field: Column name to use for dissolving geometries. Only valid when merge_collection=True.
+            If None, dissolves all geometries together. If specified, dissolves geometries grouped by the column values.
+        merge_multipolygons: Whether to merge adjacent polygons within MultiPolygons before smoothing
+        preserve_area: Whether to restore original area after smoothing via buffering (applies to Polygons only)
+        area_tolerance: Percentage of original area allowed as error (e.g., 0.01 = 0.01% error = 99.99% preservation).
+            Only affects Polygons when preserve_area=True
+
+    Returns:
+        gpd.GeoDataFrame: The smoothed vector data.
+
+    Examples:
+        >>> from samgeo import common
+        >>> gdf = common.read_vector("path/to/vector.geojson")
+        >>> smoothed_gdf = common.smooth_vector(gdf, smooth_iterations=3, output_path="path/to/smoothed_vector.geojson")
+        >>> smoothed_gdf.head()
+        >>> smoothed_gdf.explore()
+    """
+    import leafmap
+
+    try:
+        from smoothify import smoothify
+    except ImportError:
+        install_package("smoothify")
+        from smoothify import smoothify
+
+    if isinstance(vector_data, str):
+        vector_data = leafmap.read_vector(vector_data)
+
+    smoothed_vector_data = smoothify(
+        geom=vector_data,
+        segment_length=segment_length,
+        smooth_iterations=smooth_iterations,
+        num_cores=num_cores,
+        merge_collection=merge_collection,
+        merge_field=merge_field,
+        merge_multipolygons=merge_multipolygons,
+        preserve_area=preserve_area,
+        area_tolerance=area_tolerance,
+        **kwargs,
+    )
+    if output_path is not None:
+        smoothed_vector_data.to_file(output_path)
+    return smoothed_vector_data

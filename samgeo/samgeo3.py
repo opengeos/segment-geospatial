@@ -1075,6 +1075,7 @@ class SamGeo3:
         prompt: str,
         min_size: int = 0,
         max_size: Optional[int] = None,
+        quiet: bool = False,
         **kwargs: Any,
     ) -> List[Dict[str, Any]]:
         """
@@ -1086,6 +1087,7 @@ class SamGeo3:
                 will be filtered out. Defaults to 0.
             max_size (int, optional): Maximum mask size in pixels. Masks larger than
                 this will be filtered out. Defaults to None (no maximum).
+            quiet (bool): If True, suppress progress messages. Defaults to False.
 
         Returns:
             List[Dict[str, Any]]: A list of dictionaries containing the generated masks.
@@ -1140,12 +1142,438 @@ class SamGeo3:
             self._filter_masks_by_size(min_size, max_size)
 
         num_objects = len(self.masks)
-        if num_objects == 0:
-            print("No objects found. Please try a different prompt.")
-        elif num_objects == 1:
-            print("Found one object.")
+        if not quiet:
+            if num_objects == 0:
+                print("No objects found. Please try a different prompt.")
+            elif num_objects == 1:
+                print("Found one object.")
+            else:
+                print(f"Found {num_objects} objects.")
+
+    def generate_masks_tiled(
+        self,
+        source: str,
+        prompt: str,
+        output: str,
+        tile_size: int = 1024,
+        overlap: int = 128,
+        min_size: int = 0,
+        max_size: Optional[int] = None,
+        unique: bool = True,
+        dtype: str = "uint32",
+        bands: Optional[List[int]] = None,
+        batch_size: int = 1,
+        verbose: bool = True,
+        **kwargs: Any,
+    ) -> str:
+        """
+        Generate masks for large GeoTIFF images using a sliding window approach.
+
+        This method processes large images tile by tile to avoid GPU memory issues.
+        The tiles are processed with overlap to ensure seamless mask merging at
+        boundaries. Each detected object gets a unique ID that is consistent
+        across the entire image.
+
+        Args:
+            source (str): Path to the input GeoTIFF image.
+            prompt (str): The text prompt describing the objects to segment.
+            output (str): Path to the output GeoTIFF file.
+            tile_size (int): Size of each tile in pixels. Defaults to 1024.
+            overlap (int): Overlap between adjacent tiles in pixels. Defaults to 128.
+                Higher overlap helps with better boundary merging but increases
+                processing time.
+            min_size (int): Minimum mask size in pixels. Masks smaller than this
+                will be filtered out. Defaults to 0.
+            max_size (int, optional): Maximum mask size in pixels. Masks larger than
+                this will be filtered out. Defaults to None (no maximum).
+            unique (bool): If True, each mask gets a unique value. If False, binary
+                mask (0 or 1). Defaults to True.
+            dtype (str): Data type for the output array. Use 'uint32' for large
+                numbers of objects, 'uint16' for up to 65535 objects, or 'uint8'
+                for up to 255 objects. Defaults to 'uint32'.
+            bands (List[int], optional): List of band indices (1-based) to use for RGB
+                when the input has more than 3 bands. If None, uses first 3 bands.
+            batch_size (int): Number of tiles to process at once (future use).
+                Defaults to 1.
+            verbose (bool): Whether to print progress information. Defaults to True.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            str: Path to the output GeoTIFF file.
+
+        Example:
+            >>> sam = SamGeo3(backend="meta")
+            >>> sam.generate_masks_tiled(
+            ...     source="large_satellite_image.tif",
+            ...     prompt="building",
+            ...     output="buildings_mask.tif",
+            ...     tile_size=1024,
+            ...     overlap=128,
+            ... )
+        """
+        import rasterio
+        from rasterio.windows import Window
+
+        if not source.lower().endswith((".tif", ".tiff")):
+            raise ValueError("Source must be a GeoTIFF file for tiled processing.")
+
+        if not os.path.exists(source):
+            raise ValueError(f"Source file not found: {source}")
+
+        if tile_size <= overlap:
+            raise ValueError("tile_size must be greater than overlap")
+
+        # Open the source file to get metadata
+        with rasterio.open(source) as src:
+            img_height = src.height
+            img_width = src.width
+            profile = src.profile.copy()
+
+        if verbose:
+            print(f"Processing image: {img_width} x {img_height} pixels")
+            print(f"Tile size: {tile_size}, Overlap: {overlap}")
+
+        # Calculate the number of tiles
+        step = tile_size - overlap
+        n_tiles_x = max(1, (img_width - overlap + step - 1) // step)
+        n_tiles_y = max(1, (img_height - overlap + step - 1) // step)
+        total_tiles = n_tiles_x * n_tiles_y
+
+        if verbose:
+            print(f"Total tiles to process: {total_tiles} ({n_tiles_x} x {n_tiles_y})")
+
+        # Determine output dtype
+        if dtype == "uint8":
+            np_dtype = np.uint8
+            max_objects = 255
+        elif dtype == "uint16":
+            np_dtype = np.uint16
+            max_objects = 65535
+        elif dtype == "uint32":
+            np_dtype = np.uint32
+            max_objects = 4294967295
         else:
-            print(f"Found {num_objects} objects.")
+            np_dtype = np.uint32
+            max_objects = 4294967295
+
+        # Create output array in memory (for smaller images) or use memory-mapped file
+        # For very large images, you might want to use rasterio windowed writing
+        output_mask = np.zeros((img_height, img_width), dtype=np_dtype)
+
+        # Track unique object IDs across all tiles
+        current_max_id = 0
+        total_objects = 0
+
+        # Process each tile
+        tile_iterator = tqdm(
+            range(total_tiles),
+            desc="Processing tiles",
+            disable=not verbose,
+        )
+
+        for tile_idx in tile_iterator:
+            # Calculate tile position
+            tile_y = tile_idx // n_tiles_x
+            tile_x = tile_idx % n_tiles_x
+
+            # Calculate window coordinates
+            x_start = tile_x * step
+            y_start = tile_y * step
+
+            # Ensure we don't go beyond image bounds
+            x_end = min(x_start + tile_size, img_width)
+            y_end = min(y_start + tile_size, img_height)
+
+            # Adjust start if we're at the edge
+            if x_end - x_start < tile_size and x_start > 0:
+                x_start = max(0, x_end - tile_size)
+            if y_end - y_start < tile_size and y_start > 0:
+                y_start = max(0, y_end - tile_size)
+
+            window_width = x_end - x_start
+            window_height = y_end - y_start
+
+            # Read tile from source
+            with rasterio.open(source) as src:
+                window = Window(x_start, y_start, window_width, window_height)
+                if bands is not None:
+                    tile_data = np.stack(
+                        [src.read(b, window=window) for b in bands], axis=0
+                    )
+                else:
+                    tile_data = src.read(window=window)
+                    if tile_data.shape[0] >= 3:
+                        tile_data = tile_data[:3, :, :]
+                    elif tile_data.shape[0] == 1:
+                        tile_data = np.repeat(tile_data, 3, axis=0)
+                    elif tile_data.shape[0] == 2:
+                        tile_data = np.concatenate(
+                            [tile_data, tile_data[0:1, :, :]], axis=0
+                        )
+
+            # Transpose to (height, width, channels)
+            tile_data = np.transpose(tile_data, (1, 2, 0))
+
+            # Normalize to 8-bit
+            tile_data = tile_data.astype(np.float32)
+            tile_data -= tile_data.min()
+            if tile_data.max() > 0:
+                tile_data /= tile_data.max()
+            tile_data *= 255
+            tile_image = tile_data.astype(np.uint8)
+
+            # Process the tile
+            try:
+                # Set image for the tile
+                self.image = tile_image
+                self.image_height, self.image_width = tile_image.shape[:2]
+                self.source = None  # Don't need georef for individual tiles
+
+                # Initialize inference state for this tile
+                pil_image = Image.fromarray(tile_image)
+                self.pil_image = pil_image
+
+                if self.backend == "meta":
+                    self.inference_state = self.processor.set_image(pil_image)
+                else:
+                    # For transformers backend, process directly
+                    pass
+
+                # Generate masks for this tile (quiet=True to avoid per-tile messages)
+                self.generate_masks(
+                    prompt, min_size=min_size, max_size=max_size, quiet=True
+                )
+
+                # Get masks for this tile
+                tile_masks = self.masks
+
+                if tile_masks is not None and len(tile_masks) > 0:
+                    # Create a mask array for this tile
+                    tile_mask_array = np.zeros(
+                        (window_height, window_width), dtype=np_dtype
+                    )
+
+                    for mask in tile_masks:
+                        # Convert mask to numpy
+                        if hasattr(mask, "cpu"):
+                            mask_np = mask.squeeze().cpu().numpy()
+                        elif hasattr(mask, "numpy"):
+                            mask_np = mask.squeeze().numpy()
+                        else:
+                            mask_np = (
+                                mask.squeeze() if hasattr(mask, "squeeze") else mask
+                            )
+
+                        if mask_np.ndim > 2:
+                            mask_np = mask_np[0]
+
+                        # Resize mask to tile size if needed
+                        if mask_np.shape != (window_height, window_width):
+                            mask_np = cv2.resize(
+                                mask_np.astype(np.float32),
+                                (window_width, window_height),
+                                interpolation=cv2.INTER_NEAREST,
+                            )
+
+                        mask_bool = mask_np > 0
+                        mask_size = np.sum(mask_bool)
+
+                        # Filter by size
+                        if mask_size < min_size:
+                            continue
+                        if max_size is not None and mask_size > max_size:
+                            continue
+
+                        if unique:
+                            current_max_id += 1
+                            if current_max_id > max_objects:
+                                raise ValueError(
+                                    f"Maximum number of objects ({max_objects}) exceeded. "
+                                    "Consider using a larger dtype or reducing the number of objects."
+                                )
+                            tile_mask_array[mask_bool] = current_max_id
+                        else:
+                            tile_mask_array[mask_bool] = 1
+
+                        total_objects += 1
+
+                    # Merge tile mask into output mask
+                    # For overlapping regions, use the tile's values if they are non-zero
+                    # This simple approach works well for most cases
+                    self._merge_tile_mask(
+                        output_mask,
+                        tile_mask_array,
+                        x_start,
+                        y_start,
+                        x_end,
+                        y_end,
+                        overlap,
+                        tile_x,
+                        tile_y,
+                        n_tiles_x,
+                        n_tiles_y,
+                    )
+
+            except Exception as e:
+                if verbose:
+                    print(f"Warning: Failed to process tile ({tile_x}, {tile_y}): {e}")
+                continue
+
+            # Clear GPU memory
+            self.masks = None
+            self.boxes = None
+            self.scores = None
+            if hasattr(self, "inference_state"):
+                self.inference_state = None
+            # Additionally clear PyTorch CUDA cache, if available, to free GPU memory
+            try:
+                import torch
+
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except ImportError:
+                # If torch is not installed, skip CUDA cache clearing
+                pass
+        # Update output profile
+        profile.update(
+            {
+                "count": 1,
+                "dtype": dtype,
+                "compress": "deflate",
+            }
+        )
+
+        # Save the output
+        with rasterio.open(output, "w", **profile) as dst:
+            dst.write(output_mask, 1)
+
+        if verbose:
+            print(f"Saved mask to {output}")
+            print(f"Total objects found: {total_objects}")
+
+        # Store result for potential visualization
+        self.objects = output_mask
+        self.source = source
+
+        return output
+
+    def _merge_tile_mask(
+        self,
+        output_mask: np.ndarray,
+        tile_mask: np.ndarray,
+        x_start: int,
+        y_start: int,
+        x_end: int,
+        y_end: int,
+        overlap: int,
+        tile_x: int,
+        tile_y: int,
+        n_tiles_x: int,
+        n_tiles_y: int,
+    ) -> None:
+        """
+        Merge a tile mask into the output mask, handling overlapping regions.
+
+        For overlapping regions, this uses a blending approach where we prioritize
+        the current tile's mask in the non-overlapping core region, and for the
+        overlap region, we keep existing values unless they are zero.
+
+        Args:
+            output_mask: The full output mask array.
+            tile_mask: The mask from the current tile.
+            x_start, y_start: Start coordinates of the tile in the output.
+            x_end, y_end: End coordinates of the tile in the output.
+            overlap: The overlap size.
+            tile_x, tile_y: Tile indices.
+            n_tiles_x, n_tiles_y: Total number of tiles in each direction.
+        """
+        tile_height = y_end - y_start
+        tile_width = x_end - x_start
+
+        # Calculate the core region (non-overlapping part)
+        # The overlap should be split between adjacent tiles
+        left_overlap = overlap // 2 if tile_x > 0 else 0
+        right_overlap = overlap // 2 if tile_x < n_tiles_x - 1 else 0
+        top_overlap = overlap // 2 if tile_y > 0 else 0
+        bottom_overlap = overlap // 2 if tile_y < n_tiles_y - 1 else 0
+
+        # Core region in tile coordinates
+        core_x_start = left_overlap
+        core_x_end = tile_width - right_overlap
+        core_y_start = top_overlap
+        core_y_end = tile_height - bottom_overlap
+
+        # Copy core region (always overwrite)
+        out_y_start = y_start + core_y_start
+        out_y_end = y_start + core_y_end
+        out_x_start = x_start + core_x_start
+        out_x_end = x_start + core_x_end
+
+        output_mask[out_y_start:out_y_end, out_x_start:out_x_end] = tile_mask[
+            core_y_start:core_y_end, core_x_start:core_x_end
+        ]
+
+        # Handle overlap regions - only update if output is zero
+        # Top overlap
+        if top_overlap > 0:
+            region = output_mask[y_start : y_start + top_overlap, out_x_start:out_x_end]
+            tile_region = tile_mask[0:top_overlap, core_x_start:core_x_end]
+            mask = region == 0
+            region[mask] = tile_region[mask]
+
+        # Bottom overlap
+        if bottom_overlap > 0:
+            region = output_mask[out_y_end:y_end, out_x_start:out_x_end]
+            tile_region = tile_mask[core_y_end:tile_height, core_x_start:core_x_end]
+            mask = region == 0
+            region[mask] = tile_region[mask]
+
+        # Left overlap
+        if left_overlap > 0:
+            region = output_mask[
+                out_y_start:out_y_end, x_start : x_start + left_overlap
+            ]
+            tile_region = tile_mask[core_y_start:core_y_end, 0:left_overlap]
+            mask = region == 0
+            region[mask] = tile_region[mask]
+
+        # Right overlap
+        if right_overlap > 0:
+            region = output_mask[out_y_start:out_y_end, out_x_end:x_end]
+            tile_region = tile_mask[core_y_start:core_y_end, core_x_end:tile_width]
+            mask = region == 0
+            region[mask] = tile_region[mask]
+
+        # Corner overlaps
+        # Top-left
+        if top_overlap > 0 and left_overlap > 0:
+            region = output_mask[
+                y_start : y_start + top_overlap, x_start : x_start + left_overlap
+            ]
+            tile_region = tile_mask[0:top_overlap, 0:left_overlap]
+            mask = region == 0
+            region[mask] = tile_region[mask]
+
+        # Top-right
+        if top_overlap > 0 and right_overlap > 0:
+            region = output_mask[y_start : y_start + top_overlap, out_x_end:x_end]
+            tile_region = tile_mask[0:top_overlap, core_x_end:tile_width]
+            mask = region == 0
+            region[mask] = tile_region[mask]
+
+        # Bottom-left
+        if bottom_overlap > 0 and left_overlap > 0:
+            region = output_mask[out_y_end:y_end, x_start : x_start + left_overlap]
+            tile_region = tile_mask[core_y_end:tile_height, 0:left_overlap]
+            mask = region == 0
+            region[mask] = tile_region[mask]
+
+        # Bottom-right
+        if bottom_overlap > 0 and right_overlap > 0:
+            region = output_mask[out_y_end:y_end, out_x_end:x_end]
+            tile_region = tile_mask[core_y_end:tile_height, core_x_end:tile_width]
+            mask = region == 0
+            region[mask] = tile_region[mask]
 
     def generate_masks_by_boxes(
         self,
@@ -2294,7 +2722,9 @@ class SamGeo3:
         # Use the same color generation as the original method for consistency
         COLORS = generate_colors(n_colors=128, n_samples=5000)
         # Convert from 0-1 float RGB to 0-255 int RGB for OpenCV
-        colors_rgb = [(int(c[0] * 255), int(c[1] * 255), int(c[2] * 255)) for c in COLORS]
+        colors_rgb = [
+            (int(c[0] * 255), int(c[1] * 255), int(c[2] * 255)) for c in COLORS
+        ]
 
         # Create overlay for all masks
         overlay = np.zeros((h, w, 3), dtype=np.float32)
