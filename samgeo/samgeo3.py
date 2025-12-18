@@ -1228,7 +1228,6 @@ class SamGeo3:
             img_height = src.height
             img_width = src.width
             profile = src.profile.copy()
-            src_transform = src.transform
 
         if verbose:
             print(f"Processing image: {img_width} x {img_height} pixels")
