@@ -1427,7 +1427,15 @@ class SamGeo3:
             self.scores = None
             if hasattr(self, "inference_state"):
                 self.inference_state = None
+            # Additionally clear PyTorch CUDA cache, if available, to free GPU memory
+            try:
+                import torch
 
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except ImportError:
+                # If torch is not installed, skip CUDA cache clearing
+                pass
         # Update output profile
         profile.update(
             {
