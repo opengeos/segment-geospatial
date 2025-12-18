@@ -1228,7 +1228,6 @@ class SamGeo3:
             img_height = src.height
             img_width = src.width
             profile = src.profile.copy()
-            src_crs = src.crs
             src_transform = src.transform
 
         if verbose:
