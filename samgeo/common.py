@@ -4198,8 +4198,11 @@ def print_raster_info(
                     plt.colorbar(label="Pixel Value")
                 plt.show()
 
+        return info
+
     except Exception as e:
         print(f"Error reading raster: {str(e)}")
+        return None
 
 
 def smooth_vector(
