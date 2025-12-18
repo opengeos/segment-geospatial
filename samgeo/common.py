@@ -4237,9 +4237,9 @@ def smooth_vector(
         gpd.GeoDataFrame: The smoothed vector data.
 
     Examples:
-        >>> import geoai
-        >>> gdf = geoai.read_vector("path/to/vector.geojson")
-        >>> smoothed_gdf = geoai.smooth_vector(gdf, smooth_iterations=3, output_path="path/to/smoothed_vector.geojson")
+        >>> from samgeo import common
+        >>> gdf = common.read_vector("path/to/vector.geojson")
+        >>> smoothed_gdf = common.smooth_vector(gdf, smooth_iterations=3, output_path="path/to/smoothed_vector.geojson")
         >>> smoothed_gdf.head()
         >>> smoothed_gdf.explore()
     """
