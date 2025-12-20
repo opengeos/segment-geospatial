@@ -78,7 +78,7 @@ samgeo3 = [
     "localtileserver",
     "psutil; platform_system == 'Windows'",
     "spacy",
-    "tokenizers",
+    "tokenizers==0.22.1",
     "triton; platform_system == 'Linux'",
     "triton-windows; platform_system == 'Windows'",
     "transformers",
