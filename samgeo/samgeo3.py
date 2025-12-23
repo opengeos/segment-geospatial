@@ -200,6 +200,15 @@ class SamGeo3:
                 url = "https://huggingface.co/datasets/giswqs/geospatial/resolve/main/bpe_simple_vocab_16e6.txt.gz"
                 bpe_path = common.download_file(url, bpe_path, quiet=True)
 
+        if os.environ.get("SAM3_CHECKPOINT_PATH") is not None:
+            checkpoint_path = os.environ.get("SAM3_CHECKPOINT_PATH")
+            load_from_HF = False
+
+        if checkpoint_path is not None:
+            if not os.path.exists(checkpoint_path):
+                raise ValueError(f"Checkpoint path {checkpoint_path} does not exist.")
+            load_from_HF = False
+
         model = build_sam3_image_model(
             bpe_path=bpe_path,
             device=device,
