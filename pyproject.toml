@@ -69,7 +69,7 @@ samgeo2 = [
 ]
 samgeo3 = [
     "segment_geospatial[core]",
-    "sam3",
+    "sam3>=0.1.2",
     "scikit-learn",
     "scikit-image",
     "transformers",
