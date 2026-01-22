@@ -1275,169 +1275,202 @@ class SamGeo3:
 
         # Process each tile
         tile_iterator = tqdm(
-            range(total_tiles),
+            range(0, total_tiles, batch_size),
             desc="Processing tiles",
             disable=not verbose,
         )
+        # batch here?
+        for start_idx in tile_iterator:
+            #
+            end_idx = min(start_idx+batch_size, total_objects)
+            current_batch = range(start_idx, end_idx)
+            #
+            batch_images = []
+            batch_coords = []
+            #
+            for tile_idx in current_batch:
+                # Calculate tile position
+                tile_y = tile_idx // n_tiles_x
+                tile_x = tile_idx % n_tiles_x
 
-        for tile_idx in tile_iterator:
-            # Calculate tile position
-            tile_y = tile_idx // n_tiles_x
-            tile_x = tile_idx % n_tiles_x
+                # Calculate window coordinates
+                x_start = tile_x * step
+                y_start = tile_y * step
 
-            # Calculate window coordinates
-            x_start = tile_x * step
-            y_start = tile_y * step
+                # Ensure we don't go beyond image bounds
+                x_end = min(x_start + tile_size, img_width)
+                y_end = min(y_start + tile_size, img_height)
 
-            # Ensure we don't go beyond image bounds
-            x_end = min(x_start + tile_size, img_width)
-            y_end = min(y_start + tile_size, img_height)
+                # Adjust start if we're at the edge
+                if x_end - x_start < tile_size and x_start > 0:
+                    x_start = max(0, x_end - tile_size)
+                if y_end - y_start < tile_size and y_start > 0:
+                    y_start = max(0, y_end - tile_size)
 
-            # Adjust start if we're at the edge
-            if x_end - x_start < tile_size and x_start > 0:
-                x_start = max(0, x_end - tile_size)
-            if y_end - y_start < tile_size and y_start > 0:
-                y_start = max(0, y_end - tile_size)
+                window_width = x_end - x_start
+                window_height = y_end - y_start
 
-            window_width = x_end - x_start
-            window_height = y_end - y_start
-
-            # Read tile from source
-            with rasterio.open(source) as src:
-                window = Window(x_start, y_start, window_width, window_height)
-                if bands is not None:
-                    tile_data = np.stack(
-                        [src.read(b, window=window) for b in bands], axis=0
-                    )
-                else:
-                    tile_data = src.read(window=window)
-                    if tile_data.shape[0] >= 3:
-                        tile_data = tile_data[:3, :, :]
-                    elif tile_data.shape[0] == 1:
-                        tile_data = np.repeat(tile_data, 3, axis=0)
-                    elif tile_data.shape[0] == 2:
-                        tile_data = np.concatenate(
-                            [tile_data, tile_data[0:1, :, :]], axis=0
-                        )
-
-            # Transpose to (height, width, channels)
-            tile_data = np.transpose(tile_data, (1, 2, 0))
-
-            # Normalize to 8-bit
-            tile_data = tile_data.astype(np.float32)
-            tile_data -= tile_data.min()
-            if tile_data.max() > 0:
-                tile_data /= tile_data.max()
-            tile_data *= 255
-            tile_image = tile_data.astype(np.uint8)
-
-            # Process the tile
-            try:
-                # Set image for the tile
-                self.image = tile_image
-                self.image_height, self.image_width = tile_image.shape[:2]
-                self.source = None  # Don't need georef for individual tiles
-
-                # Initialize inference state for this tile
-                pil_image = Image.fromarray(tile_image)
-                self.pil_image = pil_image
-
-                if self.backend == "meta":
-                    self.inference_state = self.processor.set_image(pil_image)
-                else:
-                    # For transformers backend, process directly
-                    pass
-
-                # Generate masks for this tile (quiet=True to avoid per-tile messages)
-                self.generate_masks(
-                    prompt, min_size=min_size, max_size=max_size, quiet=True
-                )
-
-                # Get masks for this tile
-                tile_masks = self.masks
-
-                if tile_masks is not None and len(tile_masks) > 0:
-                    # Create a mask array for this tile
-                    tile_mask_array = np.zeros(
-                        (window_height, window_width), dtype=np_dtype
-                    )
-
-                    for mask in tile_masks:
-                        # Convert mask to numpy
-                        if hasattr(mask, "cpu"):
-                            mask_np = mask.squeeze().cpu().numpy()
-                        elif hasattr(mask, "numpy"):
-                            mask_np = mask.squeeze().numpy()
+                # Read tile from source
+                try:
+                    with rasterio.open(source) as src:
+                        window = Window(x_start, y_start, window_width, window_height)
+                        if bands is not None:
+                            tile_data = np.stack(
+                                [src.read(b, window=window) for b in bands], axis=0
+                            )
                         else:
-                            mask_np = (
-                                mask.squeeze() if hasattr(mask, "squeeze") else mask
-                            )
-
-                        if mask_np.ndim > 2:
-                            mask_np = mask_np[0]
-
-                        # Resize mask to tile size if needed
-                        if mask_np.shape != (window_height, window_width):
-                            mask_np = cv2.resize(
-                                mask_np.astype(np.float32),
-                                (window_width, window_height),
-                                interpolation=cv2.INTER_NEAREST,
-                            )
-
-                        mask_bool = mask_np > 0
-                        mask_size = np.sum(mask_bool)
-
-                        # Filter by size
-                        if mask_size < min_size:
-                            continue
-                        if max_size is not None and mask_size > max_size:
-                            continue
-
-                        if unique:
-                            current_max_id += 1
-                            if current_max_id > max_objects:
-                                raise ValueError(
-                                    f"Maximum number of objects ({max_objects}) exceeded. "
-                                    "Consider using a larger dtype or reducing the number of objects."
+                            tile_data = src.read(window=window)
+                            if tile_data.shape[0] >= 3:
+                                tile_data = tile_data[:3, :, :]
+                            elif tile_data.shape[0] == 1:
+                                tile_data = np.repeat(tile_data, 3, axis=0)
+                            elif tile_data.shape[0] == 2:
+                                tile_data = np.concatenate(
+                                    [tile_data, tile_data[0:1, :, :]], axis=0
                                 )
-                            tile_mask_array[mask_bool] = current_max_id
-                        else:
-                            tile_mask_array[mask_bool] = 1
 
-                        total_objects += 1
+                    # Transpose to (height, width, channels)
+                    tile_data = np.transpose(tile_data, (1, 2, 0))
 
-                    # Merge tile mask into output mask
-                    # For overlapping regions, use the tile's values if they are non-zero
-                    # This simple approach works well for most cases
-                    self._merge_tile_mask(
-                        output_mask,
-                        tile_mask_array,
-                        x_start,
-                        y_start,
-                        x_end,
-                        y_end,
-                        overlap,
-                        tile_x,
-                        tile_y,
-                        n_tiles_x,
-                        n_tiles_y,
+                    # Normalize to 8-bit
+                    tile_data = tile_data.astype(np.float32)
+                    tile_data -= tile_data.min()
+                    if tile_data.max() > 0:
+                        tile_data /= tile_data.max()
+                    tile_data *= 255
+                    tile_image = tile_data.astype(np.uint8)
+
+                    # # Process the tile
+                    # self.image = tile_image
+                    # self.image_height, self.image_width = tile_image.shape[:2]
+                    # self.source = None  # Don't need georef for individual tiles
+
+                    # Initialize inference state for this tile
+                    pil_image = Image.fromarray(tile_image)
+
+                    #
+                    batch_images.append(pil_image)
+                    batch_coords.append((x_start, y_start, x_end, y_end, tile_x, tile_y, window_width, window_height))
+                except Exception as e:
+                    if verbose:
+                        print(f"Warning: Failed to read tile ({tile_x}, {tile_y}): {e}")
+                    continue
+
+            if len(batch_images) > 0:
+                try:
+                    self.set_image_batch(batch_images)
+
+                    batch_results = self.generate_masks_batch(
+                        prompt,
+                        min_size=min_size,
+                        max_size=max_size,
                     )
 
-            except Exception as e:
-                if verbose:
-                    print(f"Warning: Failed to process tile ({tile_x}, {tile_y}): {e}")
-                continue
+                    for i, result in enumerate(batch_results):
+                        x_start, y_start, x_end, y_end, tile_x, tile_y, w, h = batch_coords[i]
+
+                        tile_masks = result.get('masks', [])
+
+                        if len(tile_masks) > 0:
+                            tile_mask_array = np.zeros((h,w), dtype=np_dtype)
+                    # self.pil_image = pil_image
+
+                    # if self.backend == "meta":
+                    #     self.inference_state = self.processor.set_image(pil_image)
+                    # else:
+                    #     # For transformers backend, process directly
+                    #     pass
+
+                    # Generate masks for this tile (quiet=True to avoid per-tile messages)
+                    # self.generate_masks(
+                    #     prompt, min_size=min_size, max_size=max_size, quiet=True
+                    # )
+
+                    # Get masks for this tile
+                    # tile_masks = self.masks
+
+                    # if tile_masks is not None and len(tile_masks) > 0:
+                    #     # Create a mask array for this tile
+                    #     tile_mask_array = np.zeros(
+                    #         (window_height, window_width), dtype=np_dtype
+                    #     )
+
+                            for mask_np in tile_masks:
+                                # Convert mask to numpy
+                                if hasattr(mask_np, "cpu"):
+                                    mask_np = mask_np.cpu().numpy()
+                                elif hasattr(mask_np, "numpy"):
+                                    mask_np = mask_np.numpy()
+                                
+                                if mask_np.ndim > 2:
+                                    mask_np = mask_np[0]
+
+                                # Resize mask to tile size if needed
+                                if mask_np.shape != (h, w):
+                                    mask_np = cv2.resize(
+                                        mask_np.astype(np.float32), 
+                                        (w, h),
+                                        interpolation=cv2.INTER_NEAREST,
+                                    )
+
+                                mask_bool = mask_np > 0
+                                mask_size = np.sum(mask_bool)
+
+                                # Filter by size
+                                if mask_size < min_size:
+                                    continue
+                                if max_size is not None and mask_size > max_size:
+                                    continue
+
+                                if unique:
+                                    current_max_id += 1
+                                    if current_max_id > max_objects:
+                                        raise ValueError(
+                                            f"Maximum number of objects ({max_objects}) exceeded. "
+                                            "Consider using a larger dtype or reducing the number of objects."
+                                        )
+                                    tile_mask_array[mask_bool] = current_max_id
+                                else:
+                                    tile_mask_array[mask_bool] = 1
+
+                                total_objects += 1
+
+                            # Merge tile mask into output mask
+                            # For overlapping regions, use the tile's values if they are non-zero
+                            # This simple approach works well for most cases
+                            self._merge_tile_mask(
+                                output_mask,
+                                tile_mask_array,
+                                x_start,
+                                y_start,
+                                x_end,
+                                y_end,
+                                overlap,
+                                tile_x,
+                                tile_y,
+                                n_tiles_x,
+                                n_tiles_y,
+                            )
+
+                except Exception as e:
+                    if verbose:
+                        print(f"Warning: Failed to process tile ({tile_x}, {tile_y}): {e}")
+                    continue
 
             # Clear GPU memory
-            self.masks = None
-            self.boxes = None
-            self.scores = None
+            # self.masks = None
+            # self.boxes = None
+            # self.scores = None
+            self.batch_results = None
+            self.batch_state = None
+            self.images_batch = None
+            self.sources_batch = None
+            
             if hasattr(self, "inference_state"):
                 self.inference_state = None
             # Additionally clear PyTorch CUDA cache, if available, to free GPU memory
             try:
                 import torch
-
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
             except ImportError:
