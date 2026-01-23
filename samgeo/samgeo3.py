@@ -418,12 +418,7 @@ class SamGeo3:
         self.images_batch = numpy_images
         self.sources_batch = sources
         #
-        try:
-            patch_size = self.processor.model.backbone.vision_backbone.trunk.patch_embed.proj.kernel_size[0]
-        except AttributeError:
-            patch_size = 14 # Fallback for SAM3
-        #
-        target_size = (1024 // patch_size) * patch_size
+        target_size = 1008
         #
         pixel_mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
         pixel_std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
@@ -444,9 +439,10 @@ class SamGeo3:
         batch_tensor = torch.stack(tensor_list).to(self.device)
         #
         with torch.no_grad():
-            breakpoint()
-            backbone_out = self.processor.model.backbone.vision_backbone(batch_tensor)
-            breakpoint()
+            # breakpoint()
+            _dummy_captions = [""] * len(self.images_batch)
+            backbone_out = self.processor.model.backbone(batch_tensor, captions=_dummy_captions)
+            # breakpoint()
         #
         self.batch_state = {
             'backbone_out': backbone_out,
@@ -1413,9 +1409,9 @@ class SamGeo3:
 
             if len(batch_images) > 0:
                 try:
-                    breakpoint()
+                    # breakpoint()
                     self.set_image_batch(batch_images)
-                    breakpoint()
+                    # breakpoint()
                     self.generate_masks_batch(
                         prompt,
                         min_size=min_size,
