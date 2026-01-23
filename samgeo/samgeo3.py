@@ -367,6 +367,10 @@ class SamGeo3:
             >>> sam.set_image_batch(["image1.jpg", "image2.jpg", "image3.jpg"])
             >>> results = sam.generate_masks_batch("tree")
         """
+        import torch
+        import numpy as np
+        from PIL import Image
+
         if self.backend != "meta":
             raise NotImplementedError(
                 "Batch image processing is only available for the Meta backend. "
@@ -413,11 +417,42 @@ class SamGeo3:
         # Store batch information
         self.images_batch = numpy_images
         self.sources_batch = sources
-
-        # Call the processor's set_image_batch method
-        self.batch_state = self.processor.set_image_batch(pil_images, state=state)
-
-        print(f"Set {len(pil_images)} images for batch processing.")
+        #
+        try:
+            patch_size = self.processor.model.backbone.vision_backbone.trunk.patch_embed.proj.kernel_size[0]
+        except AttributeError:
+            patch_size = 14 # Fallback for SAM3
+        #
+        target_size = (1024 // patch_size) * patch_size
+        #
+        pixel_mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+        pixel_std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+        #
+        tensor_list = []
+        #
+        for img in self.images_batch:
+            if img.shape[:2] != (target_size, target_size):
+                img = cv2.resize(img, (target_size, target_size))
+            #
+            img = img.astype(np.float32) / 255.0
+            img = (img - pixel_mean) / pixel_std
+            #
+            img = img.transpose(2,0,1)
+            #
+            tensor_list.append(torch.from_numpy(img))
+        #
+        batch_tensor = torch.stack(tensor_list).to(self.device)
+        #
+        with torch.no_grad():
+            breakpoint()
+            backbone_out = self.processor.model.backbone.vision_backbone(batch_tensor)
+            breakpoint()
+        #
+        self.batch_state = {
+            'backbone_out': backbone_out,
+            'original_heights': [img.shape[0] for img in self.images_batch],
+            'original_widths': [img.shape[1] for img in self.images_batch],
+        }
 
     def generate_masks_batch(
         self,
@@ -464,46 +499,65 @@ class SamGeo3:
         backbone_out = self.batch_state.get("backbone_out", {})
 
         for i in range(num_images):
+            #
+            current_image_np = self.images_batch[i]
+            #
+            if isinstance(current_image_np, Image.Image):
+                current_image_pil = current_image_np
+                current_image_np = np.array(current_image_np)
+            else:
+                current_image_pil = Image.fromarray(current_image_np)
+                #
+            self.image = current_image_np
+            #
+            image_backbone_out = self._extract_image_backbone_features(backbone_out, i)
+            #
+            h = self.batch_state["original_heights"][i]
+            w = self.batch_state["original_widths"][i]
             # Create a per-image state with the correct singular keys
             image_state = {
-                "original_height": self.batch_state["original_heights"][i],
-                "original_width": self.batch_state["original_widths"][i],
+                "original_height": h,
+                "original_width": w,
+                "original_size": (h, w),
+                "image": current_image_pil,
+                "backbone_out": image_backbone_out,
             }
-
-            # Extract backbone features for this specific image
-            # The backbone_out contains batched features, we need to slice them
-            image_backbone_out = self._extract_image_backbone_features(backbone_out, i)
-            image_state["backbone_out"] = image_backbone_out
-
             # Reset prompts and set text prompt for this image
-            self.processor.reset_all_prompts(image_state)
-            output = self.processor.set_text_prompt(state=image_state, prompt=prompt)
-
-            # Build result for this image
-            result = {
-                "masks": output.get("masks", []),
-                "boxes": output.get("boxes", []),
-                "scores": output.get("scores", []),
-                "image": self.images_batch[i],
-                "source": self.sources_batch[i],
-            }
-
+            try:
+                self.processor.reset_all_prompts(image_state)
+                # breakpoint()
+                output = self.processor.set_text_prompt(
+                    state=image_state, 
+                    prompt=prompt,
+                    )
+                # breakpoint()
+                # Build result for this image
+                result = {
+                    "masks": output.get("masks", []),
+                    "boxes": output.get("boxes", []),
+                    "scores": output.get("scores", []),
+                    "image": current_image_np, #self.images_batch[i],
+                    "source": self.sources_batch[i],
+                }
+            except Exception as e:
+                print(f"Error processing batch item {i}: {e}")
+                # breakpoint()
+                result = {"masks": [], "boxes": [], "scores": [], "image": None, "source": None}
             # Convert tensors to numpy
             result = self._convert_batch_result_to_numpy(result)
-
             # Filter by size if needed
             if min_size > 0 or max_size is not None:
                 result = self._filter_batch_result_by_size(result, min_size, max_size)
-
+            
             batch_results.append(result)
-
+            
         self.batch_results = batch_results
 
         # Print summary
-        total_objects = sum(len(r.get("masks", [])) for r in batch_results)
-        print(
-            f"Processed {num_images} image(s), found {total_objects} total object(s)."
-        )
+        # total_objects = sum(len(r.get("masks", [])) for r in batch_results)
+        # print(
+        #     f"Processed {num_images} image(s), found {total_objects} total object(s)."
+        # )
 
     def _extract_image_backbone_features(
         self, backbone_out: Dict[str, Any], image_index: int
@@ -715,7 +769,8 @@ class SamGeo3:
         Returns:
             Filtered result dictionary.
         """
-        if not result.get("masks"):
+        masks = result["masks"]
+        if masks is None or len(masks) == 0:
             return result
 
         filtered_masks = []
@@ -1279,10 +1334,10 @@ class SamGeo3:
             desc="Processing tiles",
             disable=not verbose,
         )
-        # batch here?
+        #
         for start_idx in tile_iterator:
             #
-            end_idx = min(start_idx+batch_size, total_objects)
+            end_idx = min(start_idx+batch_size, total_tiles)
             current_batch = range(start_idx, end_idx)
             #
             batch_images = []
@@ -1358,53 +1413,36 @@ class SamGeo3:
 
             if len(batch_images) > 0:
                 try:
+                    breakpoint()
                     self.set_image_batch(batch_images)
-
-                    batch_results = self.generate_masks_batch(
+                    breakpoint()
+                    self.generate_masks_batch(
                         prompt,
                         min_size=min_size,
                         max_size=max_size,
                     )
 
-                    for i, result in enumerate(batch_results):
+                    for i, result in enumerate(self.batch_results):
+                        #
                         x_start, y_start, x_end, y_end, tile_x, tile_y, w, h = batch_coords[i]
-
+                        #
                         tile_masks = result.get('masks', [])
-
+                        #
+                        # breakpoint()
                         if len(tile_masks) > 0:
                             tile_mask_array = np.zeros((h,w), dtype=np_dtype)
-                    # self.pil_image = pil_image
-
-                    # if self.backend == "meta":
-                    #     self.inference_state = self.processor.set_image(pil_image)
-                    # else:
-                    #     # For transformers backend, process directly
-                    #     pass
-
-                    # Generate masks for this tile (quiet=True to avoid per-tile messages)
-                    # self.generate_masks(
-                    #     prompt, min_size=min_size, max_size=max_size, quiet=True
-                    # )
-
-                    # Get masks for this tile
-                    # tile_masks = self.masks
-
-                    # if tile_masks is not None and len(tile_masks) > 0:
-                    #     # Create a mask array for this tile
-                    #     tile_mask_array = np.zeros(
-                    #         (window_height, window_width), dtype=np_dtype
-                    #     )
-
-                            for mask_np in tile_masks:
+                            #
+                            # breakpoint()
+                            for mask_np in tile_masks: # results from tile_masks are already boolean numpy arrays
                                 # Convert mask to numpy
                                 if hasattr(mask_np, "cpu"):
                                     mask_np = mask_np.cpu().numpy()
                                 elif hasattr(mask_np, "numpy"):
                                     mask_np = mask_np.numpy()
-                                
+                                # breakpoint()
                                 if mask_np.ndim > 2:
                                     mask_np = mask_np[0]
-
+                                # breakpoint()
                                 # Resize mask to tile size if needed
                                 if mask_np.shape != (h, w):
                                     mask_np = cv2.resize(
@@ -1412,16 +1450,16 @@ class SamGeo3:
                                         (w, h),
                                         interpolation=cv2.INTER_NEAREST,
                                     )
-
+                                # breakpoint()
                                 mask_bool = mask_np > 0
                                 mask_size = np.sum(mask_bool)
-
+                                # breakpoint()
                                 # Filter by size
                                 if mask_size < min_size:
                                     continue
                                 if max_size is not None and mask_size > max_size:
                                     continue
-
+                                # breakpoint()
                                 if unique:
                                     current_max_id += 1
                                     if current_max_id > max_objects:
@@ -1429,8 +1467,10 @@ class SamGeo3:
                                             f"Maximum number of objects ({max_objects}) exceeded. "
                                             "Consider using a larger dtype or reducing the number of objects."
                                         )
+                                    # breakpoint()
                                     tile_mask_array[mask_bool] = current_max_id
                                 else:
+                                    # breakpoint()
                                     tile_mask_array[mask_bool] = 1
 
                                 total_objects += 1
@@ -1438,6 +1478,7 @@ class SamGeo3:
                             # Merge tile mask into output mask
                             # For overlapping regions, use the tile's values if they are non-zero
                             # This simple approach works well for most cases
+                            # breakpoint()
                             self._merge_tile_mask(
                                 output_mask,
                                 tile_mask_array,
@@ -1453,6 +1494,7 @@ class SamGeo3:
                             )
 
                 except Exception as e:
+                    # breakpoint()
                     if verbose:
                         print(f"Warning: Failed to process tile ({tile_x}, {tile_y}): {e}")
                     continue
@@ -1461,10 +1503,10 @@ class SamGeo3:
             # self.masks = None
             # self.boxes = None
             # self.scores = None
-            self.batch_results = None
+            # self.batch_results = None
             self.batch_state = None
-            self.images_batch = None
-            self.sources_batch = None
+            # self.images_batch = None
+            # self.sources_batch = None
             
             if hasattr(self, "inference_state"):
                 self.inference_state = None
