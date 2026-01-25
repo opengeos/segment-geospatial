@@ -159,7 +159,7 @@ After authentication, you can download the SAM 3 model from Hugging Face:
 pixi run hf download facebook/sam3
 ```
 
-**Important Note**: SAM 3 currently requires a NVIDIA GPU with CUDA support. You won't be able to use SAM 3 if you have a CPU only system ([source](https://github.com/facebookresearch/sam3/issues/164)). You will get an error message like this: `Failed to load model: Torch not compiled with CUDA enabled`.
+**Important Note**: SAM 3 currently requires an NVIDIA GPU with CUDA support. You won't be able to use SAM 3 if you have a CPU only system ([source](https://github.com/facebookresearch/sam3/issues/164)). You will get an error message like this: `Failed to load model: Torch not compiled with CUDA enabled`.
 
 ---
 
