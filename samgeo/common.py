@@ -342,7 +342,7 @@ def reproject(
 
     # Check if input and output are the same file (in-place reprojection)
     in_place = os.path.normpath(image) == os.path.normpath(output)
-    
+
     # If in-place, use a temporary file to avoid file locking issues on Windows
     if in_place:
         temp_output = temp_file_path(".tif")
