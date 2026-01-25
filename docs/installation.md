@@ -49,7 +49,7 @@ cd geo
 
 Open `pixi.toml` in the `geo` directory and replace its contents with the following depending on your system.
 
-If you have a NVIDIA GPU with CUDA, run `nvidia-smi` to check the CUDA version.
+If you have an NVIDIA GPU with CUDA, run `nvidia-smi` to check the CUDA version.
 
 #### For GPU with CUDA 12.x:
 
