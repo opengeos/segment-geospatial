@@ -3534,9 +3534,22 @@ def images_to_video(
         height, width, _ = frame.shape
         video_size = (width, height)
 
-    # TODO: This video codec is giving me some problems, not sure if it's the correct one
-    fourcc = cv2.VideoWriter_fourcc(*"avc1")  # Define the codec for mp4
-    video_writer = cv2.VideoWriter(output_video, fourcc, fps, video_size)
+    # Try different codecs for compatibility across platforms
+    codecs = ["avc1", "mp4v", "XVID"]
+    video_writer = None
+    
+    for codec in codecs:
+        fourcc = cv2.VideoWriter_fourcc(*codec)
+        video_writer = cv2.VideoWriter(output_video, fourcc, fps, video_size)
+        if video_writer.isOpened():
+            break
+        video_writer.release()
+    
+    if not video_writer or not video_writer.isOpened():
+        raise RuntimeError(
+            f"Failed to initialize video writer for {output_video}. "
+            "Please ensure you have the necessary codecs installed."
+        )
 
     for image_path in images:
         frame = cv2.imread(image_path)
@@ -3550,6 +3563,21 @@ def images_to_video(
         video_writer.write(frame)
 
     video_writer.release()
+    
+    # Verify the video file was created
+    if not os.path.exists(output_video):
+        raise RuntimeError(
+            f"Failed to create video file {output_video}. "
+            "The video writer completed but the file was not saved to disk."
+        )
+    
+    # Verify the file has content
+    if os.path.getsize(output_video) == 0:
+        raise RuntimeError(
+            f"Video file {output_video} was created but is empty. "
+            "This may indicate a codec problem."
+        )
+    
     print(f"Video saved as {output_video}")
 
 
