@@ -47,6 +47,31 @@ SamGeo is also available as a [QGIS plugin](https://github.com/opengeos/qgis-sam
 
 ## Installation
 
+### Install with pixi (Recommended)
+
+For the most reliable installation experience, especially on Windows or when dealing with complex dependencies like PyTorch/CUDA and SAM 3, we recommend using [pixi](https://pixi.prefix.dev/latest). Pixi provides faster and more reliable dependency resolution than conda/mamba and avoids common numpy version conflicts. See the [full pixi installation guide](https://samgeo.gishub.org/installation/#install-with-pixi-recommended) for detailed instructions.
+
+Quick start with pixi:
+
+```bash
+# Install pixi (Linux/macOS)
+curl -fsSL https://pixi.sh/install.sh | sh
+
+# Or on Windows (PowerShell)
+powershell -ExecutionPolicy Bypass -c "irm -useb https://pixi.sh/install.ps1 | iex"
+
+# Create a new pixi project
+pixi init geo
+cd geo
+
+# Edit pixi.toml with your configuration (see docs for GPU/CPU examples)
+# Then install
+pixi install
+
+# Start Jupyter Lab
+pixi run jupyter lab
+```
+
 ### Install from PyPI
 
 **segment-geospatial** is available on [PyPI](https://pypi.org/project/segment-geospatial/) and can be installed in several ways so that its dependencies can be controlled more granularly. This reduces package size for CI environments, since not every time all of the models will be used.
