@@ -126,7 +126,7 @@ This step may take several minutes on first install depending on your internet c
 
 ### 5) Verify PyTorch + CUDA
 
-If you have a NVIDIA GPU with CUDA, run the following command to verify the PyTorch + CUDA installation:
+If you have an NVIDIA GPU with CUDA, run the following command to verify the PyTorch + CUDA installation:
 
 ```bash
 pixi run python -c "import torch; print('PyTorch:', torch.__version__); print('CUDA available:', torch.cuda.is_available()); print('GPU:', (torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'None'))"
