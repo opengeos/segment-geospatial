@@ -328,6 +328,7 @@ def reproject(
 
     """
     import rasterio as rio
+    import shutil
     from rasterio.warp import Resampling, calculate_default_transform, reproject
 
     if isinstance(resampling, str):
@@ -338,6 +339,15 @@ def reproject(
 
     if not os.path.exists(os.path.dirname(output)):
         os.makedirs(os.path.dirname(output))
+
+    # Check if input and output are the same file (in-place reprojection)
+    in_place = os.path.normpath(image) == os.path.normpath(output)
+
+    # If in-place, use a temporary file to avoid file locking issues on Windows
+    if in_place:
+        temp_output = temp_file_path(".tif")
+    else:
+        temp_output = output
 
     with rio.open(image, **kwargs) as src:
         transform, width, height = calculate_default_transform(
@@ -353,7 +363,7 @@ def reproject(
             }
         )
 
-        with rio.open(output, "w", **kwargs) as dst:
+        with rio.open(temp_output, "w", **kwargs) as dst:
             for i in range(1, src.count + 1):
                 reproject(
                     source=rio.band(src, i),
@@ -365,6 +375,10 @@ def reproject(
                     resampling=resampling,
                     **kwargs,
                 )
+
+    # If in-place, replace the original file with the temporary file
+    if in_place:
+        shutil.move(temp_output, output)
 
     if to_cog:
         image_to_cog(output, output)
