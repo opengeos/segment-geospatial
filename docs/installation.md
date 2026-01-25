@@ -1,5 +1,180 @@
 # Installation
 
+## Install with pixi (Recommended)
+
+Installing **segment-geospatial** with `uv` or `pip` can be challenging on some platforms (especially Windows) due to complicated pytorch/cuda dependencies and numpy version conflicts. [Pixi](https://pixi.prefix.dev/latest) is recommended to avoid these issues, as it provides faster and more reliable dependency resolution than conda or mamba.
+
+### 1) Install Pixi
+
+#### Linux/macOS (bash/zsh)
+
+```bash
+curl -fsSL https://pixi.sh/install.sh | sh
+```
+
+Close and re-open your terminal (or reload your shell) so `pixi` is on your `PATH`. Then confirm:
+
+```bash
+pixi --version
+```
+
+#### Windows (PowerShell)
+
+Open **PowerShell** (preferably as a normal user, Admin not required), then run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm -useb https://pixi.sh/install.ps1 | iex"
+```
+
+Close and re-open PowerShell, then confirm:
+
+```powershell
+pixi --version
+```
+
+---
+
+### 2) Create a Pixi project
+
+Navigate to a directory where you want to create the project and run:
+
+```bash
+pixi init geo
+cd geo
+```
+
+---
+
+### 3) Configure `pixi.toml`
+
+Open `pixi.toml` in the `geo` directory and replace its contents with the following depending on your system.
+
+If you have a NVIDIA GPU with CUDA, run `nvidia-smi` to check the CUDA version.
+
+#### For GPU with CUDA 12.x:
+
+```toml
+[workspace]
+channels = ["https://prefix.dev/conda-forge"]
+name = "geo"
+platforms = ["linux-64", "win-64"]
+
+[system-requirements]
+cuda = "12.0"
+
+[dependencies]
+python = "3.12.*"
+pytorch-gpu = ">=2.7.1,<3"
+segment-geospatial = ">=1.2.0"
+sam3 = ">=0.1.0.20251211"
+jupyterlab = "*"
+ipykernel = "*"
+libopenblas = ">=0.3.30"
+```
+
+#### For GPU with CUDA 13.x:
+
+```toml
+[workspace]
+channels = ["https://prefix.dev/conda-forge"]
+name = "geo"
+platforms = ["linux-64", "win-64"]
+
+[system-requirements]
+cuda = "13.0"
+
+[dependencies]
+python = "3.12.*"
+pytorch-gpu = ">=2.7.1,<3"
+segment-geospatial = ">=1.2.0"
+sam3 = ">=0.1.0.20251211"
+jupyterlab = "*"
+ipykernel = "*"
+```
+
+#### For CPU:
+
+```toml
+[workspace]
+channels = ["https://prefix.dev/conda-forge"]
+name = "geo"
+platforms = ["linux-64", "win-64"]
+
+[dependencies]
+python = "3.12.*"
+pytorch-cpu = ">=2.7.1,<3"
+segment-geospatial = ">=1.2.0"
+sam3 = ">=0.1.0.20251211"
+jupyterlab = "*"
+ipykernel = "*"
+libopenblas = ">=0.3.30"
+```
+
+---
+
+### 4) Install the environment
+
+From the `geo` folder:
+
+```bash
+pixi install
+```
+
+This step may take several minutes on first install depending on your internet connection and system.
+
+---
+
+### 5) Verify PyTorch + CUDA
+
+If you have a NVIDIA GPU with CUDA, run the following command to verify the PyTorch + CUDA installation:
+
+```bash
+pixi run python -c "import torch; print('PyTorch:', torch.__version__); print('CUDA available:', torch.cuda.is_available()); print('GPU:', (torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'None'))"
+```
+
+Expected output should be like this:
+
+-   `PyTorch: 2.7.1` (or higher)
+-   `CUDA available: True`
+-   `GPU: NVIDIA RTX 4090` (your GPU name)
+
+If CUDA is `False`, check:
+
+-   `nvidia-smi` works in your terminal
+-   NVIDIA driver is up to date
+
+---
+
+### 6) Request access to SAM 3 (Optional)
+
+To use SAM 3, you will need to request access by filling out this form on Hugging Face at <https://huggingface.co/facebook/sam3>. Once your request has been approved, run the following command in the terminal to authenticate:
+
+```bash
+pixi run hf auth login
+```
+
+After authentication, you can download the SAM 3 model from Hugging Face:
+
+```bash
+pixi run hf download facebook/sam3
+```
+
+**Important Note**: SAM 3 currently requires a NVIDIA GPU with CUDA support. You won't be able to use SAM 3 if you have a CPU only system ([source](https://github.com/facebookresearch/sam3/issues/164)). You will get an error message like this: `Failed to load model: Torch not compiled with CUDA enabled`.
+
+---
+
+### 7) Start Jupyter Lab
+
+To start using segment-geospatial in Jupyter Lab:
+
+```bash
+pixi run jupyter lab
+```
+
+This will open Jupyter Lab in your default browser. You can now create a new notebook and start using segment-geospatial!
+
+---
+
 ## Install from PyPI
 
 **segment-geospatial** is available on [PyPI](https://pypi.org/project/segment-geospatial/). To install **segment-geospatial**, run this command in your terminal:
