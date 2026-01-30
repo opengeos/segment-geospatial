@@ -1161,6 +1161,7 @@ class SamGeo3:
             self.masks = output["masks"]
             self.boxes = output["boxes"]
             self.scores = output["scores"]
+            # breakpoint()
         else:  # transformers
             if not hasattr(self, "pil_image"):
                 raise ValueError("No image set. Please call set_image() first.")
@@ -1193,14 +1194,14 @@ class SamGeo3:
             self.masks = results["masks"]
             self.boxes = results["boxes"]
             self.scores = results["scores"]
-
+        # breakpoint()
         # Convert tensors to numpy to free GPU memory
         self._convert_results_to_numpy()
-
+        # breakpoint()
         # Filter masks by size if min_size or max_size is specified
         if min_size > 0 or max_size is not None:
             self._filter_masks_by_size(min_size, max_size)
-
+        # breakpoint()
         num_objects = len(self.masks)
         if not quiet:
             if num_objects == 0:
@@ -1474,7 +1475,6 @@ class SamGeo3:
                                 # Merge tile mask into output mask
                                 # For overlapping regions, use the tile's values if they are non-zero
                                 # This simple approach works well for most cases
-                                # breakpoint()
                                 self._merge_tile_mask(
                                     output_mask,
                                     tile_mask_array,
@@ -1496,13 +1496,7 @@ class SamGeo3:
                         continue
 
                 # Clear GPU memory
-                # self.masks = None
-                # self.boxes = None
-                # self.scores = None
-                # self.batch_results = None
                 self.batch_state = None
-                # self.images_batch = None
-                # self.sources_batch = None
                 
                 if hasattr(self, "inference_state"):
                     self.inference_state = None
