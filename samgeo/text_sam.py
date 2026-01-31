@@ -90,7 +90,7 @@ def load_model_hf(
     cache_file = hf_hub_download(
         repo_id=repo_id, filename=filename, force_filename=filename
     )
-    checkpoint = torch.load(cache_file, map_location="cpu")
+    checkpoint = torch.load(cache_file, map_location="cpu", weights_only=False)
     model.load_state_dict(clean_state_dict(checkpoint["model"]), strict=False)
     model.eval()
     return model

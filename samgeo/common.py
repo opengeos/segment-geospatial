@@ -1832,7 +1832,7 @@ def update_package(out_dir=None, keep=False, **kwargs):
             shutil.rmtree(pkg_dir)
             try:
                 os.remove(filename)
-            except:
+            except Exception:
                 pass
 
         print("Package updated successfully.")
@@ -1886,7 +1886,7 @@ def sam_map_gui(
     # Skip the image layer if localtileserver is not available
     try:
         m.add_raster(sam.source, layer_name="Image")
-    except:
+    except Exception:
         pass
 
     m.fg_markers = []
@@ -2279,7 +2279,7 @@ def sam_map_gui(
                         ):
                             try:
                                 os.remove(sam.prediction_fp)
-                            except:
+                            except Exception:
                                 pass
                         # Skip the image layer if localtileserver is not available
                         try:
@@ -2305,7 +2305,7 @@ def sam_map_gui(
                                     zoom_to_layer=False,
                                 )
 
-                        except:
+                        except Exception:
                             pass
                         output.clear_output()
                         segment_button.value = False
@@ -2400,9 +2400,9 @@ def sam_map_gui(
                     bg_count.value = 0
                 try:
                     os.remove(sam.prediction_fp)
-                except:
+                except Exception:
                     pass
-            except:
+            except Exception:
                 pass
 
     reset_button.observe(reset_button_click, "value")
@@ -2619,7 +2619,7 @@ def text_sam_gui(
     # Skip the image layer if localtileserver is not available
     try:
         m.add_raster(sam.source, layer_name="Image")
-    except:
+    except Exception:
         pass
 
     widget_width = "280px"
@@ -2967,7 +2967,7 @@ def text_sam_gui(
                 if hasattr(m, "layer_name") and m.find_layer(m.layer_name) is not None:
                     m.remove_layer(m.find_layer(m.layer_name))
                 m.clear_drawings()
-            except:
+            except Exception:
                 pass
 
     reset_button.observe(reset_button_click, "value")
