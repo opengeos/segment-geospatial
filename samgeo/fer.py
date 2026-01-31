@@ -996,7 +996,7 @@ def regularize(
 
             try:
                 RecSim, rering = RecSimilar(dpolygon)
-            except:
+            except Exception:
                 continue
             if RecSim == 1:
                 oupolygon.AddGeometry(rering)
@@ -1014,7 +1014,7 @@ def regularize(
 
             try:
                 vx = VListDiret(vList)
-            except:
+            except Exception:
                 continue
             svList = Smooth(vList, vx, 25, averageLength)
 

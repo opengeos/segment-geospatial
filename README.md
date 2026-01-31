@@ -117,7 +117,7 @@ If your system has a GPU, but the above commands do not install the GPU version 
 conda install -c conda-forge segment-geospatial "pytorch=*=cuda*"
 ```
 
-Samgeo-geospatial has some optional dependencies that are not included in the default conda environment. To install these dependencies, run the following command:
+segment-geospatial has some optional dependencies that are not included in the default conda environment. To install these dependencies, run the following command:
 
 ```bash
 conda install -c conda-forge groundingdino-py segment-anything-fast

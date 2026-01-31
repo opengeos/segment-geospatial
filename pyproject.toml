@@ -8,7 +8,7 @@ version = "1.2.1"
 dynamic = [
     "dependencies",
 ]
-description = "Meta AI' Segment Anything Model (SAM) for Geospatial Data."
+description = "Meta AI's Segment Anything Model (SAM) for Geospatial Data."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT license"}
