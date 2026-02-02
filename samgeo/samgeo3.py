@@ -1502,6 +1502,7 @@ class SamGeo3:
         # Store result for potential visualization
         self.objects = output_mask
         self.source = source
+        self.total_objects = total_objects
 
         return output
 
