@@ -1541,7 +1541,6 @@ class SamGeo3:
         with rasterio.open(output, "w", **profile) as dst:
             dst.write(output_mask, 1)
         # Save the scores
-        breakpoint()
         if save_scores:
             score_output = output.replace('\\masks_','\\scores_')
             with rasterio.open(score_output, "w", **profile) as dst:
