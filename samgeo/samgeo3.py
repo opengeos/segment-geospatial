@@ -1222,6 +1222,7 @@ class SamGeo3:
         max_size: Optional[int] = None,
         unique: bool = True,
         dtype: str = "uint32",
+        save_scores: bool = True,
         bands: Optional[List[int]] = None,
         batch_size: int = 1,
         verbose: bool = True,
@@ -1320,6 +1321,7 @@ class SamGeo3:
             # Create output array in memory (for smaller images) or use memory-mapped file
             # For very large images, you might want to use rasterio windowed writing
             output_mask = np.zeros((img_height, img_width), dtype=np_dtype)
+            output_score = np.zeros((img_height, img_width), dtype=np.float32)
 
             # Track unique object IDs across all tiles
             current_max_id = 0
@@ -1424,13 +1426,15 @@ class SamGeo3:
                             x_start, y_start, x_end, y_end, tile_x, tile_y, w, h = batch_coords[i]
                             #
                             tile_masks = result.get('masks', [])
+                            tile_scores = result.get('scores', [])
                             #
                             # breakpoint()
                             if len(tile_masks) > 0:
                                 tile_mask_array = np.zeros((h,w), dtype=np_dtype)
+                                tile_score_array = np.zeros((h,w), dtype=np.float32)
                                 #
                                 # breakpoint()
-                                for mask_np in tile_masks: # results from tile_masks are already boolean numpy arrays
+                                for mask_np, score in zip(tile_masks, tile_scores): # results from tile_masks are already boolean numpy arrays
                                     # Convert mask to numpy
                                     if hasattr(mask_np, "cpu"):
                                         mask_np = mask_np.cpu().numpy()
@@ -1470,14 +1474,30 @@ class SamGeo3:
                                         # breakpoint()
                                         tile_mask_array[mask_bool] = 1
 
+                                    #
+                                    tile_score_array[mask_bool] = float(score)
+                                    #
                                     total_objects += 1
-
                                 # Merge tile mask into output mask
                                 # For overlapping regions, use the tile's values if they are non-zero
                                 # This simple approach works well for most cases
                                 self._merge_tile_mask(
                                     output_mask,
                                     tile_mask_array,
+                                    x_start,
+                                    y_start,
+                                    x_end,
+                                    y_end,
+                                    overlap,
+                                    tile_x,
+                                    tile_y,
+                                    n_tiles_x,
+                                    n_tiles_y,
+                                )
+                                #
+                                self._merge_tile_mask(
+                                    output_score,
+                                    tile_score_array,
                                     x_start,
                                     y_start,
                                     x_end,
@@ -1520,6 +1540,12 @@ class SamGeo3:
         # Save the output
         with rasterio.open(output, "w", **profile) as dst:
             dst.write(output_mask, 1)
+        # Save the scores
+        breakpoint()
+        if save_scores:
+            score_output = output.replace('\\masks_','\\scores_')
+            with rasterio.open(score_output, "w", **profile) as dst:
+                dst.write(output_score, 1)
 
         if verbose:
             print(f"Saved mask to {output}")
@@ -1528,7 +1554,6 @@ class SamGeo3:
         # Store result for potential visualization
         self.objects = output_mask
         self.source = source
-        self.total_objects = total_objects
 
         return output
 
