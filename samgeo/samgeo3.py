@@ -523,7 +523,7 @@ class SamGeo3:
                 self.processor.reset_all_prompts(image_state)
                 # breakpoint()
                 output = self.processor.set_text_prompt(
-                    state=image_state, 
+                    state=image_state,
                     prompt=prompt,
                     )
                 # breakpoint()
@@ -544,9 +544,9 @@ class SamGeo3:
             # Filter by size if needed
             if min_size > 0 or max_size is not None:
                 result = self._filter_batch_result_by_size(result, min_size, max_size)
-            
+
             batch_results.append(result)
-            
+
         self.batch_results = batch_results
 
         # Print summary
@@ -1447,7 +1447,7 @@ class SamGeo3:
                                     # Resize mask to tile size if needed
                                     if mask_np.shape != (h, w):
                                         mask_np = cv2.resize(
-                                            mask_np.astype(np.float32), 
+                                            mask_np.astype(np.float32),
                                             (w, h),
                                             interpolation=cv2.INTER_NEAREST,
                                         )
@@ -1517,7 +1517,7 @@ class SamGeo3:
 
                 # Clear GPU memory
                 self.batch_state = None
-                
+
                 if hasattr(self, "inference_state"):
                     self.inference_state = None
                 # Additionally clear PyTorch CUDA cache, if available, to free GPU memory
