@@ -132,7 +132,9 @@ class SamGeo3:
                 "\tpip install transformers torch"
             )
             if SAM3_TRANSFORMERS_IMPORT_ERROR is not None:
-                error_msg += f"\n\nUnderlying import error:\n\t{SAM3_TRANSFORMERS_IMPORT_ERROR}"
+                error_msg += (
+                    f"\n\nUnderlying import error:\n\t{SAM3_TRANSFORMERS_IMPORT_ERROR}"
+                )
             raise ImportError(error_msg)
 
         if device is None:
