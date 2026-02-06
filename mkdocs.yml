@@ -82,6 +82,7 @@ nav:
           - examples/sam3_point_prompts_batch.ipynb
           - examples/sam3_box_prompts.ipynb
           - examples/sam3_tiled_segmentation.ipynb
+          - examples/detectree2.ipynb
     - Workshops:
           - workshops/purdue.ipynb
           - workshops/cn_workshop.ipynb
@@ -96,4 +97,5 @@ nav:
           - fast_sam module: fast_sam.md
           - hq_sam module: hq_sam.md
           - text_sam module: text_sam.md
+          - detectree2 module: detectree2.md
           #   - fer module: fer.md
