@@ -231,10 +231,9 @@ class TreeCrownDelineator:
             )
 
             logger.info("Running predictions on tiles...")
-            predict_on_data(tiles_dir, self._predictor)
+            predict_on_data(tiles_dir, pred_dir, predictor=self._predictor)
 
             logger.info("Projecting predictions to geographic coordinates...")
-            os.makedirs(pred_dir, exist_ok=True)
             os.makedirs(geo_dir, exist_ok=True)
             project_to_geojson(tiles_dir, pred_dir, geo_dir)
 
@@ -285,11 +284,11 @@ class TreeCrownDelineator:
         if output_dir is None:
             output_dir = tiles_dir
 
+        pred_dir = os.path.join(output_dir, "predictions")
         logger.info(f"Running predictions on tiles in: {tiles_dir}")
-        predict_on_data(tiles_dir, self._predictor)
+        predict_on_data(tiles_dir, pred_dir, predictor=self._predictor)
 
         # Find prediction files
-        pred_dir = os.path.join(tiles_dir, "predictions")
         if os.path.exists(pred_dir):
             pred_files = list(Path(pred_dir).glob("*.json"))
             logger.info(f"Generated {len(pred_files)} prediction files")
