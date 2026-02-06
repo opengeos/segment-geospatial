@@ -12,22 +12,26 @@ from PIL import Image
 from tqdm import tqdm
 
 
+SAM3_META_IMPORT_ERROR = None
 try:
     from sam3.model_builder import build_sam3_image_model, build_sam3_video_predictor
     from sam3.model.sam3_image_processor import Sam3Processor as MetaSam3Processor
     from sam3.visualization_utils import load_frame
 
     SAM3_META_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     SAM3_META_AVAILABLE = False
+    SAM3_META_IMPORT_ERROR = e
 
+SAM3_TRANSFORMERS_IMPORT_ERROR = None
 try:
     from transformers import Sam3Model, Sam3Processor as TransformersSam3Processor
     import torch
 
     SAM3_TRANSFORMERS_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     SAM3_TRANSFORMERS_AVAILABLE = False
+    SAM3_TRANSFORMERS_IMPORT_ERROR = e
 
 try:
     from skimage.color import lab2rgb, rgb2lab
@@ -114,14 +118,22 @@ class SamGeo3:
             )
 
         if backend == "meta" and not SAM3_META_AVAILABLE:
-            raise ImportError(
-                "Meta SAM3 is not available. Please install it as:\n\tpip install segment-geospatial[samgeo3]"
+            error_msg = (
+                "Meta SAM3 is not available. Please install it as:\n"
+                "\tpip install segment-geospatial[samgeo3]"
             )
+            if SAM3_META_IMPORT_ERROR is not None:
+                error_msg += f"\n\nUnderlying import error:\n\t{SAM3_META_IMPORT_ERROR}"
+            raise ImportError(error_msg)
 
         if backend == "transformers" and not SAM3_TRANSFORMERS_AVAILABLE:
-            raise ImportError(
-                "Transformers SAM3 is not available. Please install it as:\n\tpip install transformers torch"
+            error_msg = (
+                "Transformers SAM3 is not available. Please install it as:\n"
+                "\tpip install transformers torch"
             )
+            if SAM3_TRANSFORMERS_IMPORT_ERROR is not None:
+                error_msg += f"\n\nUnderlying import error:\n\t{SAM3_TRANSFORMERS_IMPORT_ERROR}"
+            raise ImportError(error_msg)
 
         if device is None:
             device = common.get_device()
@@ -3931,10 +3943,13 @@ class SamGeo3Video:
             **kwargs: Additional keyword arguments passed to build_sam3_video_predictor.
         """
         if not SAM3_META_AVAILABLE:
-            raise ImportError(
+            error_msg = (
                 "SAM3 is not available. Please install it as:\n\t"
                 "pip install segment-geospatial[samgeo3]"
             )
+            if SAM3_META_IMPORT_ERROR is not None:
+                error_msg += f"\n\nUnderlying import error:\n\t{SAM3_META_IMPORT_ERROR}"
+            raise ImportError(error_msg)
 
         import torch
 
