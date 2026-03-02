@@ -346,6 +346,14 @@ class SamGeo3:
 
         self.image_height, self.image_width = self.image.shape[:2]
 
+        # Reset batch processing attributes so that subsequent calls to
+        # generate_masks_by_points_patch() re-initialize the batch state
+        # for the new image instead of reusing stale state from a previous image.
+        self.images_batch = None
+        self.sources_batch = None
+        self.batch_state = None
+        self.batch_results = None
+
         # Convert to PIL Image for processing
         image_for_processor = Image.fromarray(self.image)
 
