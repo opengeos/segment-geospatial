@@ -21,3 +21,10 @@ try:
     )
 except ImportError:
     pass  # detectree2 not installed
+
+# SAM 3D Objects support for 3D reconstruction
+from .sam3d import (
+    Sam3DReconstructor,
+    print_install_instructions as sam3d_install_instructions,
+    reconstruct_from_samgeo,
+)
