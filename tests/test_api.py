@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from samgeo.api import app, _model_cache, get_model
+from samgeo.api import app, _model_cache, _image_hash_cache, get_model
 
 fastapi = pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
@@ -18,10 +18,12 @@ client = TestClient(app)
 
 @pytest.fixture(autouse=True)
 def clear_cache():
-    """Clear model cache before each test."""
+    """Clear model and image caches before each test."""
     _model_cache.clear()
+    _image_hash_cache.clear()
     yield
     _model_cache.clear()
+    _image_hash_cache.clear()
 
 
 @pytest.fixture

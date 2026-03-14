@@ -11,6 +11,7 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
 import os
 import tempfile
@@ -55,6 +56,10 @@ app = FastAPI(
 
 # Model cache: (model_version, model_id) -> (model_instance, lock)
 _model_cache: dict = {}
+
+# Image encoding cache: maps model cache key -> hash of last encoded image.
+# When the same image is sent again, we skip the expensive set_image() call.
+_image_hash_cache: dict = {}
 
 # Default model IDs per version
 _DEFAULT_MODEL_IDS = {
@@ -130,7 +135,33 @@ def get_model(model_version: str, model_id: Optional[str] = None, **kwargs):
     return _model_cache[key]
 
 
-async def _save_upload(file: UploadFile, tmpdir: str) -> str:
+def _set_image_cached(
+    model, model_key: tuple, image_path: str, image_bytes: bytes
+) -> bool:
+    """Call model.set_image() only if the image has changed since last call.
+
+    Computes a SHA-256 hash of the raw upload bytes and compares it to the
+    last image encoded on this model. Skips the expensive image-encoder
+    forward pass when the hash matches.
+
+    Args:
+        model: The SAM model instance.
+        model_key: Cache key for the model, e.g. ("sam3", "facebook/sam3").
+        image_path: Path to the saved image file.
+        image_bytes: Raw bytes of the uploaded file (used for hashing).
+
+    Returns:
+        True if set_image was called (new image), False if skipped (cache hit).
+    """
+    img_hash = hashlib.sha256(image_bytes).hexdigest()
+    if _image_hash_cache.get(model_key) == img_hash:
+        return False
+    model.set_image(image_path)
+    _image_hash_cache[model_key] = img_hash
+    return True
+
+
+async def _save_upload(file: UploadFile, tmpdir: str) -> tuple:
     """Save an uploaded file to a temporary directory.
 
     Args:
@@ -138,14 +169,14 @@ async def _save_upload(file: UploadFile, tmpdir: str) -> str:
         tmpdir: The temporary directory path.
 
     Returns:
-        str: Path to the saved file.
+        tuple: (path to saved file, raw file bytes).
     """
     suffix = os.path.splitext(file.filename or "image.tif")[1] or ".tif"
     path = os.path.join(tmpdir, f"input{suffix}")
     content = await file.read()
     with open(path, "wb") as f:
         f.write(content)
-    return path
+    return path, content
 
 
 def _format_response(raster_path: str, output_format: str, tmpdir: str):
@@ -217,6 +248,7 @@ def list_models():
 def clear_models():
     """Clear the model cache and free GPU memory."""
     _model_cache.clear()
+    _image_hash_cache.clear()
     try:
         import torch
 
@@ -262,13 +294,14 @@ async def segment_automatic(
     max_size = _normalize_max_size(max_size)
     tmpdir = tempfile.mkdtemp()
     try:
-        input_path = await _save_upload(file, tmpdir)
+        input_path, image_bytes = await _save_upload(file, tmpdir)
         output_path = os.path.join(tmpdir, "mask.tif")
 
         if model_version == "sam3":
             model, lock = get_model(model_version, model_id)
+            model_key = (model_version, model_id or _DEFAULT_MODEL_IDS[model_version])
             with lock:
-                model.set_image(input_path)
+                _set_image_cached(model, model_key, input_path, image_bytes)
                 model.generate_masks(
                     prompt="everything",
                     min_size=min_size,
@@ -353,7 +386,7 @@ async def segment_predict(
     max_size = _normalize_max_size(max_size)
     tmpdir = tempfile.mkdtemp()
     try:
-        input_path = await _save_upload(file, tmpdir)
+        input_path, image_bytes = await _save_upload(file, tmpdir)
         output_path = os.path.join(tmpdir, "mask.tif")
 
         # Parse JSON prompt fields
@@ -369,8 +402,9 @@ async def segment_predict(
             parsed_boxes = np.array(json.loads(boxes))
 
         model, lock = get_model(model_version, model_id, automatic=False)
+        model_key = (model_version, model_id or _DEFAULT_MODEL_IDS[model_version])
         with lock:
-            model.set_image(input_path)
+            _set_image_cached(model, model_key, input_path, image_bytes)
             model.predict(
                 point_coords=parsed_coords,
                 point_labels=parsed_labels,
@@ -420,7 +454,7 @@ async def segment_text(
     max_size = _normalize_max_size(max_size)
     tmpdir = tempfile.mkdtemp()
     try:
-        input_path = await _save_upload(file, tmpdir)
+        input_path, image_bytes = await _save_upload(file, tmpdir)
         output_path = os.path.join(tmpdir, "mask.tif")
 
         model, lock = get_model(
@@ -429,8 +463,9 @@ async def segment_text(
             backend=backend,
             confidence_threshold=confidence_threshold,
         )
+        model_key = ("sam3", model_id or _DEFAULT_MODEL_IDS["sam3"])
         with lock:
-            model.set_image(input_path)
+            _set_image_cached(model, model_key, input_path, image_bytes)
             model.generate_masks(
                 prompt=prompt,
                 min_size=min_size,
