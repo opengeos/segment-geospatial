@@ -44,6 +44,7 @@ nav:
     - Home: index.md
     - Installation: installation.md
     - Usage: usage.md
+    - REST API: api.md
     - Contributing: contributing.md
     - FAQ: faq.md
     - Changelog: changelog.md
@@ -98,4 +99,5 @@ nav:
           - hq_sam module: hq_sam.md
           - text_sam module: text_sam.md
           - detectree2 module: detectree2.md
+          - api module: api.md
           #   - fer module: fer.md
