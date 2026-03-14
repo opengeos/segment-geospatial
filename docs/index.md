@@ -38,6 +38,7 @@ The **SamGeo** package draws its inspiration from [segment-anything-eo](https://
 -   Save input prompts as GeoJSON files
 -   Visualize segmentation results on interactive maps
 -   Segment objects from timeseries remote sensing imagery
+-   REST API for serving segmentation over HTTP (see [API docs](https://samgeo.gishub.org/api))
 
 ## QGIS Plugin
 
@@ -61,6 +62,7 @@ Depending on what tools you need to use, you might want to do:
 -   `segment-geospatial[text]`: Installs Grounding DINO to use SAMGeo 1 and 2 with text prompts
 -   `segment-geospatial[fer]`: Installs the dependencies to run the feature
     edge reconstruction algorithm
+-   `segment-geospatial[api]`: Installs FastAPI and Uvicorn for serving segmentation as a REST API
 
 Additionally, these other two optional imports are defined:
 
