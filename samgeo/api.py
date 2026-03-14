@@ -184,6 +184,9 @@ def _set_image_cached(
     """
     if _image_hash_cache.get(model_key) == image_hash:
         logger.info("Image cache hit for model %s, skipping set_image()", model_key)
+        # Update source path so save_masks() can find GeoTIFF metadata
+        # even though we skip the expensive encoding step.
+        model.source = image_path
         return False
     logger.info("Encoding new image for model %s", model_key)
     model.set_image(image_path)
