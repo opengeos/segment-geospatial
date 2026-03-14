@@ -13,6 +13,7 @@ Usage:
 import argparse
 import hashlib
 import json
+import logging
 import os
 import tempfile
 import threading
@@ -32,6 +33,8 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 
 from samgeo import __version__
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_max_size(max_size: Optional[int]) -> Optional[int]:
@@ -107,30 +110,34 @@ def get_model(model_version: str, model_id: Optional[str] = None, **kwargs):
         model_id = _DEFAULT_MODEL_IDS[model_version]
 
     key = (model_version, model_id)
-    if key not in _model_cache:
-        try:
-            if model_version == "sam":
-                from samgeo.samgeo import SamGeo
+    if key in _model_cache:
+        logger.info("Model cache hit for %s", key)
+        return _model_cache[key]
 
-                model = SamGeo(model_type=model_id, **kwargs)
-            elif model_version == "sam2":
-                from samgeo.samgeo2 import SamGeo2
+    logger.info("Loading model %s", key)
+    try:
+        if model_version == "sam":
+            from samgeo.samgeo import SamGeo
 
-                model = SamGeo2(model_id=model_id, **kwargs)
-            elif model_version == "sam3":
-                from samgeo.samgeo3 import SamGeo3
+            model = SamGeo(model_type=model_id, **kwargs)
+        elif model_version == "sam2":
+            from samgeo.samgeo2 import SamGeo2
 
-                model = SamGeo3(**kwargs)
-        except ImportError as e:
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    f"Dependencies for {model_version} are not installed. "
-                    f"Install with: pip install segment-geospatial[{model_version}]. "
-                    f"Error: {e}"
-                ),
-            )
-        _model_cache[key] = (model, threading.Lock())
+            model = SamGeo2(model_id=model_id, **kwargs)
+        elif model_version == "sam3":
+            from samgeo.samgeo3 import SamGeo3
+
+            model = SamGeo3(**kwargs)
+    except ImportError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"Dependencies for {model_version} are not installed. "
+                f"Install with: pip install segment-geospatial[{model_version}]. "
+                f"Error: {e}"
+            ),
+        )
+    _model_cache[key] = (model, threading.Lock())
 
     return _model_cache[key]
 
@@ -155,7 +162,9 @@ def _set_image_cached(
     """
     img_hash = hashlib.sha256(image_bytes).hexdigest()
     if _image_hash_cache.get(model_key) == img_hash:
+        logger.info("Image cache hit for model %s, skipping set_image()", model_key)
         return False
+    logger.info("Encoding new image for model %s", model_key)
     model.set_image(image_path)
     _image_hash_cache[model_key] = img_hash
     return True
