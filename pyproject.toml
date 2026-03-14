@@ -86,8 +86,14 @@ text = [
     "segment_geospatial[samgeo2]",
     "groundingdino-py",
 ]
+api = [
+    "segment_geospatial[core]",
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.20.0",
+    "python-multipart>=0.0.6",
+]
 all = [
-    "segment-geospatial[fast, hq, fer, samgeo, samgeo2, samgeo3, text]",
+    "segment-geospatial[fast, hq, fer, samgeo, samgeo2, samgeo3, text, api]",
 ]
 extra = [
     "leafmap",
@@ -132,6 +138,9 @@ exclude = [
 max-line-length = 88
 
 [tool.setuptools_scm]
+
+[project.scripts]
+samgeo-api = "samgeo.api:main"
 
 [project.urls]
 Homepage = "https://github.com/opengeos/segment-geospatial"
