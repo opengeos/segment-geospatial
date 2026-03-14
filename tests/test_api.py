@@ -2,16 +2,15 @@
 
 import json
 import os
-import tempfile
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 
-from samgeo.api import app, _model_cache, _image_hash_cache, get_model
+pytest.importorskip("fastapi")
 
-fastapi = pytest.importorskip("fastapi")
-from fastapi.testclient import TestClient
+from samgeo.api import app, _model_cache, _image_hash_cache  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
 
 client = TestClient(app)
 
@@ -27,16 +26,14 @@ def clear_cache():
 
 
 @pytest.fixture
-def sample_image_path():
+def sample_image_path(tmp_path):
     """Create a temporary sample image file for testing."""
-    tmpdir = tempfile.mkdtemp()
-    path = os.path.join(tmpdir, "test.tif")
-    # Create a small 64x64 RGB image as raw bytes (PNG format)
     from PIL import Image
 
+    path = tmp_path / "test.tif"
     img = Image.fromarray(np.random.randint(0, 255, (64, 64, 3), dtype=np.uint8))
-    img.save(path)
-    return path
+    img.save(str(path))
+    return str(path)
 
 
 def test_health():
@@ -86,6 +83,18 @@ def test_automatic_invalid_model_version(sample_image_path):
     assert "Invalid model_version" in response.json()["detail"]
 
 
+def test_automatic_invalid_model_id(sample_image_path):
+    """Test automatic segmentation with invalid model_id."""
+    with open(sample_image_path, "rb") as f:
+        response = client.post(
+            "/segment/automatic",
+            files={"file": ("test.tif", f, "image/tiff")},
+            data={"model_version": "sam2", "model_id": "nonexistent"},
+        )
+    assert response.status_code == 400
+    assert "Invalid model_id" in response.json()["detail"]
+
+
 def test_predict_missing_prompts(sample_image_path):
     """Test predict endpoint without any prompts."""
     with open(sample_image_path, "rb") as f:
@@ -115,27 +124,20 @@ def test_predict_sam3_rejected(sample_image_path):
 
 
 def test_invalid_output_format(sample_image_path):
-    """Test automatic segmentation with invalid output format."""
-    mock_model = MagicMock()
-    mock_model.generate = MagicMock()
-
-    with patch("samgeo.api.get_model") as mock_get:
-        from threading import Lock
-
-        mock_get.return_value = (mock_model, Lock())
-        with open(sample_image_path, "rb") as f:
-            response = client.post(
-                "/segment/automatic",
-                files={"file": ("test.tif", f, "image/tiff")},
-                data={"model_version": "sam2", "output_format": "invalid"},
-            )
-    # Either 400 (invalid format) or 500 (no output file created)
-    assert response.status_code in (400, 500)
+    """Test that invalid output_format returns 400 before segmentation runs."""
+    with open(sample_image_path, "rb") as f:
+        response = client.post(
+            "/segment/automatic",
+            files={"file": ("test.tif", f, "image/tiff")},
+            data={"model_version": "sam2", "output_format": "invalid"},
+        )
+    assert response.status_code == 400
+    assert "Invalid output_format" in response.json()["detail"]
 
 
 @patch("samgeo.api.get_model")
-def test_automatic_geotiff_response(mock_get, sample_image_path):
-    """Test automatic segmentation returning GeoTIFF."""
+def test_automatic_png_response(mock_get, sample_image_path):
+    """Test automatic segmentation returning a PNG image."""
     from threading import Lock
 
     mock_model = MagicMock()

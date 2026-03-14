@@ -15,13 +15,13 @@ import hashlib
 import json
 import logging
 import os
+import shutil
 import tempfile
 import threading
 import time
 from typing import Optional
 
 try:
-    import fastapi
     import uvicorn
 except ImportError:
     raise ImportError(
@@ -36,6 +36,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from samgeo import __version__
 
 logger = logging.getLogger("uvicorn.error")
+
+_VALID_OUTPUT_FORMATS = {"geojson", "geotiff", "png"}
 
 
 def _normalize_max_size(max_size: Optional[int]) -> Optional[int]:
@@ -60,6 +62,7 @@ app = FastAPI(
 
 # Model cache: (model_version, model_id) -> (model_instance, lock)
 _model_cache: dict = {}
+_model_cache_lock = threading.Lock()
 
 # Image encoding cache: maps model cache key -> hash of last encoded image.
 # When the same image is sent again, we skip the expensive set_image() call.
@@ -83,6 +86,13 @@ _AVAILABLE_MODELS = {
     "sam3": ["facebook/sam3"],
 }
 
+# Maps model_version to the correct pip extra name
+_EXTRAS_MAP = {
+    "sam": "samgeo",
+    "sam2": "samgeo2",
+    "sam3": "samgeo3",
+}
+
 
 def get_model(model_version: str, model_id: Optional[str] = None, **kwargs):
     """Get or create a cached model instance.
@@ -96,7 +106,8 @@ def get_model(model_version: str, model_id: Optional[str] = None, **kwargs):
         tuple: (model_instance, threading.Lock)
 
     Raises:
-        HTTPException: If model_version is invalid or dependencies are missing.
+        HTTPException: If model_version or model_id is invalid, or
+            dependencies are missing.
     """
     if model_version not in _DEFAULT_MODEL_IDS:
         raise HTTPException(
@@ -110,83 +121,119 @@ def get_model(model_version: str, model_id: Optional[str] = None, **kwargs):
     if model_id is None:
         model_id = _DEFAULT_MODEL_IDS[model_version]
 
-    key = (model_version, model_id)
-    if key in _model_cache:
-        logger.info("Model cache hit for %s", key)
-        return _model_cache[key]
-
-    logger.info("Loading model %s", key)
-    try:
-        if model_version == "sam":
-            from samgeo.samgeo import SamGeo
-
-            model = SamGeo(model_type=model_id, **kwargs)
-        elif model_version == "sam2":
-            from samgeo.samgeo2 import SamGeo2
-
-            model = SamGeo2(model_id=model_id, **kwargs)
-        elif model_version == "sam3":
-            from samgeo.samgeo3 import SamGeo3
-
-            model = SamGeo3(**kwargs)
-    except ImportError as e:
+    valid_ids = _AVAILABLE_MODELS[model_version]
+    if model_id not in valid_ids:
         raise HTTPException(
-            status_code=503,
+            status_code=400,
             detail=(
-                f"Dependencies for {model_version} are not installed. "
-                f"Install with: pip install segment-geospatial[{model_version}]. "
-                f"Error: {e}"
+                f"Invalid model_id '{model_id}' for {model_version}. "
+                f"Must be one of: {valid_ids}"
             ),
         )
-    _model_cache[key] = (model, threading.Lock())
 
-    return _model_cache[key]
+    key = (model_version, model_id)
+    with _model_cache_lock:
+        if key in _model_cache:
+            logger.info("Model cache hit for %s", key)
+            return _model_cache[key]
+
+        logger.info("Loading model %s", key)
+        extra = _EXTRAS_MAP.get(model_version, model_version)
+        try:
+            if model_version == "sam":
+                from samgeo.samgeo import SamGeo
+
+                model = SamGeo(model_type=model_id, **kwargs)
+            elif model_version == "sam2":
+                from samgeo.samgeo2 import SamGeo2
+
+                model = SamGeo2(model_id=model_id, **kwargs)
+            elif model_version == "sam3":
+                from samgeo.samgeo3 import SamGeo3
+
+                model = SamGeo3(**kwargs)
+        except ImportError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    f"Dependencies for {model_version} are not installed. "
+                    f"Install with: pip install segment-geospatial[{extra}]. "
+                    f"Error: {e}"
+                ),
+            )
+        _model_cache[key] = (model, threading.Lock())
+        return _model_cache[key]
 
 
 def _set_image_cached(
-    model, model_key: tuple, image_path: str, image_bytes: bytes
+    model, model_key: tuple, image_path: str, image_hash: str
 ) -> bool:
     """Call model.set_image() only if the image has changed since last call.
 
-    Computes a SHA-256 hash of the raw upload bytes and compares it to the
-    last image encoded on this model. Skips the expensive image-encoder
-    forward pass when the hash matches.
+    Compares the provided hash to the last image encoded on this model.
+    Skips the expensive image-encoder forward pass when the hash matches.
 
     Args:
         model: The SAM model instance.
         model_key: Cache key for the model, e.g. ("sam3", "facebook/sam3").
         image_path: Path to the saved image file.
-        image_bytes: Raw bytes of the uploaded file (used for hashing).
+        image_hash: SHA-256 hex digest of the uploaded file bytes.
 
     Returns:
         True if set_image was called (new image), False if skipped (cache hit).
     """
-    img_hash = hashlib.sha256(image_bytes).hexdigest()
-    if _image_hash_cache.get(model_key) == img_hash:
+    if _image_hash_cache.get(model_key) == image_hash:
         logger.info("Image cache hit for model %s, skipping set_image()", model_key)
         return False
     logger.info("Encoding new image for model %s", model_key)
     model.set_image(image_path)
-    _image_hash_cache[model_key] = img_hash
+    _image_hash_cache[model_key] = image_hash
     return True
 
 
 async def _save_upload(file: UploadFile, tmpdir: str) -> tuple:
-    """Save an uploaded file to a temporary directory.
+    """Save an uploaded file to a temporary directory using chunked streaming.
+
+    Streams the file to disk in 1 MB chunks to avoid loading the entire
+    file into memory at once, which is important for large raster files.
 
     Args:
         file: The uploaded file.
         tmpdir: The temporary directory path.
 
     Returns:
-        tuple: (path to saved file, raw file bytes).
+        tuple: (path to saved file, SHA-256 hex digest of file content).
     """
     suffix = os.path.splitext(file.filename or "image.tif")[1] or ".tif"
     path = os.path.join(tmpdir, f"input{suffix}")
-    content = await file.read()
+    sha = hashlib.sha256()
     with open(path, "wb") as f:
-        f.write(content)
-    return path, content
+        while True:
+            chunk = await file.read(1024 * 1024)  # 1 MB chunks
+            if not chunk:
+                break
+            sha.update(chunk)
+            f.write(chunk)
+    return path, sha.hexdigest()
+
+
+def _validate_output_format(output_format: str) -> None:
+    """Validate the output format before processing.
+
+    Args:
+        output_format: The requested output format.
+
+    Raises:
+        HTTPException: If the format is not valid.
+    """
+    if output_format not in _VALID_OUTPUT_FORMATS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Invalid output_format '{output_format}'. "
+                f"Must be one of: {', '.join(sorted(_VALID_OUTPUT_FORMATS))}"
+            ),
+        )
 
 
 def _format_response(raster_path: str, output_format: str, tmpdir: str):
@@ -214,7 +261,9 @@ def _format_response(raster_path: str, output_format: str, tmpdir: str):
         geojson_path = os.path.join(tmpdir, "output.geojson")
         raster_to_geojson(raster_path, geojson_path)
         with open(geojson_path) as f:
-            return JSONResponse(content=json.load(f))
+            data = json.load(f)
+        _cleanup_tmpdir(tmpdir)
+        return JSONResponse(content=data)
 
     elif output_format == "geotiff":
         return FileResponse(
@@ -231,14 +280,17 @@ def _format_response(raster_path: str, output_format: str, tmpdir: str):
             png_path, media_type="image/png", filename="mask.png"
         )
 
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Invalid output_format '{output_format}'. "
-                "Must be one of: geojson, geotiff, png"
-            ),
-        )
+
+def _cleanup_tmpdir(tmpdir: str) -> None:
+    """Remove a temporary directory, ignoring errors.
+
+    Args:
+        tmpdir: Path to the temporary directory to remove.
+    """
+    try:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+    except Exception:
+        pass
 
 
 @app.get("/health")
@@ -301,10 +353,11 @@ async def segment_automatic(
     Returns:
         Segmentation result in the requested format.
     """
+    _validate_output_format(output_format)
     max_size = _normalize_max_size(max_size)
     tmpdir = tempfile.mkdtemp()
     try:
-        input_path, image_bytes = await _save_upload(file, tmpdir)
+        input_path, image_hash = await _save_upload(file, tmpdir)
         output_path = os.path.join(tmpdir, "mask.tif")
 
         t_start = time.time()
@@ -312,7 +365,7 @@ async def segment_automatic(
             model, lock = get_model(model_version, model_id)
             model_key = (model_version, model_id or _DEFAULT_MODEL_IDS[model_version])
             with lock:
-                _set_image_cached(model, model_key, input_path, image_bytes)
+                _set_image_cached(model, model_key, input_path, image_hash)
                 model.generate_masks(
                     prompt="everything",
                     min_size=min_size,
@@ -350,8 +403,10 @@ async def segment_automatic(
         )
         return _format_response(output_path, output_format, tmpdir)
     except HTTPException:
+        _cleanup_tmpdir(tmpdir)
         raise
     except Exception as e:
+        _cleanup_tmpdir(tmpdir)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -388,6 +443,8 @@ async def segment_predict(
     Returns:
         Segmentation result in the requested format.
     """
+    _validate_output_format(output_format)
+
     if model_version == "sam3":
         raise HTTPException(
             status_code=400,
@@ -403,7 +460,7 @@ async def segment_predict(
     max_size = _normalize_max_size(max_size)
     tmpdir = tempfile.mkdtemp()
     try:
-        input_path, image_bytes = await _save_upload(file, tmpdir)
+        input_path, image_hash = await _save_upload(file, tmpdir)
         output_path = os.path.join(tmpdir, "mask.tif")
 
         # Parse JSON prompt fields
@@ -422,7 +479,7 @@ async def segment_predict(
         model, lock = get_model(model_version, model_id, automatic=False)
         model_key = (model_version, model_id or _DEFAULT_MODEL_IDS[model_version])
         with lock:
-            _set_image_cached(model, model_key, input_path, image_bytes)
+            _set_image_cached(model, model_key, input_path, image_hash)
             model.predict(
                 point_coords=parsed_coords,
                 point_labels=parsed_labels,
@@ -440,12 +497,15 @@ async def segment_predict(
         )
         return _format_response(output_path, output_format, tmpdir)
     except HTTPException:
+        _cleanup_tmpdir(tmpdir)
         raise
     except json.JSONDecodeError as e:
+        _cleanup_tmpdir(tmpdir)
         raise HTTPException(
             status_code=400, detail=f"Invalid JSON in prompt fields: {e}"
         )
     except Exception as e:
+        _cleanup_tmpdir(tmpdir)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -475,10 +535,11 @@ async def segment_text(
     Returns:
         Segmentation result in the requested format.
     """
+    _validate_output_format(output_format)
     max_size = _normalize_max_size(max_size)
     tmpdir = tempfile.mkdtemp()
     try:
-        input_path, image_bytes = await _save_upload(file, tmpdir)
+        input_path, image_hash = await _save_upload(file, tmpdir)
         output_path = os.path.join(tmpdir, "mask.tif")
 
         model, lock = get_model(
@@ -490,7 +551,7 @@ async def segment_text(
         t_start = time.time()
         model_key = ("sam3", model_id or _DEFAULT_MODEL_IDS["sam3"])
         with lock:
-            _set_image_cached(model, model_key, input_path, image_bytes)
+            _set_image_cached(model, model_key, input_path, image_hash)
             model.generate_masks(
                 prompt=prompt,
                 min_size=min_size,
@@ -506,8 +567,10 @@ async def segment_text(
         )
         return _format_response(output_path, output_format, tmpdir)
     except HTTPException:
+        _cleanup_tmpdir(tmpdir)
         raise
     except Exception as e:
+        _cleanup_tmpdir(tmpdir)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -534,6 +597,11 @@ def main():
     args = parser.parse_args()
 
     if args.preload:
+        if ":" not in args.preload:
+            parser.error(
+                "Invalid --preload format. "
+                "Expected 'model_version:model_id', e.g. 'sam2:sam2-hiera-large'"
+            )
         version, mid = args.preload.split(":", 1)
         get_model(version, mid)
 
