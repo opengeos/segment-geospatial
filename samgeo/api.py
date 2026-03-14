@@ -34,7 +34,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from samgeo import __version__
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn.error")
 
 
 def _normalize_max_size(max_size: Optional[int]) -> Optional[int]:
