@@ -32,6 +32,21 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from samgeo import __version__
 
+
+def _normalize_max_size(max_size: Optional[int]) -> Optional[int]:
+    """Treat max_size of 0 or negative as None (no limit).
+
+    Args:
+        max_size: The max_size value from the form.
+
+    Returns:
+        None if max_size is 0 or negative, otherwise the original value.
+    """
+    if max_size is not None and max_size <= 0:
+        return None
+    return max_size
+
+
 app = FastAPI(
     title="samgeo API",
     description="REST API for geospatial image segmentation with SAM models.",
@@ -244,6 +259,7 @@ async def segment_automatic(
     Returns:
         Segmentation result in the requested format.
     """
+    max_size = _normalize_max_size(max_size)
     tmpdir = tempfile.mkdtemp()
     try:
         input_path = await _save_upload(file, tmpdir)
@@ -334,6 +350,7 @@ async def segment_predict(
             detail="At least one of point_coords or boxes must be provided.",
         )
 
+    max_size = _normalize_max_size(max_size)
     tmpdir = tempfile.mkdtemp()
     try:
         input_path = await _save_upload(file, tmpdir)
@@ -400,6 +417,7 @@ async def segment_text(
     Returns:
         Segmentation result in the requested format.
     """
+    max_size = _normalize_max_size(max_size)
     tmpdir = tempfile.mkdtemp()
     try:
         input_path = await _save_upload(file, tmpdir)
