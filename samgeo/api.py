@@ -17,6 +17,7 @@ import logging
 import os
 import tempfile
 import threading
+import time
 from typing import Optional
 
 try:
@@ -306,6 +307,7 @@ async def segment_automatic(
         input_path, image_bytes = await _save_upload(file, tmpdir)
         output_path = os.path.join(tmpdir, "mask.tif")
 
+        t_start = time.time()
         if model_version == "sam3":
             model, lock = get_model(model_version, model_id)
             model_key = (model_version, model_id or _DEFAULT_MODEL_IDS[model_version])
@@ -340,6 +342,12 @@ async def segment_automatic(
                     max_size=max_size,
                 )
 
+        t_inference = time.time() - t_start
+        logger.info(
+            "Automatic segmentation completed in %.2fs (model: %s)",
+            t_inference,
+            model_version,
+        )
         return _format_response(output_path, output_format, tmpdir)
     except HTTPException:
         raise
@@ -410,6 +418,7 @@ async def segment_predict(
         if boxes is not None:
             parsed_boxes = np.array(json.loads(boxes))
 
+        t_start = time.time()
         model, lock = get_model(model_version, model_id, automatic=False)
         model_key = (model_version, model_id or _DEFAULT_MODEL_IDS[model_version])
         with lock:
@@ -423,6 +432,12 @@ async def segment_predict(
                 output=output_path,
             )
 
+        t_inference = time.time() - t_start
+        logger.info(
+            "Prompt segmentation completed in %.2fs (model: %s)",
+            t_inference,
+            model_version,
+        )
         return _format_response(output_path, output_format, tmpdir)
     except HTTPException:
         raise
@@ -472,6 +487,7 @@ async def segment_text(
             backend=backend,
             confidence_threshold=confidence_threshold,
         )
+        t_start = time.time()
         model_key = ("sam3", model_id or _DEFAULT_MODEL_IDS["sam3"])
         with lock:
             _set_image_cached(model, model_key, input_path, image_bytes)
@@ -482,6 +498,12 @@ async def segment_text(
             )
             model.save_masks(output=output_path)
 
+        t_inference = time.time() - t_start
+        logger.info(
+            "Text segmentation completed in %.2fs (prompt: '%s')",
+            t_inference,
+            prompt,
+        )
         return _format_response(output_path, output_format, tmpdir)
     except HTTPException:
         raise
