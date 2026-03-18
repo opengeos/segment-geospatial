@@ -97,7 +97,7 @@ Runs automatic mask generation on an uploaded image. Supports SAM, SAM2, and SAM
 | `file` | file | required | Image file (TIFF, PNG, JPEG) |
 | `model_version` | string | `sam2` | One of `sam`, `sam2`, `sam3` |
 | `model_id` | string | auto | Model identifier (e.g., `sam2-hiera-large`) |
-| `output_format` | string | `geojson` | One of `geojson`, `geotiff`, `png` |
+| `output_format` | string | `geojson` | One of `geojson`, `geotiff`, `png`, `json`, `detections` |
 | `foreground` | bool | `true` | Extract foreground objects only |
 | `unique` | bool | `true` | Assign unique ID to each object |
 | `min_size` | int | `0` | Minimum mask size in pixels |
@@ -121,21 +121,25 @@ curl -X POST http://localhost:8000/segment/automatic \
 POST /segment/predict
 ```
 
-Runs segmentation with point or bounding box prompts. Supports SAM and SAM2.
+Runs segmentation with point or bounding box prompts. Supports SAM, SAM2, and SAM3.
+
+For SAM3 with bounding box prompts, the model finds **all similar objects** in the image (not just the object inside the box). Point prompts with SAM3 segment the specific object at the point location.
 
 **Parameters (multipart form):**
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `file` | file | required | Image file (TIFF, PNG, JPEG) |
-| `model_version` | string | `sam2` | One of `sam`, `sam2` |
+| `model_version` | string | `sam3` | One of `sam`, `sam2`, `sam3` |
 | `model_id` | string | auto | Model identifier |
-| `output_format` | string | `geojson` | One of `geojson`, `geotiff`, `png` |
+| `output_format` | string | `geojson` | One of `geojson`, `geotiff`, `png`, `json`, `detections` |
 | `point_coords` | string | none | JSON array of `[[x, y], ...]` |
 | `point_labels` | string | none | JSON array of `[1, 0, ...]` (1=foreground, 0=background) |
 | `boxes` | string | none | JSON array of `[[xmin, ymin, xmax, ymax], ...]` |
-| `point_crs` | string | none | CRS string (e.g., `EPSG:4326`) |
+| `point_crs` | string | none | CRS string (e.g., `EPSG:4326`) for point/box coordinates |
 | `multimask_output` | bool | `false` | Return multiple masks per prompt |
+| `min_size` | int | `0` | Minimum mask size in pixels |
+| `max_size` | int | none | Maximum mask size in pixels |
 
 **Example with point prompts:**
 
@@ -147,13 +151,61 @@ curl -X POST http://localhost:8000/segment/predict \
   -F "output_format=geojson"
 ```
 
-**Example with box prompts:**
+**Example with box prompts (finds all similar objects):**
 
 ```bash
 curl -X POST http://localhost:8000/segment/predict \
   -F "file=@image.tif" \
   -F "boxes=[[10, 20, 300, 400]]" \
-  -F "output_format=geotiff"
+  -F "output_format=geojson"
+```
+
+**Example with JSON output (pixel-coordinate bounding boxes):**
+
+```bash
+curl -X POST http://localhost:8000/segment/predict \
+  -F "file=@image.jpg" \
+  -F "boxes=[[10, 20, 300, 400]]" \
+  -F "output_format=json"
+```
+
+```json
+{
+  "image_width": 2647,
+  "image_height": 1464,
+  "num_detections": 12,
+  "detections": [
+    {"id": 1, "value": 1, "bbox": [50, 80, 200, 250], "width": 150, "height": 170},
+    {"id": 2, "value": 2, "bbox": [310, 45, 480, 210], "width": 170, "height": 165}
+  ]
+}
+```
+
+**Example with detections output (geographic-coordinate bounding boxes):**
+
+```bash
+curl -X POST http://localhost:8000/segment/predict \
+  -F "file=@image.tif" \
+  -F "boxes=[[10, 20, 300, 400]]" \
+  -F "output_format=detections"
+```
+
+```json
+{
+  "type": "FeatureCollection",
+  "crs": "EPSG:3857",
+  "num_detections": 12,
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-13609328.39, 4561446.23], [-13609284.55, 4561446.23], [-13609284.55, 4561389.77], [-13609328.39, 4561389.77], [-13609328.39, 4561446.23]]]
+      },
+      "properties": {"id": 1, "value": 1, "bbox_pixel": [50.0, 80.0, 200.0, 250.0]}
+    }
+  ]
+}
 ```
 
 ### Text-prompt Segmentation
@@ -172,18 +224,66 @@ Runs text-prompt segmentation using SAM3.
 | `prompt` | string | required | Text description (e.g., `building`, `tree`) |
 | `model_id` | string | auto | SAM3 model identifier |
 | `backend` | string | `meta` | One of `meta`, `transformers` |
-| `output_format` | string | `geojson` | One of `geojson`, `geotiff`, `png` |
+| `output_format` | string | `geojson` | One of `geojson`, `geotiff`, `png`, `json`, `detections` |
 | `confidence_threshold` | float | `0.5` | Detection confidence threshold |
 | `min_size` | int | `0` | Minimum mask size in pixels |
 | `max_size` | int | none | Maximum mask size in pixels |
 
-**Example:**
+**Example (GeoJSON mask polygons):**
 
 ```bash
 curl -X POST http://localhost:8000/segment/text \
   -F "file=@image.tif" \
   -F "prompt=building" \
   -F "output_format=geojson"
+```
+
+**Example with JSON output (pixel-coordinate bounding boxes):**
+
+```bash
+curl -X POST http://localhost:8000/segment/text \
+  -F "file=@image.jpg" \
+  -F "prompt=building" \
+  -F "output_format=json"
+```
+
+```json
+{
+  "image_width": 2647,
+  "image_height": 1464,
+  "num_detections": 46,
+  "detections": [
+    {"id": 1, "bbox": [2506, 134, 2653, 324], "width": 147, "height": 190, "score": 0.887},
+    {"id": 2, "bbox": [1200, 450, 1380, 620], "width": 180, "height": 170, "score": 0.862}
+  ]
+}
+```
+
+**Example with detections output (geographic-coordinate bounding boxes):**
+
+```bash
+curl -X POST http://localhost:8000/segment/text \
+  -F "file=@image.tif" \
+  -F "prompt=building" \
+  -F "output_format=detections"
+```
+
+```json
+{
+  "type": "FeatureCollection",
+  "crs": "EPSG:3857",
+  "num_detections": 46,
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-13609328.39, 4561446.23], [-13609284.55, 4561446.23], [-13609284.55, 4561389.77], [-13609328.39, 4561389.77], [-13609328.39, 4561446.23]]]
+      },
+      "properties": {"id": 1, "score": 0.887, "bbox_pixel": [2506.47, 134.43, 2653.27, 323.52]}
+    }
+  ]
+}
 ```
 
 ## Caching
@@ -208,6 +308,7 @@ import requests
 
 url = "http://localhost:8000/segment/text"
 
+# Get GeoJSON mask polygons
 with open("image.tif", "rb") as f:
     response = requests.post(
         url,
@@ -217,6 +318,20 @@ with open("image.tif", "rb") as f:
 
 geojson = response.json()
 print(f"Found {len(geojson['features'])} features")
+```
+
+```python
+# Get bounding boxes in pixel coordinates (suitable for non-georeferenced images)
+with open("image.jpg", "rb") as f:
+    response = requests.post(
+        url,
+        files={"file": ("image.jpg", f, "image/jpeg")},
+        data={"prompt": "car", "output_format": "json"},
+    )
+
+result = response.json()
+for det in result["detections"]:
+    print(f"Object {det['id']}: bbox={det['bbox']}, score={det['score']:.3f}")
 ```
 
 ## API Reference

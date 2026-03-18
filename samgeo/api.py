@@ -31,13 +31,14 @@ except ImportError:
 
 import numpy as np
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from samgeo import __version__
 
 logger = logging.getLogger("uvicorn.error")
 
-_VALID_OUTPUT_FORMATS = {"geojson", "geotiff", "png"}
+_VALID_OUTPUT_FORMATS = {"geojson", "geotiff", "png", "detections", "json"}
 
 
 def _normalize_max_size(max_size: Optional[int]) -> Optional[int]:
@@ -58,6 +59,14 @@ app = FastAPI(
     title="samgeo API",
     description="REST API for geospatial image segmentation with SAM models.",
     version=__version__,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Model cache: (model_version, model_id) -> (model_instance, lock)
@@ -118,7 +127,7 @@ def get_model(model_version: str, model_id: Optional[str] = None, **kwargs):
             ),
         )
 
-    if model_id is None:
+    if not model_id:
         model_id = _DEFAULT_MODEL_IDS[model_version]
 
     valid_ids = _AVAILABLE_MODELS[model_version]
@@ -151,6 +160,7 @@ def get_model(model_version: str, model_id: Optional[str] = None, **kwargs):
             elif model_version == "sam3":
                 from samgeo.samgeo3 import SamGeo3
 
+                kwargs.setdefault("enable_inst_interactivity", True)
                 model = SamGeo3(**kwargs)
         except ImportError as e:
             raise HTTPException(
@@ -282,6 +292,214 @@ def _format_response(raster_path: str, output_format: str, tmpdir: str):
         return FileResponse(
             png_path, media_type="image/png", filename="mask.png"
         )
+
+    elif output_format in ("json", "detections"):
+        data = _extract_bboxes_from_raster(raster_path, output_format)
+        _cleanup_tmpdir(tmpdir)
+        return JSONResponse(content=data)
+
+
+def _extract_bboxes_from_raster(raster_path: str, output_format: str) -> dict:
+    """Extract bounding boxes from a raster mask file.
+
+    Each unique non-zero value in the raster is treated as a separate object.
+    Bounding boxes are computed from the pixel regions of each object.
+
+    Args:
+        raster_path: Path to the raster mask file.
+        output_format: Either "json" for pixel-coordinate bboxes or
+            "detections" for a GeoJSON FeatureCollection with geographic
+            coordinates.
+
+    Returns:
+        A dict with bounding box information in the requested format.
+    """
+    import rasterio
+
+    with rasterio.open(raster_path) as src:
+        mask = src.read(1)
+        transform = src.transform
+        crs = src.crs.to_string() if src.crs else None
+        has_georef = crs is not None
+
+    unique_vals = np.unique(mask)
+    unique_vals = unique_vals[unique_vals != 0]
+
+    if output_format == "json":
+        detections = []
+        for i, val in enumerate(unique_vals):
+            rows, cols = np.where(mask == val)
+            x1, y1, x2, y2 = int(cols.min()), int(rows.min()), int(cols.max()), int(rows.max())
+            detections.append({
+                "id": i + 1,
+                "value": int(val),
+                "bbox": [x1, y1, x2, y2],
+                "width": x2 - x1,
+                "height": y2 - y1,
+            })
+        return {
+            "image_width": int(mask.shape[1]),
+            "image_height": int(mask.shape[0]),
+            "num_detections": len(detections),
+            "detections": detections,
+        }
+
+    else:  # detections (GeoJSON)
+        features = []
+        for i, val in enumerate(unique_vals):
+            rows, cols = np.where(mask == val)
+            x1, y1, x2, y2 = float(cols.min()), float(rows.min()), float(cols.max()), float(rows.max())
+
+            if has_georef:
+                geo_x1, geo_y1 = transform * (x1, y1)
+                geo_x2, geo_y2 = transform * (x2, y2)
+            else:
+                geo_x1, geo_y1 = x1, y1
+                geo_x2, geo_y2 = x2, y2
+
+            coords = [
+                [geo_x1, geo_y1],
+                [geo_x2, geo_y1],
+                [geo_x2, geo_y2],
+                [geo_x1, geo_y2],
+                [geo_x1, geo_y1],
+            ]
+            features.append({
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": [coords]},
+                "properties": {
+                    "id": i + 1,
+                    "value": int(val),
+                    "bbox_pixel": [x1, y1, x2, y2],
+                },
+            })
+        result = {
+            "type": "FeatureCollection",
+            "features": features,
+            "num_detections": len(features),
+        }
+        if crs:
+            result["crs"] = crs
+        return result
+
+
+def _build_detections_json(model) -> dict:
+    """Build a plain JSON response with bounding boxes and scores in pixel coordinates.
+
+    Suitable for non-georeferenced images where geographic coordinates are
+    not available.
+
+    Args:
+        model: The SAM model instance with boxes, scores, and image
+            dimension attributes.
+
+    Returns:
+        A dict with image dimensions and a list of detections, each containing
+        id, bbox (pixel coords), and score.
+    """
+    boxes = model.boxes if model.boxes is not None else []
+    scores = model.scores if model.scores is not None else []
+
+    detections = []
+    for i, box in enumerate(boxes):
+        box_np = np.asarray(box).flatten()
+        x1, y1, x2, y2 = int(round(box_np[0])), int(round(box_np[1])), int(round(box_np[2])), int(round(box_np[3]))
+        det = {
+            "id": i + 1,
+            "bbox": [x1, y1, x2, y2],
+            "width": x2 - x1,
+            "height": y2 - y1,
+        }
+        if i < len(scores):
+            score_val = scores[i]
+            det["score"] = float(score_val) if not isinstance(score_val, float) else score_val
+        detections.append(det)
+
+    return {
+        "image_width": model.image_width,
+        "image_height": model.image_height,
+        "num_detections": len(detections),
+        "detections": detections,
+    }
+
+
+def _build_detections_geojson(model, source_path: str) -> dict:
+    """Build a GeoJSON FeatureCollection from detected bounding boxes and scores.
+
+    Converts pixel-coordinate bounding boxes to geographic coordinates when
+    the source image has georeferencing information. Falls back to pixel
+    coordinates otherwise.
+
+    Args:
+        model: The SAM model instance with boxes and scores attributes.
+        source_path: Path to the source image file.
+
+    Returns:
+        A GeoJSON FeatureCollection dict with one polygon feature per detection.
+    """
+    import rasterio
+
+    boxes = model.boxes if model.boxes is not None else []
+    scores = model.scores if model.scores is not None else []
+
+    has_georef = False
+    transform = None
+    crs = None
+    try:
+        if source_path and source_path.lower().endswith((".tif", ".tiff")):
+            with rasterio.open(source_path) as src:
+                if src.crs is not None:
+                    transform = src.transform
+                    crs = src.crs.to_string()
+                    has_georef = True
+    except Exception:
+        pass
+
+    features = []
+    for i, box in enumerate(boxes):
+        box_np = np.asarray(box).flatten()
+        x1, y1, x2, y2 = float(box_np[0]), float(box_np[1]), float(box_np[2]), float(box_np[3])
+
+        if has_georef:
+            # Convert pixel coords to geographic coords
+            geo_x1, geo_y1 = transform * (x1, y1)
+            geo_x2, geo_y2 = transform * (x2, y2)
+        else:
+            geo_x1, geo_y1 = x1, y1
+            geo_x2, geo_y2 = x2, y2
+
+        # Build bbox polygon (clockwise)
+        coords = [
+            [geo_x1, geo_y1],
+            [geo_x2, geo_y1],
+            [geo_x2, geo_y2],
+            [geo_x1, geo_y2],
+            [geo_x1, geo_y1],
+        ]
+
+        props = {"id": i + 1}
+        if i < len(scores):
+            score_val = scores[i]
+            props["score"] = float(score_val) if not isinstance(score_val, float) else score_val
+        props["bbox_pixel"] = [x1, y1, x2, y2]
+
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": [coords]},
+                "properties": props,
+            }
+        )
+
+    result = {
+        "type": "FeatureCollection",
+        "features": features,
+        "num_detections": len(features),
+    }
+    if crs:
+        result["crs"] = crs
+
+    return result
 
 
 def _cleanup_tmpdir(tmpdir: str) -> None:
@@ -416,7 +634,7 @@ async def segment_automatic(
 @app.post("/segment/predict")
 async def segment_predict(
     file: UploadFile = File(...),
-    model_version: str = Form("sam2"),
+    model_version: str = Form("sam3"),
     model_id: Optional[str] = Form(None),
     output_format: str = Form("geojson"),
     point_coords: Optional[str] = Form(None),
@@ -429,16 +647,20 @@ async def segment_predict(
 ):
     """Run prompt-based segmentation with points or bounding boxes.
 
+    For SAM3 with bounding box prompts, the model finds all similar objects
+    in the image (not just the object inside the box). Point prompts with
+    SAM3 segment the specific object at the point location.
+
     Args:
         file: Image file (TIFF, PNG, JPEG).
-        model_version: One of "sam", "sam2".
+        model_version: One of "sam", "sam2", "sam3".
         model_id: Specific model identifier.
-        output_format: One of "geojson", "geotiff", "png".
+        output_format: One of "geojson", "geotiff", "png", "json", "detections".
         point_coords: JSON string of [[x, y], ...] coordinate pairs.
         point_labels: JSON string of [1, 0, ...] labels (1=foreground,
             0=background).
         boxes: JSON string of [[xmin, ymin, xmax, ymax], ...] bounding boxes.
-        point_crs: CRS string (e.g., "EPSG:4326") for point coordinates.
+        point_crs: CRS string (e.g., "EPSG:4326") for point/box coordinates.
         multimask_output: Whether to return multiple masks per prompt.
         min_size: Minimum mask size in pixels.
         max_size: Maximum mask size in pixels.
@@ -448,11 +670,15 @@ async def segment_predict(
     """
     _validate_output_format(output_format)
 
-    if model_version == "sam3":
-        raise HTTPException(
-            status_code=400,
-            detail="Use /segment/text for SAM3 text-based segmentation.",
-        )
+    # Swagger UI sends empty strings for unfilled optional fields
+    if not point_coords:
+        point_coords = None
+    if not point_labels:
+        point_labels = None
+    if not boxes:
+        boxes = None
+    if not point_crs:
+        point_crs = None
 
     if point_coords is None and boxes is None:
         raise HTTPException(
@@ -479,18 +705,61 @@ async def segment_predict(
             parsed_boxes = np.array(json.loads(boxes))
 
         t_start = time.time()
-        model, lock = get_model(model_version, model_id, automatic=False)
-        model_key = (model_version, model_id or _DEFAULT_MODEL_IDS[model_version])
-        with lock:
-            _set_image_cached(model, model_key, input_path, image_hash)
-            model.predict(
-                point_coords=parsed_coords,
-                point_labels=parsed_labels,
-                boxes=parsed_boxes,
-                point_crs=point_crs,
-                multimask_output=multimask_output,
-                output=output_path,
+
+        if model_version == "sam3":
+            model, lock = get_model(model_version, model_id)
+            model_key = (
+                model_version,
+                model_id or _DEFAULT_MODEL_IDS[model_version],
             )
+            with lock:
+                _set_image_cached(model, model_key, input_path, image_hash)
+                if parsed_boxes is not None:
+                    # Use generate_masks_by_boxes to find all similar objects
+                    box_list = parsed_boxes.tolist()
+                    if parsed_boxes.ndim == 1:
+                        box_list = [box_list]
+                    model.generate_masks_by_boxes(
+                        boxes=box_list,
+                        box_crs=point_crs,
+                        min_size=min_size,
+                        max_size=max_size,
+                    )
+                else:
+                    # Use predict_inst for point-only prompts
+                    model.predict_inst(
+                        point_coords=parsed_coords,
+                        point_labels=parsed_labels,
+                        multimask_output=multimask_output,
+                        point_crs=point_crs,
+                    )
+                if model.masks is None or len(model.masks) == 0:
+                    _cleanup_tmpdir(tmpdir)
+                    raise HTTPException(
+                        status_code=404,
+                        detail="No objects found for the given prompts.",
+                    )
+                model.save_masks(
+                    output=output_path,
+                    min_size=min_size,
+                    max_size=max_size,
+                )
+        else:
+            model, lock = get_model(model_version, model_id, automatic=False)
+            model_key = (
+                model_version,
+                model_id or _DEFAULT_MODEL_IDS[model_version],
+            )
+            with lock:
+                _set_image_cached(model, model_key, input_path, image_hash)
+                model.predict(
+                    point_coords=parsed_coords,
+                    point_labels=parsed_labels,
+                    boxes=parsed_boxes,
+                    point_crs=point_crs,
+                    multimask_output=multimask_output,
+                    output=output_path,
+                )
 
         t_inference = time.time() - t_start
         logger.info(
@@ -530,7 +799,11 @@ async def segment_text(
         prompt: Text description of objects to segment (e.g., "building").
         model_id: SAM3 model identifier.
         backend: SAM3 backend, one of "meta" or "transformers".
-        output_format: One of "geojson", "geotiff", "png".
+        output_format: One of "geojson", "geotiff", "png", "detections", "json".
+            Use "detections" to get a GeoJSON FeatureCollection of bounding
+            box polygons in geographic coordinates with confidence scores.
+            Use "json" for a plain JSON array of bounding boxes in pixel
+            coordinates, suitable for non-georeferenced images.
         confidence_threshold: Confidence threshold for detections.
         min_size: Minimum mask size in pixels.
         max_size: Maximum mask size in pixels.
@@ -560,7 +833,22 @@ async def segment_text(
                 min_size=min_size,
                 max_size=max_size,
             )
-            model.save_masks(output=output_path)
+            if model.masks is None or len(model.masks) == 0:
+                _cleanup_tmpdir(tmpdir)
+                raise HTTPException(
+                    status_code=404,
+                    detail=(
+                        "No objects found for the given prompt. "
+                        "Please try a different prompt or adjust parameters."
+                    ),
+                )
+            if output_format in ("detections", "json"):
+                if output_format == "detections":
+                    det_result = _build_detections_geojson(model, input_path)
+                else:
+                    det_result = _build_detections_json(model)
+            else:
+                model.save_masks(output=output_path)
 
         t_inference = time.time() - t_start
         logger.info(
@@ -568,6 +856,9 @@ async def segment_text(
             t_inference,
             prompt,
         )
+        if output_format in ("detections", "json"):
+            _cleanup_tmpdir(tmpdir)
+            return JSONResponse(content=det_result)
         return _format_response(output_path, output_format, tmpdir)
     except HTTPException:
         _cleanup_tmpdir(tmpdir)
