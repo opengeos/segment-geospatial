@@ -344,6 +344,10 @@ class SamGeo3:
                 "Input image must be either a path, numpy array, or PIL Image."
             )
 
+        # Ensure the image is C-contiguous for OpenCV compatibility
+        if not self.image.flags["C_CONTIGUOUS"]:
+            self.image = np.ascontiguousarray(self.image)
+
         self.image_height, self.image_width = self.image.shape[:2]
 
         # Reset batch processing attributes so that subsequent calls to
@@ -2821,6 +2825,7 @@ class SamGeo3:
         mask_3d = mask_combined[:, :, np.newaxis]
         blended = frame_np * (1 - mask_3d * alpha) + overlay * (mask_3d * alpha)
         blended = np.clip(blended, 0, 255).astype(np.uint8)
+        blended = blended.copy()
 
         # Draw bounding boxes and labels using OpenCV
         for box, text, color in labels_to_draw:
