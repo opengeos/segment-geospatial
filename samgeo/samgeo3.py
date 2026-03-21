@@ -2678,6 +2678,12 @@ class SamGeo3:
         blend: bool = True,
         alpha: float = 0.5,
         font_scale: float = 0.8,
+        show_points: bool = False,
+        point_coords: Optional[List[List[float]]] = None,
+        point_labels: Optional[List[int]] = None,
+        foreground_color: Tuple[int, int, int] = (0, 128, 0),
+        background_color: Tuple[int, int, int] = (255, 0, 0),
+        point_size: int = 15,
         **kwargs: Any,
     ) -> None:
         """Show the annotations (objects with random color) on the input image.
@@ -2696,6 +2702,20 @@ class SamGeo3:
                 only annotations will be shown on a white background.
             alpha (float): The alpha value for the annotations.
             font_scale (float): The font scale for labels. Defaults to 0.8.
+            show_points (bool): Whether to show point prompts on the image.
+                If True, uses stored point_coords/point_labels from predict_inst()
+                or the explicitly provided ones. Defaults to False.
+            point_coords (List[List[float]], optional): Point coordinates to
+                display. If None and show_points is True, uses the stored
+                point_coords from the last predict_inst() or show_canvas() call.
+            point_labels (List[int], optional): Labels for the points (1 for
+                foreground, 0 for background). If None and show_points is True,
+                uses the stored point_labels.
+            foreground_color (Tuple[int, int, int]): RGB color for foreground
+                points (label=1). Defaults to dark green (0, 128, 0).
+            background_color (Tuple[int, int, int]): RGB color for background
+                points (label=0). Defaults to red (255, 0, 0).
+            point_size (int): Size of star markers in pixels. Defaults to 15.
             **kwargs: Additional keyword arguments (kept for backward compatibility).
         """
 
@@ -2714,6 +2734,45 @@ class SamGeo3:
             alpha=alpha,
             font_scale=font_scale,
         )
+
+        # Overlay point prompts if requested
+        if show_points:
+            coords = point_coords
+            labels = point_labels
+            if coords is None and hasattr(self, "point_coords"):
+                coords = self.point_coords
+            if labels is None and hasattr(self, "point_labels"):
+                labels = self.point_labels
+
+            if coords is not None:
+                coords_arr = np.array(coords)
+                if labels is None:
+                    labels = [1] * len(coords_arr)
+                labels_arr = np.array(labels)
+
+                for pt, lbl in zip(coords_arr, labels_arr):
+                    x, y = int(pt[0]), int(pt[1])
+                    color = foreground_color if lbl == 1 else background_color
+
+                    # Build a 5-pointed star polygon
+                    def _star_pts(cx, cy, r_outer, r_inner, n=5):
+                        pts = []
+                        for i in range(2 * n):
+                            r = r_outer if i % 2 == 0 else r_inner
+                            angle = np.pi / 2 + i * np.pi / n
+                            pts.append(
+                                [
+                                    int(cx + r * np.cos(angle)),
+                                    int(cy - r * np.sin(angle)),
+                                ]
+                            )
+                        return np.array(pts, dtype=np.int32)
+
+                    star_pts = _star_pts(x, y, point_size, point_size * 0.4)
+                    # Filled color star
+                    cv2.fillPoly(blended, [star_pts], color)
+                    # White edge outline
+                    cv2.polylines(blended, [star_pts], True, (255, 255, 255), 2)
 
         if output is not None:
             # Save directly using OpenCV
@@ -3226,6 +3285,22 @@ class SamGeo3:
         )
         self.scores = list(scores) if isinstance(scores, np.ndarray) else [scores]
         self.logits = logits
+
+        # Store point prompts for visualization
+        if point_coords is not None:
+            self.point_coords = (
+                point_coords.tolist()
+                if isinstance(point_coords, np.ndarray)
+                else point_coords
+            )
+            self.point_labels = (
+                point_labels.tolist()
+                if isinstance(point_labels, np.ndarray)
+                else point_labels
+            )
+        else:
+            self.point_coords = None
+            self.point_labels = None
 
         return masks, scores, logits
 
