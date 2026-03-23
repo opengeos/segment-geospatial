@@ -11,7 +11,8 @@ Here is a simple example of using segment-geospatial to generate a segmentation 
 ```python
 import os
 import torch
-from samgeo import SamGeo, tms_to_geotiff
+from samgeo import SamGeo
+from samgeo.common import tms_to_geotiff
 
 bbox = [-95.3704, 29.6762, -95.368, 29.6775]
 image = 'satellite.tif'
