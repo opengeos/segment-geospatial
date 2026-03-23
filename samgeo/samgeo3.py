@@ -5030,6 +5030,7 @@ class SamGeo3Video:
             mask_3d = mask_combined[:, :, np.newaxis]
             blended = frame_np * (1 - mask_3d * alpha) + overlay * (mask_3d * alpha)
             blended = np.clip(blended, 0, 255).astype(np.uint8)
+            blended = np.ascontiguousarray(blended)
 
             # Draw labels using OpenCV
             for cx, cy, label, color in labels_to_draw:
