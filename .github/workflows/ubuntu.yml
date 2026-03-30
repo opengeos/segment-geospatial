@@ -28,7 +28,7 @@ jobs:
             - name: CHECKOUT CODE
               uses: actions/checkout@v6
             - name: Setup micromamba
-              uses: mamba-org/setup-micromamba@v2
+              uses: mamba-org/setup-micromamba@v3
               with:
                   environment-name: test-env
                   create-args: >-
