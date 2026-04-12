@@ -113,10 +113,15 @@ MODEL_REGISTRY = {
         "description": "Language-guided SAM (GroundingDINO + SAM)",
         "install": "pip install segment-geospatial[text]",
         "models": {
-            "sam2": {
-                "name": "SAM2 backend (default)",
-                "params": "varies",
-                "description": "Uses SAM2 for mask generation",
+            "vit_h": {
+                "name": "ViT-H (default)",
+                "params": "636M",
+                "description": "SAM1 ViT-H backend for mask generation",
+            },
+            "sam2-hiera-large": {
+                "name": "SAM2 Hiera-Large",
+                "params": "224.4M",
+                "description": "SAM2 backend for mask generation",
             },
         },
     },
@@ -219,7 +224,7 @@ def get_default_model_id(model_type):
         "sam3": "facebook/sam3",
         "fast_sam": "FastSAM-x.pt",
         "hq_sam": "vit_h",
-        "text_sam": "sam2",
+        "text_sam": "vit_h",
     }
     return defaults.get(model_type, model_type)
 

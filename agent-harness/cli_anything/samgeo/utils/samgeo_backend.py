@@ -36,7 +36,7 @@ def get_device(requested=None):
     Returns:
         str: Device string.
     """
-    if requested:
+    if requested and str(requested).lower() != "auto":
         return requested
     try:
         import torch

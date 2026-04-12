@@ -43,7 +43,9 @@ def automatic_segment(
     model_cfg = project["model"]
 
     output = os.path.abspath(output)
-    os.makedirs(os.path.dirname(output), exist_ok=True)
+    parent = os.path.dirname(output)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
 
     if model_cfg["type"] == "sam3":
         # SAM3 uses set_image() + generate_masks(prompt) + save_masks(output)
@@ -134,7 +136,9 @@ def predict_points(
     model_cfg = project["model"]
 
     output = os.path.abspath(output)
-    os.makedirs(os.path.dirname(output), exist_ok=True)
+    parent = os.path.dirname(output)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
 
     import numpy as np
 
@@ -221,7 +225,9 @@ def predict_boxes(
     model_cfg = project["model"]
 
     output = os.path.abspath(output)
-    os.makedirs(os.path.dirname(output), exist_ok=True)
+    parent = os.path.dirname(output)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
 
     import numpy as np
 
@@ -309,7 +315,9 @@ def text_segment(
     )
 
     output = os.path.abspath(output)
-    os.makedirs(os.path.dirname(output), exist_ok=True)
+    parent = os.path.dirname(output)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
 
     model.predict(
         source,

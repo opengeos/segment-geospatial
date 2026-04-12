@@ -133,7 +133,9 @@ class Session:
             raise ValueError("No session file path specified.")
 
         path = os.path.abspath(path)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
 
         session_data = {
             "project": {

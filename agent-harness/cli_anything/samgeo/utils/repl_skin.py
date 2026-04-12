@@ -71,7 +71,7 @@ class ReplSkin:
         """
         mod = "*" if modified else ""
         proj = f":{project_name}{mod}" if project_name else ""
-        prompt_str = f"samgeo{proj}> "
+        prompt_str = f"{self.name}{proj}> "
 
         if session:
             try:

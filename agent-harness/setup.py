@@ -26,5 +26,5 @@ setup(
             "cli-anything-samgeo=cli_anything.samgeo.samgeo_cli:main",
         ],
     },
-    python_requires=">=3.9",
+    python_requires=">=3.10",
 )

@@ -89,7 +89,9 @@ def export_masks(
             f"Output file exists: {output}. Use --overwrite to replace."
         )
 
-    os.makedirs(os.path.dirname(output), exist_ok=True)
+    parent = os.path.dirname(output)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
 
     format_info = EXPORT_FORMATS[fmt]
 

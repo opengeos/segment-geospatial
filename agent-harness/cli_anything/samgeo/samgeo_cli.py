@@ -100,7 +100,10 @@ def cli(ctx, as_json, project_path):
     """
     ctx.ensure_object(dict)
     ctx.obj["as_json"] = as_json
-    ctx.obj["project_path"] = project_path
+    if project_path is not None:
+        ctx.obj["project_path"] = project_path
+    elif "project_path" not in ctx.obj:
+        ctx.obj["project_path"] = None
 
     if ctx.invoked_subcommand is None:
         ctx.invoke(repl, project_path=project_path)

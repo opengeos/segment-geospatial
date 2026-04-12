@@ -73,7 +73,9 @@ def download_tiles(
     """
     common = get_common_module()
     output = os.path.abspath(output)
-    os.makedirs(os.path.dirname(output), exist_ok=True)
+    parent = os.path.dirname(output)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
 
     common.tms_to_geotiff(
         output=output,
@@ -120,7 +122,9 @@ def reproject_raster(
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"Input raster not found: {input_path}")
 
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    parent = os.path.dirname(output_path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
 
     common.reproject(
         image=input_path,
@@ -186,7 +190,8 @@ def image_to_cog(source, output=None, profile="deflate"):
 
     Args:
         source: Input raster path.
-        output: Output path. If None, overwrites in place.
+        output: Output path. If None, writes to a new *_cog.tif file
+            alongside the source.
         profile: COG profile.
 
     Returns:

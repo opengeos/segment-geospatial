@@ -11,6 +11,8 @@ SAM 3, FastSAM, HQ-SAM, and LangSAM (text-based).
 
 ## Installation
 
+Requires Python >= 3.10.
+
 ```bash
 pip install segment-geospatial[all]
 cd agent-harness && pip install -e .

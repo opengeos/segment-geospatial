@@ -32,20 +32,24 @@ def raster_to_vector(source, output, simplify_tolerance=None, dst_crs=None):
     if not os.path.exists(source):
         raise FileNotFoundError(f"Source raster not found: {source}")
 
-    os.makedirs(os.path.dirname(output), exist_ok=True)
+    parent = os.path.dirname(output)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
 
     ext = os.path.splitext(output)[1].lower()
 
+    kwargs = {"simplify_tolerance": simplify_tolerance}
+    if dst_crs is not None:
+        kwargs["dst_crs"] = dst_crs
+
     if ext == ".gpkg":
-        common.raster_to_gpkg(source, output, simplify_tolerance=simplify_tolerance)
+        common.raster_to_gpkg(source, output, **kwargs)
     elif ext == ".shp":
-        common.raster_to_shp(source, output, simplify_tolerance=simplify_tolerance)
+        common.raster_to_shp(source, output, **kwargs)
     elif ext == ".geojson":
-        common.raster_to_geojson(source, output, simplify_tolerance=simplify_tolerance)
+        common.raster_to_geojson(source, output, **kwargs)
     else:
-        common.raster_to_vector(
-            source, output, simplify_tolerance=simplify_tolerance, dst_crs=dst_crs
-        )
+        common.raster_to_vector(source, output, **kwargs)
 
     gpd = get_geopandas()
     gdf = gpd.read_file(output)
@@ -129,9 +133,15 @@ def filter_vectors(
         gdf = gdf[gdf.geometry.area <= max_area]
 
     if column is not None and value is not None:
+        if column not in gdf.columns:
+            raise ValueError(
+                f"Column '{column}' not found. Available: {list(gdf.columns)}"
+            )
         gdf = gdf[gdf[column] == value]
 
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    parent = os.path.dirname(output_path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
     gdf.to_file(output_path)
 
     result = {

@@ -4,7 +4,7 @@ CLI harness for [segment-geospatial](https://github.com/opengeos/segment-geospat
 
 ## Prerequisites
 
-- Python 3.9+
+- Python 3.10+
 - segment-geospatial: `pip install segment-geospatial[all]`
 - PyTorch with CUDA (recommended) or CPU
 

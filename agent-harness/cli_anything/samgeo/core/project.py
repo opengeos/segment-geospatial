@@ -38,7 +38,7 @@ def create_project(
         "sam3": "facebook/sam3",
         "fast_sam": "FastSAM-x.pt",
         "hq_sam": "vit_h",
-        "text_sam": "sam2",
+        "text_sam": "vit_h",
     }
 
     project = {
@@ -49,7 +49,7 @@ def create_project(
         "model": {
             "type": model_type,
             "id": model_id or default_ids.get(model_type, model_type),
-            "device": device or "auto",
+            "device": device,
         },
         "source": None,
         "masks": None,
@@ -116,7 +116,9 @@ def save_project(project, path=None):
         raise ValueError("No path specified and project has no stored path.")
 
     path = os.path.abspath(path)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
 
     project["modified"] = datetime.now(timezone.utc).isoformat()
 
