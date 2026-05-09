@@ -1,0 +1,54 @@
+name: Publish
+
+on:
+    release:
+        types: [published]
+    workflow_dispatch:
+        inputs:
+            tag:
+                description: "Release tag to publish (must already exist on GitHub)"
+                required: true
+                type: string
+
+permissions:
+    contents: write
+
+jobs:
+    publish:
+        name: Publish plugin to plugins.qgis.org
+        runs-on: ubuntu-latest
+        env:
+            TAG: ${{ github.event.release.tag_name || inputs.tag }}
+            PLUGIN_DIR: qgis-samgeo-plugin
+            PLUGIN_NAME: samgeo_plugin
+            ZIP_PATH: dist/samgeo_plugin.zip
+        steps:
+            - uses: actions/checkout@v6
+
+            - uses: actions/setup-python@v6
+              with:
+                  python-version: "3.13"
+
+            - name: Build plugin zip
+              run: python "package_plugin.py" --source "$PLUGIN_DIR" --name "$PLUGIN_NAME" --output "$ZIP_PATH"
+
+            - name: Verify metadata version matches release tag
+              run: |
+                  metadata_version=$(grep '^version=' "$PLUGIN_DIR/metadata.txt" | cut -d'=' -f2 | tr -d '[:space:]')
+                  tag_version="${TAG#v}"
+                  if [ "$metadata_version" != "$tag_version" ]; then
+                      echo "::error::metadata.txt version ($metadata_version) does not match release tag ($tag_version)"
+                      exit 1
+                  fi
+
+            - name: Attach zip to GitHub release
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  gh release upload "$TAG" "$ZIP_PATH" --clobber
+
+            - name: Upload to plugins.qgis.org
+              env:
+                  QGIS_PLUGIN_REPO_USERNAME: ${{ secrets.QGIS_PLUGIN_REPO_USERNAME }}
+                  QGIS_PLUGIN_REPO_PASSWORD: ${{ secrets.QGIS_PLUGIN_REPO_PASSWORD }}
+              run: python scripts/upload_to_qgis_plugin_repo.py "$ZIP_PATH"
