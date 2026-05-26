@@ -204,6 +204,7 @@ class SamGeo2:
         unique: bool = True,
         min_size: int = 0,
         max_size: int = None,
+        bands: Optional[List[int]] = None,
         **kwargs: Any,
     ) -> List[Dict[str, Any]]:
         """
@@ -229,6 +230,9 @@ class SamGeo2:
                 larger the number, the larger the object area.
             min_size (int): The minimum size of the object. Defaults to 0.
             max_size (int): The maximum size of the object. Defaults to None.
+            bands (Optional[List[int]]): Three 1-based band indices to use as RGB
+                when segmenting multi-band rasters or arrays. If None, the first
+                three bands are used. Defaults to None.
             **kwargs (Any): Additional keyword arguments.
 
         Returns:
@@ -242,10 +246,9 @@ class SamGeo2:
             if not os.path.exists(source):
                 raise ValueError(f"Input path {source} does not exist.")
 
-            image = cv2.imread(source)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            image = common.read_image_for_sam(source, bands=bands)
         elif isinstance(source, np.ndarray):
-            image = source
+            image = common.prepare_image_for_sam(source, bands=bands)
             source = None
         else:
             raise ValueError("Input source must be either a path or a numpy array.")
@@ -487,12 +490,16 @@ class SamGeo2:
     def set_image(
         self,
         image: Union[str, np.ndarray, Image],
+        bands: Optional[List[int]] = None,
     ) -> None:
         """Set the input image as a numpy array.
 
         Args:
             image (Union[str, np.ndarray, Image]): The input image as a path,
                 a numpy array, or an Image.
+            bands (Optional[List[int]]): Three 1-based band indices to use as RGB
+                when setting multi-band rasters or arrays. If None, the first
+                three bands are used. Defaults to None.
         """
         if isinstance(image, str):
             if image.startswith("http"):
@@ -503,11 +510,14 @@ class SamGeo2:
 
             self.source = image
 
-            image = cv2.imread(image)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            image = common.read_image_for_sam(image, bands=bands)
             self.image = image
-        elif isinstance(image, np.ndarray) or isinstance(image, Image):
-            pass
+        elif isinstance(image, Image):
+            image = common.prepare_image_for_sam(np.array(image), bands=bands)
+            self.image = image
+        elif isinstance(image, np.ndarray):
+            image = common.prepare_image_for_sam(image, bands=bands)
+            self.image = image
         else:
             raise ValueError("Input image must be either a path or a numpy array.")
 
@@ -517,12 +527,16 @@ class SamGeo2:
     def set_image_batch(
         self,
         image_list: List[Union[np.ndarray, str, Image]],
+        bands: Optional[List[int]] = None,
     ) -> None:
         """Set a batch of images for prediction.
 
         Args:
             image_list (List[Union[np.ndarray, str, Image]]): A list of images,
             which can be numpy arrays, file paths, or PIL images.
+            bands (Optional[List[int]]): Three 1-based band indices to use as RGB
+                for each multi-band raster or array. If None, the first three
+                bands are used. Defaults to None.
 
         Raises:
             ValueError: If an input image path does not exist or if the input
@@ -537,12 +551,11 @@ class SamGeo2:
                 if not os.path.exists(image):
                     raise ValueError(f"Input path {image} does not exist.")
 
-                image = cv2.imread(image)
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                image = common.read_image_for_sam(image, bands=bands)
             elif isinstance(image, Image):
-                image = np.array(image)
+                image = common.prepare_image_for_sam(np.array(image), bands=bands)
             elif isinstance(image, np.ndarray):
-                pass
+                image = common.prepare_image_for_sam(image, bands=bands)
             else:
                 raise ValueError("Input image must be either a path or a numpy array.")
 

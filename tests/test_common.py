@@ -3,7 +3,11 @@
 """Tests for `samgeo` package."""
 
 import os
+import tempfile
 import unittest
+
+import numpy as np
+import rasterio
 
 from samgeo import common
 
@@ -25,6 +29,54 @@ class TestCommon(unittest.TestCase):
 
     def test_temp_file_path(self):
         self.assertFalse(os.path.exists(common.temp_file_path(extension=".tif")))
+
+    def test_prepare_image_for_sam_multichannel_array(self):
+        image = np.zeros((4, 5, 5), dtype=np.uint8)
+        image[..., 0] = 10
+        image[..., 1] = 20
+        image[..., 2] = 30
+        image[..., 3] = 40
+        image[..., 4] = 50
+
+        rgb = common.prepare_image_for_sam(image)
+        self.assertEqual(rgb.shape, (4, 5, 3))
+        np.testing.assert_array_equal(rgb[..., 0], image[..., 0])
+        np.testing.assert_array_equal(rgb[..., 1], image[..., 1])
+        np.testing.assert_array_equal(rgb[..., 2], image[..., 2])
+
+        false_color = common.prepare_image_for_sam(image, bands=[5, 3, 1])
+        np.testing.assert_array_equal(false_color[..., 0], image[..., 4])
+        np.testing.assert_array_equal(false_color[..., 1], image[..., 2])
+        np.testing.assert_array_equal(false_color[..., 2], image[..., 0])
+
+    def test_read_image_for_sam_multiband_geotiff(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            image = os.path.join(tmpdir, "multiband.tif")
+            data = np.zeros((5, 4, 6), dtype=np.uint8)
+            for band in range(data.shape[0]):
+                data[band] = (band + 1) * 10
+
+            with rasterio.open(
+                image,
+                "w",
+                driver="GTiff",
+                height=data.shape[1],
+                width=data.shape[2],
+                count=data.shape[0],
+                dtype=data.dtype,
+            ) as dst:
+                dst.write(data)
+
+            rgb = common.read_image_for_sam(image)
+            self.assertEqual(rgb.shape, (4, 6, 3))
+            np.testing.assert_array_equal(rgb[..., 0], data[0])
+            np.testing.assert_array_equal(rgb[..., 1], data[1])
+            np.testing.assert_array_equal(rgb[..., 2], data[2])
+
+            false_color = common.read_image_for_sam(image, bands=[5, 3, 1])
+            np.testing.assert_array_equal(false_color[..., 0], data[4])
+            np.testing.assert_array_equal(false_color[..., 1], data[2])
+            np.testing.assert_array_equal(false_color[..., 2], data[0])
 
     def test_github_raw_url(self):
         self.assertEqual(
