@@ -36,10 +36,12 @@ from samgeo.common import (
     get_pixel_coords,
     get_profile,
     image_to_image,
+    prepare_image_for_sam,
     raster_to_geojson,
     raster_to_gpkg,
     raster_to_shp,
     raster_to_vector,
+    read_image_for_sam,
     sam_map_gui,
     set_transform,
     show_canvas,
@@ -162,6 +164,7 @@ class SamGeo:
             mask_multiplier (int, optional): The mask multiplier for the output mask, which is usually a binary mask [0, 1].
                 You can use this parameter to scale the mask to a larger range, for example [0, 255]. Defaults to 255.
         """
+        image = prepare_image_for_sam(image)
         h, w, _ = image.shape
 
         masks = self.mask_generator.generate(image)
@@ -197,6 +200,7 @@ class SamGeo:
         erosion_kernel=None,
         mask_multiplier=255,
         unique=True,
+        bands=None,
         **kwargs,
     ):
         """Generate masks for the input image.
@@ -213,6 +217,9 @@ class SamGeo:
                 The parameter is ignored if unique is True.
             unique (bool, optional): Whether to assign a unique value to each object. Defaults to True.
                 The unique value increases from 1 to the number of objects. The larger the number, the larger the object area.
+            bands (List[int], optional): Three 1-based band indices to use as RGB
+                when segmenting multi-band rasters or arrays. If None, the first
+                three bands are used. Defaults to None.
 
         """
 
@@ -231,16 +238,18 @@ class SamGeo:
                     source,
                     output,
                     self,
+                    data_to_rgb=lambda block: prepare_image_for_sam(
+                        block, bands=bands, channel_axis=0
+                    ),
                     foreground=foreground,
                     erosion_kernel=erosion_kernel,
                     mask_multiplier=mask_multiplier,
                     **kwargs,
                 )
 
-            image = cv2.imread(source)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            image = read_image_for_sam(source, bands=bands)
         elif isinstance(source, np.ndarray):
-            image = source
+            image = prepare_image_for_sam(source, bands=bands)
             source = None
         else:
             raise ValueError("Input source must be either a path or a numpy array.")
@@ -438,12 +447,15 @@ class SamGeo:
                 array = self.annotations
             array_to_image(array, output, self.source)
 
-    def set_image(self, image, image_format="RGB"):
+    def set_image(self, image, image_format="RGB", bands=None):
         """Set the input image as a numpy array.
 
         Args:
             image (np.ndarray): The input image as a numpy array.
             image_format (str, optional): The image format, can be RGB or BGR. Defaults to "RGB".
+            bands (List[int], optional): Three 1-based band indices to use as RGB
+                when setting multi-band rasters or arrays. If None, the first
+                three bands are used. Defaults to None.
         """
         if isinstance(image, str):
             if image.startswith("http"):
@@ -454,11 +466,11 @@ class SamGeo:
 
             self.source = image
 
-            image = cv2.imread(image)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            image = read_image_for_sam(image, bands=bands)
             self.image = image
         elif isinstance(image, np.ndarray):
-            pass
+            image = prepare_image_for_sam(image, bands=bands)
+            self.image = image
         else:
             raise ValueError("Input image must be either a path or a numpy array.")
 

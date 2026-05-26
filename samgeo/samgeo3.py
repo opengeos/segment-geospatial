@@ -289,55 +289,13 @@ class SamGeo3:
 
             self.source = image
 
-            # Check if image is a GeoTIFF and handle band selection
-            if image.lower().endswith((".tif", ".tiff")):
-                import rasterio
-
-                with rasterio.open(image) as src:
-                    if bands is not None:
-                        # Validate band indices (1-based)
-                        if len(bands) != 3:
-                            raise ValueError(
-                                "bands must contain exactly 3 band indices for RGB."
-                            )
-                        for band in bands:
-                            if band < 1 or band > src.count:
-                                raise ValueError(
-                                    f"Band index {band} is out of range. "
-                                    f"Image has {src.count} bands (1-indexed)."
-                                )
-                        # Read specified bands (rasterio uses 1-based indexing)
-                        array = np.stack([src.read(b) for b in bands], axis=0)
-                    else:
-                        # Read all bands
-                        array = src.read()
-                        # If more than 3 bands, use first 3
-                        if array.shape[0] >= 3:
-                            array = array[:3, :, :]
-                        elif array.shape[0] == 1:
-                            array = np.repeat(array, 3, axis=0)
-                        elif array.shape[0] == 2:
-                            # Repeat the first band to make 3 bands: [band1, band2, band1]
-                            array = np.concatenate([array, array[0:1, :, :]], axis=0)
-                    # Transpose from (bands, height, width) to (height, width, bands)
-                    array = np.transpose(array, (1, 2, 0))
-
-                    # Normalize to 8-bit (0-255) range
-                    array = array.astype(np.float32)
-                    array -= array.min()
-                    if array.max() > 0:
-                        array /= array.max()
-                    array *= 255
-                    image = array.astype(np.uint8)
-            else:
-                image = cv2.imread(image)
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            image = common.read_image_for_sam(image, bands=bands)
             self.image = image
         elif isinstance(image, np.ndarray):
-            self.image = image
+            self.image = common.prepare_image_for_sam(image, bands=bands)
             self.source = None
         elif isinstance(image, Image.Image):
-            self.image = np.array(image)
+            self.image = common.prepare_image_for_sam(np.array(image), bands=bands)
             self.source = None
         else:
             raise ValueError(
@@ -377,6 +335,7 @@ class SamGeo3:
         self,
         images: List[Union[str, np.ndarray, Image.Image]],
         state: Optional[Dict] = None,
+        bands: Optional[List[int]] = None,
     ) -> None:
         """Set multiple images for batch processing.
 
@@ -387,6 +346,9 @@ class SamGeo3:
                 Each image can be a file path, a numpy array, or a PIL Image.
             state (dict, optional): An optional state object to pass to the
                 processor's set_image_batch method.
+            bands (List[int], optional): Three 1-based band indices to use as RGB
+                for each multi-band raster or array. If None, the first three
+                bands are used. Defaults to None.
 
         Example:
             >>> sam = SamGeo3(backend="meta")
@@ -416,20 +378,21 @@ class SamGeo3:
                     raise ValueError(f"Input path {image} does not exist.")
 
                 sources.append(image)
-                img = cv2.imread(image)
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                img = common.read_image_for_sam(image, bands=bands)
                 numpy_images.append(img)
                 pil_images.append(Image.fromarray(img))
 
             elif isinstance(image, np.ndarray):
                 sources.append(None)
-                numpy_images.append(image)
-                pil_images.append(Image.fromarray(image))
+                img = common.prepare_image_for_sam(image, bands=bands)
+                numpy_images.append(img)
+                pil_images.append(Image.fromarray(img))
 
             elif isinstance(image, Image.Image):
                 sources.append(None)
-                numpy_images.append(np.array(image))
-                pil_images.append(image)
+                img = common.prepare_image_for_sam(np.array(image), bands=bands)
+                numpy_images.append(img)
+                pil_images.append(Image.fromarray(img))
 
             else:
                 raise ValueError(

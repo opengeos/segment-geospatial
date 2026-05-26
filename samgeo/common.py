@@ -1105,12 +1105,122 @@ def write_raster(dst_fp, dst_arr, profile, width, height, transform, crs):
             dst.write(dst_arr[i], i + 1)
 
 
+def _validate_rgb_bands(bands, channel_count):
+    """Validate 1-based band indices and return 0-based channel indices."""
+    if bands is None:
+        return None
+
+    if len(bands) != 3:
+        raise ValueError("bands must contain exactly 3 band indices for RGB.")
+
+    indices = []
+    for band in bands:
+        if band < 1 or band > channel_count:
+            raise ValueError(
+                f"Band index {band} is out of range. "
+                f"Image has {channel_count} bands (1-indexed)."
+            )
+        indices.append(band - 1)
+
+    return indices
+
+
+def _as_uint8(array):
+    """Convert an image array to uint8 while preserving existing uint8 data."""
+    if array.dtype == np.uint8:
+        return array
+
+    if array.dtype == np.bool_:
+        return array.astype(np.uint8) * 255
+
+    array = array.astype(np.float32)
+    array = np.nan_to_num(array, nan=0, posinf=0, neginf=0)
+    min_value = array.min()
+    max_value = array.max()
+
+    if max_value > min_value:
+        array = (array - min_value) / (max_value - min_value) * 255
+    else:
+        array = np.zeros_like(array)
+
+    return array.astype(np.uint8)
+
+
+def prepare_image_for_sam(image, bands=None, channel_axis=-1):
+    """Convert an image-like array to a C-contiguous uint8 RGB array for SAM.
+
+    Args:
+        image (np.ndarray): Input image as a 2D array, HWC array, or CHW array.
+        bands (List[int], optional): Three 1-based channel indices to use as RGB.
+            If not provided, the first three channels are used. Single-band images
+            are repeated and two-band images use bands 1, 2, 1.
+        channel_axis (int, optional): Axis containing channels for 3D arrays.
+            Defaults to -1 for HWC arrays. Use 0 for rasterio-style CHW arrays.
+
+    Returns:
+        np.ndarray: A uint8 RGB image with shape (height, width, 3).
+    """
+    image = np.asarray(image)
+
+    if image.ndim == 2:
+        image = np.repeat(image[:, :, np.newaxis], 3, axis=2)
+        return np.ascontiguousarray(_as_uint8(image))
+
+    if image.ndim != 3:
+        raise ValueError("Input image must be a 2D or 3D array.")
+
+    image = np.moveaxis(image, channel_axis, -1)
+    channel_count = image.shape[-1]
+
+    if bands is not None:
+        indices = _validate_rgb_bands(bands, channel_count)
+        image = image[..., indices]
+    elif channel_count >= 3:
+        image = image[..., :3]
+    elif channel_count == 1:
+        image = np.repeat(image, 3, axis=2)
+    elif channel_count == 2:
+        image = np.concatenate([image, image[..., 0:1]], axis=2)
+    else:
+        raise ValueError("Input image must contain at least one channel.")
+
+    return np.ascontiguousarray(_as_uint8(image))
+
+
+def read_image_for_sam(source, bands=None):
+    """Read an image path as a uint8 RGB array for SAM.
+
+    GeoTIFF files are read with rasterio so images with more than three bands can
+    be reduced to RGB using the first three bands or a user-provided band list.
+    Other image formats are read with OpenCV.
+    """
+    if isinstance(source, str) and source.startswith("http"):
+        source = download_file(source)
+
+    if not os.path.exists(source):
+        raise ValueError(f"Input path {source} does not exist.")
+
+    if source.lower().endswith((".tif", ".tiff")):
+        with rasterio.open(source) as src:
+            if bands is not None:
+                _validate_rgb_bands(bands, src.count)
+                image = np.stack([src.read(b) for b in bands], axis=0)
+            else:
+                image = src.read()
+        return prepare_image_for_sam(image, channel_axis=0)
+
+    if bands is not None:
+        raise ValueError("bands can only be used with multi-band raster files.")
+
+    image = cv2.imread(source)
+    if image is None:
+        raise ValueError(f"Unable to read input image {source}.")
+
+    return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+
 def chw_to_hwc(block):
-    # Grab first 3 channels
-    block = block[:3, ...]
-    # CHW to HWC
-    block = np.transpose(block, (1, 2, 0))
-    return block
+    return prepare_image_for_sam(block, channel_axis=0)
 
 
 def hwc_to_hw(block, channel=0):
