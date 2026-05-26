@@ -8,6 +8,7 @@ import unittest
 
 import numpy as np
 import rasterio
+from rasterio.transform import from_origin
 
 from samgeo import common
 
@@ -64,6 +65,8 @@ class TestCommon(unittest.TestCase):
                 width=data.shape[2],
                 count=data.shape[0],
                 dtype=data.dtype,
+                crs="EPSG:4326",
+                transform=from_origin(-180, 90, 1, 1),
             ) as dst:
                 dst.write(data)
 
