@@ -103,6 +103,30 @@ _EXTRAS_MAP = {
 }
 
 
+def _freeze_kwargs(kwargs: dict):
+    """Return a hashable, order-independent representation of model kwargs.
+
+    Used to build the model cache key. Nested dicts (e.g. ``sam_kwargs``) become
+    sorted tuples and lists become tuples so two calls with the same
+    configuration map to the same key regardless of argument order.
+
+    Args:
+        kwargs: The keyword arguments passed to a model constructor.
+
+    Returns:
+        A hashable value derived from ``kwargs``.
+    """
+
+    def freeze(value):
+        if isinstance(value, dict):
+            return tuple(sorted((k, freeze(v)) for k, v in value.items()))
+        if isinstance(value, (list, tuple)):
+            return tuple(freeze(v) for v in value)
+        return value
+
+    return freeze(kwargs)
+
+
 def get_model(model_version: str, model_id: Optional[str] = None, **kwargs):
     """Get or create a cached model instance.
 
@@ -113,8 +137,11 @@ def get_model(model_version: str, model_id: Optional[str] = None, **kwargs):
 
     Returns:
         tuple: (model_instance, threading.Lock, cache_key). The cache key
-            includes the ``automatic`` flag so prompt-prediction and automatic
-            mask-generation instances of the same model are cached separately.
+            includes the model-shaping kwargs (e.g. ``automatic``, ``backend``,
+            ``confidence_threshold``, ``points_per_side``) so that instances
+            built with different configurations -- including automatic
+            mask-generation vs. prompt prediction -- are cached separately and a
+            request never silently reuses a differently-configured instance.
 
     Raises:
         HTTPException: If model_version or model_id is invalid, or
@@ -142,13 +169,15 @@ def get_model(model_version: str, model_id: Optional[str] = None, **kwargs):
             ),
         )
 
-    # The same model class is instantiated differently for automatic mask
-    # generation (builds a mask generator) vs. prompt-based prediction (builds
-    # an image predictor). Keying on ``automatic`` keeps the two from colliding
-    # in the cache, which would otherwise reuse an automatic instance for a
-    # predict request and fail with "no attribute 'predictor'".
-    automatic = bool(kwargs.get("automatic", True))
-    key = (model_version, model_id, automatic)
+    # Include the model-shaping kwargs in the cache key. The same model class is
+    # built differently for automatic mask generation (a mask generator, via the
+    # default automatic=True) vs. prompt prediction (an image predictor, via
+    # automatic=False), and SAM3 takes per-request knobs like ``backend`` and
+    # ``confidence_threshold``. Keying on these keeps configurations from
+    # colliding -- which previously reused an automatic instance for a predict
+    # request ("no attribute 'predictor'") and would also silently reuse a
+    # stale threshold/points_per_side from an earlier request.
+    key = (model_version, model_id, _freeze_kwargs(kwargs))
     with _model_cache_lock:
         if key in _model_cache:
             logger.info("Model cache hit for %s", key)

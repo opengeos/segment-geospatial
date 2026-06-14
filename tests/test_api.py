@@ -199,8 +199,7 @@ def test_get_model_caches_automatic_and_predict_separately():
             "sam2", "sam2-hiera-tiny", automatic=False
         )
 
-    assert auto_key == ("sam2", "sam2-hiera-tiny", True)
-    assert pred_key == ("sam2", "sam2-hiera-tiny", False)
+    assert auto_key != pred_key
     assert auto_model is not pred_model
 
     # A repeat request for the same key is served from cache (no new instance).
@@ -208,6 +207,46 @@ def test_get_model_caches_automatic_and_predict_separately():
         cached_model, _, _ = api.get_model("sam2", "sam2-hiera-tiny")
         mock_again.assert_not_called()
     assert cached_model is auto_model
+
+
+def test_get_model_caches_distinct_configs_separately():
+    """Requests differing only by model-shaping kwargs get separate instances.
+
+    Regression: the cache key once ignored constructor kwargs, so a second
+    SAM3 text request with a different ``confidence_threshold`` (or a SAM2
+    request with a different ``points_per_side``) silently reused the first,
+    differently-configured instance. The key now folds in the kwargs.
+    """
+    import samgeo.api as api
+
+    # SAM3: two text requests differing only by confidence_threshold.
+    with patch("samgeo.samgeo3.SamGeo3") as mock_sam3:
+        mock_sam3.side_effect = lambda **kw: MagicMock()
+        m_a, _, key_a = api.get_model("sam3", backend="meta", confidence_threshold=0.4)
+        m_b, _, key_b = api.get_model("sam3", backend="meta", confidence_threshold=0.6)
+        m_a2, _, _ = api.get_model("sam3", backend="meta", confidence_threshold=0.4)
+    assert key_a != key_b
+    assert m_a is not m_b
+    assert m_a2 is m_a  # identical config is a cache hit
+
+    # SAM2: two automatic requests differing only by points_per_side.
+    with patch("samgeo.samgeo2.SamGeo2") as mock_sam2:
+        mock_sam2.side_effect = lambda **kw: MagicMock()
+        s_a, _, k_a = api.get_model("sam2", "sam2-hiera-tiny", points_per_side=16)
+        s_b, _, k_b = api.get_model("sam2", "sam2-hiera-tiny", points_per_side=32)
+    assert k_a != k_b
+    assert s_a is not s_b
+
+
+def test_freeze_kwargs_is_order_independent():
+    """_freeze_kwargs yields the same hashable key regardless of arg order."""
+    from samgeo.api import _freeze_kwargs
+
+    a = _freeze_kwargs({"backend": "meta", "sam_kwargs": {"x": 1, "y": 2}})
+    b = _freeze_kwargs({"sam_kwargs": {"y": 2, "x": 1}, "backend": "meta"})
+    assert a == b
+    assert hash(a) == hash(b)
+    assert _freeze_kwargs({"a": 1}) != _freeze_kwargs({"a": 2})
 
 
 def test_set_image_cached_skips_for_sam2_but_not_sam3():
