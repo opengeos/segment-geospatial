@@ -103,6 +103,30 @@ _EXTRAS_MAP = {
 }
 
 
+def _freeze_kwargs(kwargs: dict):
+    """Return a hashable, order-independent representation of model kwargs.
+
+    Used to build the model cache key. Nested dicts (e.g. ``sam_kwargs``) become
+    sorted tuples and lists become tuples so two calls with the same
+    configuration map to the same key regardless of argument order.
+
+    Args:
+        kwargs: The keyword arguments passed to a model constructor.
+
+    Returns:
+        A hashable value derived from ``kwargs``.
+    """
+
+    def freeze(value):
+        if isinstance(value, dict):
+            return tuple(sorted((k, freeze(v)) for k, v in value.items()))
+        if isinstance(value, (list, tuple)):
+            return tuple(freeze(v) for v in value)
+        return value
+
+    return freeze(kwargs)
+
+
 def get_model(model_version: str, model_id: Optional[str] = None, **kwargs):
     """Get or create a cached model instance.
 
@@ -112,7 +136,12 @@ def get_model(model_version: str, model_id: Optional[str] = None, **kwargs):
         **kwargs: Additional keyword arguments for model initialization.
 
     Returns:
-        tuple: (model_instance, threading.Lock)
+        tuple: (model_instance, threading.Lock, cache_key). The cache key
+            includes the model-shaping kwargs (e.g. ``automatic``, ``backend``,
+            ``confidence_threshold``, ``points_per_side``) so that instances
+            built with different configurations -- including automatic
+            mask-generation vs. prompt prediction -- are cached separately and a
+            request never silently reuses a differently-configured instance.
 
     Raises:
         HTTPException: If model_version or model_id is invalid, or
@@ -140,11 +169,20 @@ def get_model(model_version: str, model_id: Optional[str] = None, **kwargs):
             ),
         )
 
-    key = (model_version, model_id)
+    # Include the model-shaping kwargs in the cache key. The same model class is
+    # built differently for automatic mask generation (a mask generator, via the
+    # default automatic=True) vs. prompt prediction (an image predictor, via
+    # automatic=False), and SAM3 takes per-request knobs like ``backend`` and
+    # ``confidence_threshold``. Keying on these keeps configurations from
+    # colliding -- which previously reused an automatic instance for a predict
+    # request ("no attribute 'predictor'") and would also silently reuse a
+    # stale threshold/points_per_side from an earlier request.
+    key = (model_version, model_id, _freeze_kwargs(kwargs))
     with _model_cache_lock:
         if key in _model_cache:
             logger.info("Model cache hit for %s", key)
-            return _model_cache[key]
+            model, lock = _model_cache[key]
+            return model, lock, key
 
         logger.info("Loading model %s", key)
         extra = _EXTRAS_MAP.get(model_version, model_version)
@@ -172,7 +210,8 @@ def get_model(model_version: str, model_id: Optional[str] = None, **kwargs):
                 ),
             )
         _model_cache[key] = (model, threading.Lock())
-        return _model_cache[key]
+        model, lock = _model_cache[key]
+        return model, lock, key
 
 
 def _set_image_cached(
@@ -183,16 +222,23 @@ def _set_image_cached(
     Compares the provided hash to the last image encoded on this model.
     Skips the expensive image-encoder forward pass when the hash matches.
 
+    SAM3 is exempt from the skip: its ``generate_*`` calls mutate the encoded
+    image state in place, so reusing it on a second request without re-encoding
+    fails with an ``expected scalar type BFloat16 but found Float`` dtype
+    mismatch. For SAM3 we always re-encode (correctness over the small speedup);
+    SAM/SAM2 still benefit from the cache.
+
     Args:
         model: The SAM model instance.
-        model_key: Cache key for the model, e.g. ("sam3", "facebook/sam3").
+        model_key: Cache key for the model, e.g. ("sam3", "facebook/sam3", True).
         image_path: Path to the saved image file.
         image_hash: SHA-256 hex digest of the uploaded file bytes.
 
     Returns:
         True if set_image was called (new image), False if skipped (cache hit).
     """
-    if _image_hash_cache.get(model_key) == image_hash:
+    is_sam3 = bool(model_key) and model_key[0] == "sam3"
+    if not is_sam3 and _image_hash_cache.get(model_key) == image_hash:
         logger.info("Image cache hit for model %s, skipping set_image()", model_key)
         # Update source path so save_masks() can find GeoTIFF metadata
         # even though we skip the expensive encoding step.
@@ -545,7 +591,7 @@ def clear_models():
 @app.post("/segment/automatic")
 async def segment_automatic(
     file: UploadFile = File(...),
-    model_version: str = Form("sam2"),
+    model_version: str = Form("sam3"),
     model_id: Optional[str] = Form(None),
     output_format: str = Form("geojson"),
     foreground: bool = Form(True),
@@ -583,8 +629,7 @@ async def segment_automatic(
 
         t_start = time.time()
         if model_version == "sam3":
-            model, lock = get_model(model_version, model_id)
-            model_key = (model_version, model_id or _DEFAULT_MODEL_IDS[model_version])
+            model, lock, model_key = get_model(model_version, model_id)
             with lock:
                 _set_image_cached(model, model_key, input_path, image_hash)
                 model.generate_masks(
@@ -592,6 +637,12 @@ async def segment_automatic(
                     min_size=min_size,
                     max_size=max_size,
                 )
+                if model.masks is None or len(model.masks) == 0:
+                    _cleanup_tmpdir(tmpdir)
+                    raise HTTPException(
+                        status_code=404,
+                        detail="No objects found for automatic segmentation.",
+                    )
                 model.save_masks(output=output_path, unique=unique)
         else:
             sam_kwargs = {
@@ -600,11 +651,11 @@ async def segment_automatic(
                 "stability_score_thresh": stability_score_thresh,
             }
             if model_version == "sam":
-                model, lock = get_model(
+                model, lock, _ = get_model(
                     model_version, model_id, sam_kwargs=sam_kwargs
                 )
             else:
-                model, lock = get_model(model_version, model_id, **sam_kwargs)
+                model, lock, _ = get_model(model_version, model_id, **sam_kwargs)
 
             with lock:
                 model.generate(
@@ -707,11 +758,7 @@ async def segment_predict(
         t_start = time.time()
 
         if model_version == "sam3":
-            model, lock = get_model(model_version, model_id)
-            model_key = (
-                model_version,
-                model_id or _DEFAULT_MODEL_IDS[model_version],
-            )
+            model, lock, model_key = get_model(model_version, model_id)
             with lock:
                 _set_image_cached(model, model_key, input_path, image_hash)
                 if parsed_boxes is not None:
@@ -745,10 +792,8 @@ async def segment_predict(
                     max_size=max_size,
                 )
         else:
-            model, lock = get_model(model_version, model_id, automatic=False)
-            model_key = (
-                model_version,
-                model_id or _DEFAULT_MODEL_IDS[model_version],
+            model, lock, model_key = get_model(
+                model_version, model_id, automatic=False
             )
             with lock:
                 _set_image_cached(model, model_key, input_path, image_hash)
@@ -818,14 +863,13 @@ async def segment_text(
         input_path, image_hash = await _save_upload(file, tmpdir)
         output_path = os.path.join(tmpdir, "mask.tif")
 
-        model, lock = get_model(
+        model, lock, model_key = get_model(
             "sam3",
             model_id,
             backend=backend,
             confidence_threshold=confidence_threshold,
         )
         t_start = time.time()
-        model_key = ("sam3", model_id or _DEFAULT_MODEL_IDS["sam3"])
         with lock:
             _set_image_cached(model, model_key, input_path, image_hash)
             model.generate_masks(
