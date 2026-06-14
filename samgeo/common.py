@@ -1444,7 +1444,14 @@ def raster_to_vector(source, output, simplify_tolerance=None, dst_crs=None, **kw
         for i in fc:
             i["geometry"] = i["geometry"].simplify(tolerance=simplify_tolerance)
 
-    gdf = gpd.GeoDataFrame.from_features(fc)
+    if fc:
+        gdf = gpd.GeoDataFrame.from_features(fc)
+    else:
+        # No foreground pixels in the mask. Build an empty GeoDataFrame that
+        # still carries a geometry column so set_crs/to_crs/to_file work and we
+        # emit a valid (empty) layer instead of raising "no active geometry
+        # column" from geopandas.
+        gdf = gpd.GeoDataFrame({"value": []}, geometry=[])
     if src.crs is not None:
         gdf.set_crs(crs=src.crs, inplace=True)
 

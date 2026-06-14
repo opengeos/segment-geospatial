@@ -81,6 +81,40 @@ class TestCommon(unittest.TestCase):
             np.testing.assert_array_equal(false_color[..., 1], data[2])
             np.testing.assert_array_equal(false_color[..., 2], data[0])
 
+    def test_raster_to_vector_empty_mask(self):
+        """An all-zero mask vectorizes to an empty layer, not a crash.
+
+        Regression: when a segmentation produces no foreground pixels,
+        raster_to_vector built a GeoDataFrame with no geometry column and
+        raised "no active geometry column" from geopandas. It should instead
+        write a valid, empty GeoJSON FeatureCollection.
+        """
+        import json
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mask_path = os.path.join(tmpdir, "empty_mask.tif")
+            data = np.zeros((1, 8, 8), dtype=np.uint8)
+            with rasterio.open(
+                mask_path,
+                "w",
+                driver="GTiff",
+                height=8,
+                width=8,
+                count=1,
+                dtype=data.dtype,
+                crs="EPSG:4326",
+                transform=from_origin(-180, 90, 1, 1),
+            ) as dst:
+                dst.write(data)
+
+            out = os.path.join(tmpdir, "out.geojson")
+            common.raster_to_vector(mask_path, out)
+            self.assertTrue(os.path.exists(out))
+            with open(out) as f:
+                fc = json.load(f)
+            self.assertEqual(fc["type"], "FeatureCollection")
+            self.assertEqual(fc["features"], [])
+
     def test_github_raw_url(self):
         self.assertEqual(
             common.github_raw_url(
