@@ -61,7 +61,7 @@ def test_list_models():
 
 def test_private_model_constant_aliases_remain_available():
     """Legacy private constants still point to the shared registry values."""
-    import samgeo.api as api
+    from samgeo import api
 
     assert api._DEFAULT_MODEL_IDS is api.DEFAULT_MODEL_IDS
     assert api._AVAILABLE_MODELS is api.AVAILABLE_MODELS
@@ -200,7 +200,7 @@ def test_get_model_caches_automatic_and_predict_separately():
     ``'SamGeo2' object has no attribute 'predictor'``. The cache key now
     includes the ``automatic`` flag so the two are distinct instances.
     """
-    import samgeo.api as api
+    from samgeo import api
 
     with patch("samgeo.samgeo2.SamGeo2") as mock_cls:
         mock_cls.side_effect = lambda **kw: MagicMock()
@@ -227,7 +227,7 @@ def test_get_model_caches_distinct_configs_separately():
     request with a different ``points_per_side``) silently reused the first,
     differently-configured instance. The key now folds in the kwargs.
     """
-    import samgeo.api as api
+    from samgeo import api
 
     # SAM3: two text requests differing only by confidence_threshold.
     with patch("samgeo.samgeo3.SamGeo3") as mock_sam3:
@@ -250,7 +250,7 @@ def test_get_model_caches_distinct_configs_separately():
 
 def test_get_model_accepts_sam31_model_id():
     """SAM 3.1 is a supported SAM3 model id and keeps its own cache key."""
-    import samgeo.api as api
+    from samgeo import api
 
     with patch("samgeo.samgeo3.SamGeo3") as mock_sam3:
         mock_sam3.side_effect = lambda **kw: MagicMock()
@@ -273,7 +273,7 @@ def test_get_model_accepts_sam31_model_id():
 
 def test_get_model_returns_400_for_invalid_constructor_config():
     """Invalid model/backend config should be reported as a user error."""
-    import samgeo.api as api
+    from samgeo import api
 
     with patch("samgeo.samgeo3.SamGeo3") as mock_sam3:
         mock_sam3.side_effect = ValueError(
@@ -288,7 +288,7 @@ def test_get_model_returns_400_for_invalid_constructor_config():
 
 def test_get_model_does_not_hide_unexpected_constructor_value_errors():
     """Unexpected constructor ValueErrors should not be reported as bad input."""
-    import samgeo.api as api
+    from samgeo import api
 
     with patch("samgeo.samgeo3.SamGeo3") as mock_sam3:
         mock_sam3.side_effect = ValueError("unexpected runtime failure")
