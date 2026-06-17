@@ -59,6 +59,15 @@ def test_list_models():
     assert data["loaded"] == []
 
 
+def test_private_model_constant_aliases_remain_available():
+    """Legacy private constants still point to the shared registry values."""
+    import samgeo.api as api
+
+    assert api._DEFAULT_MODEL_IDS is api.DEFAULT_MODEL_IDS
+    assert api._AVAILABLE_MODELS is api.AVAILABLE_MODELS
+    assert api._EXTRAS_MAP is api.EXTRAS_MAP
+
+
 def test_clear_models():
     """Test clearing the model cache."""
     response = client.delete("/models")

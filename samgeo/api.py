@@ -78,6 +78,11 @@ _model_cache_lock = threading.Lock()
 # When the same image is sent again, we skip the expensive set_image() call.
 _image_hash_cache: dict = {}
 
+# Backward-compatible aliases for code that imported these private constants.
+_DEFAULT_MODEL_IDS = DEFAULT_MODEL_IDS
+_AVAILABLE_MODELS = AVAILABLE_MODELS
+_EXTRAS_MAP = EXTRAS_MAP
+
 
 def _freeze_kwargs(kwargs: dict):
     """Return a hashable, order-independent representation of model kwargs.

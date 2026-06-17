@@ -49,7 +49,7 @@ except ImportError as e:
     print(f"To use SamGeo 3, install it as:\n\tpip install segment-geospatial[samgeo3]")
 
 from samgeo import common
-from samgeo.model_registry import DEFAULT_MODEL_IDS, SAM3_MODEL_IDS
+from samgeo.model_registry import DEFAULT_MODEL_IDS
 from .common import show_image
 
 try:
@@ -85,10 +85,10 @@ class SamGeo3:
 
         Args:
             backend (str): Backend to use ('meta' or 'transformers'). Default is 'meta'.
-            model_id (str): Model ID to use. Supported values are
+            model_id (str): Model ID to use. Official values include
                 'facebook/sam3' and 'facebook/sam3.1'. The Meta backend uses
-                this to select the Hugging Face checkpoint when
-                load_from_HF=True and checkpoint_path is not provided.
+                'facebook/sam3.1' to select the SAM 3.1 Hugging Face checkpoint
+                when load_from_HF=True and checkpoint_path is not provided.
             bpe_path (str, optional): Path to the BPE tokenizer vocabulary (Meta backend only).
             device (str, optional): Device to load the model on ('cuda' or 'cpu').
             eval_mode (bool, optional): Whether to set the model to evaluation mode (Meta backend only).
@@ -120,12 +120,6 @@ class SamGeo3:
             ...     point_labels=np.array([1]),
             ... )
         """
-
-        if model_id not in SAM3_MODEL_IDS:
-            raise ValueError(
-                f"Invalid SAM3 model_id '{model_id}'. "
-                f"Choose one of: {list(SAM3_MODEL_IDS)}."
-            )
 
         if backend not in ["meta", "transformers"]:
             raise ValueError(
