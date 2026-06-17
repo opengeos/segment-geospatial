@@ -262,6 +262,19 @@ def test_get_model_accepts_sam31_model_id():
     )
 
 
+def test_get_model_returns_400_for_invalid_constructor_config():
+    """Invalid model/backend config should be reported as a user error."""
+    import samgeo.api as api
+
+    with patch("samgeo.samgeo3.SamGeo3") as mock_sam3:
+        mock_sam3.side_effect = ValueError("bad config")
+        with pytest.raises(api.HTTPException) as excinfo:
+            api.get_model("sam3", "facebook/sam3.1", backend="transformers")
+
+    assert excinfo.value.status_code == 400
+    assert "bad config" in excinfo.value.detail
+
+
 def test_freeze_kwargs_is_order_independent():
     """_freeze_kwargs yields the same hashable key regardless of arg order."""
     from samgeo.api import _freeze_kwargs

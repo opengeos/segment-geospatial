@@ -176,6 +176,8 @@ def get_model(model_version: str, model_id: Optional[str] = None, **kwargs):
 
                 kwargs.setdefault("enable_inst_interactivity", True)
                 model = SamGeo3(model_id=model_id, **kwargs)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
         except ImportError as e:
             raise HTTPException(
                 status_code=503,
