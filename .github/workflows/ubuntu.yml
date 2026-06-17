@@ -50,6 +50,8 @@ jobs:
                   pip install --user .
             - name: Test import
               run: python -c "import samgeo; print('samgeo import successful')"
+            - name: Fast unit tests
+              run: python -m unittest tests.test_utmconv
             # - name: PKG-TEST
             #   run: |
             #       python -m unittest discover tests/
