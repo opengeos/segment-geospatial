@@ -1,11 +1,13 @@
 """Shared model identifiers used across samgeo entry points."""
 
-SAM3_MODEL_IDS = ("facebook/sam3", "facebook/sam3.1")
+SAM3_MODEL_ID = "facebook/sam3"
+SAM31_MODEL_ID = "facebook/sam3.1"
+SAM3_MODEL_IDS = (SAM3_MODEL_ID, SAM31_MODEL_ID)
 
 DEFAULT_MODEL_IDS = {
     "sam": "vit_h",
     "sam2": "sam2-hiera-large",
-    "sam3": "facebook/sam3",
+    "sam3": SAM3_MODEL_ID,
 }
 
 AVAILABLE_MODELS = {

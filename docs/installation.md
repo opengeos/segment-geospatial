@@ -165,6 +165,10 @@ For SAM 3.1:
 pixi run hf download facebook/sam3.1
 ```
 
+When `segment-geospatial` is installed with a released `sam3` package whose
+checkpoint helper only downloads `facebook/sam3`, SAM 3.1 still downloads
+`facebook/sam3.1` directly through Hugging Face Hub.
+
 **Important Note**: SAM 3 and SAM 3.1 currently require an NVIDIA GPU with CUDA support. You won't be able to use them if you have a CPU only system ([source](https://github.com/facebookresearch/sam3/issues/164)). You will get an error message like this: `Failed to load model: Torch not compiled with CUDA enabled`.
 
 ---

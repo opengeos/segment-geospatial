@@ -29,8 +29,10 @@ def test_registry_keys_stay_in_sync():
 
 def test_sam31_is_registered_as_a_sam3_model():
     """SAM 3.1 is exposed as a SAM3-compatible model id."""
-    assert "facebook/sam3" in model_registry.SAM3_MODEL_IDS
-    assert "facebook/sam3.1" in model_registry.SAM3_MODEL_IDS
+    assert model_registry.SAM3_MODEL_ID == "facebook/sam3"
+    assert model_registry.SAM31_MODEL_ID == "facebook/sam3.1"
+    assert model_registry.SAM3_MODEL_ID in model_registry.SAM3_MODEL_IDS
+    assert model_registry.SAM31_MODEL_ID in model_registry.SAM3_MODEL_IDS
     assert (
         list(model_registry.SAM3_MODEL_IDS)
         == model_registry.AVAILABLE_MODELS["sam3"]

@@ -57,6 +57,15 @@ def _patch_meta_build(monkeypatch, samgeo3):
     return builder, processor
 
 
+def _patch_hf_hub_download(monkeypatch):
+    hub = types.ModuleType("huggingface_hub")
+    hub.hf_hub_download = Mock(
+        side_effect=lambda repo_id, filename: f"/tmp/{repo_id.replace('/', '-')}/{filename}"
+    )
+    monkeypatch.setitem(sys.modules, "huggingface_hub", hub)
+    return hub.hf_hub_download
+
+
 def _init_meta_backend(samgeo3, **overrides):
     params = {
         "model_id": "facebook/sam3.1",
@@ -119,8 +128,13 @@ def test_sam31_load_from_hf_uses_versioned_checkpoint_download(
     checkpoint_path = tmp_path / "sam3.1_multiplex.pt"
 
     builder, _ = _patch_meta_build(monkeypatch, samgeo3)
-    downloader = Mock(return_value=str(checkpoint_path))
-    monkeypatch.setattr(samgeo3, "download_ckpt_from_hf", downloader)
+
+    def download_ckpt_from_hf(*, version):
+        downloader(version=version)
+        return str(checkpoint_path)
+
+    downloader = Mock()
+    monkeypatch.setattr(samgeo3, "download_ckpt_from_hf", download_ckpt_from_hf)
 
     _init_meta_backend(
         samgeo3,
@@ -129,6 +143,43 @@ def test_sam31_load_from_hf_uses_versioned_checkpoint_download(
 
     downloader.assert_called_once_with(version="sam3.1")
     assert builder.call_args.kwargs["checkpoint_path"] == str(checkpoint_path)
+    assert builder.call_args.kwargs["load_from_HF"] is False
+
+
+def test_sam31_old_downloader_signature_uses_hf_hub_fallback(
+    monkeypatch, tmp_path, samgeo3
+):
+    """PyPI sam3 0.1.4 has an old no-arg helper, so fallback to HF directly."""
+    bpe_path = tmp_path / "bpe.txt.gz"
+    bpe_path.write_text("stub")
+
+    builder, _ = _patch_meta_build(monkeypatch, samgeo3)
+    old_downloader = Mock(return_value="/tmp/facebook-sam3/sam3.pt")
+
+    def download_ckpt_from_hf():
+        return old_downloader()
+
+    monkeypatch.setattr(samgeo3, "download_ckpt_from_hf", download_ckpt_from_hf)
+    hf_hub_download = _patch_hf_hub_download(monkeypatch)
+
+    _init_meta_backend(
+        samgeo3,
+        bpe_path=str(bpe_path),
+    )
+
+    old_downloader.assert_not_called()
+    hf_hub_download.assert_any_call(
+        repo_id="facebook/sam3.1",
+        filename="config.json",
+    )
+    hf_hub_download.assert_any_call(
+        repo_id="facebook/sam3.1",
+        filename="sam3.1_multiplex.pt",
+    )
+    assert (
+        builder.call_args.kwargs["checkpoint_path"]
+        == "/tmp/facebook-sam3.1/sam3.1_multiplex.pt"
+    )
     assert builder.call_args.kwargs["load_from_HF"] is False
 
 
@@ -197,13 +248,14 @@ def test_checkpoint_env_overrides_sam31_hf_download(monkeypatch, tmp_path, samge
 
 
 def test_sam31_missing_checkpoint_helper_has_clear_error(monkeypatch, tmp_path, samgeo3):
-    """Old sam3 packages should fail with an upgrade message for SAM 3.1."""
+    """SAM 3.1 reports a clear error when no downloader path is available."""
     bpe_path = tmp_path / "bpe.txt.gz"
     bpe_path.write_text("stub")
     builder, _ = _patch_meta_build(monkeypatch, samgeo3)
     monkeypatch.setattr(samgeo3, "download_ckpt_from_hf", None)
+    monkeypatch.setitem(sys.modules, "huggingface_hub", None)
 
-    with pytest.raises(ImportError, match="newer sam3 package"):
+    with pytest.raises(ImportError, match="facebook/sam3.1"):
         _init_meta_backend(
             samgeo3,
             bpe_path=str(bpe_path),

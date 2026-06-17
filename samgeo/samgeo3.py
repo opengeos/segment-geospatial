@@ -3,6 +3,7 @@ https://github.com/facebookresearch/sam3
 """
 
 import glob
+import inspect
 import os
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -50,7 +51,7 @@ except ImportError as e:
     print(f"To use SamGeo 3, install it as:\n\tpip install segment-geospatial[samgeo3]")
 
 from samgeo import common
-from samgeo.model_registry import DEFAULT_MODEL_IDS
+from samgeo.model_registry import DEFAULT_MODEL_IDS, SAM31_MODEL_ID
 from .common import show_image
 
 try:
@@ -59,6 +60,30 @@ try:
     hf_logging.set_verbosity_error()  # silence HF load reports
 except ImportError:
     pass
+
+
+SAM31_CKPT_NAME = "sam3.1_multiplex.pt"
+SAM31_CONFIG_NAME = "config.json"
+
+
+def _download_sam31_checkpoint():
+    """Download the SAM 3.1 checkpoint with released and source sam3 builds."""
+    if download_ckpt_from_hf is not None:
+        signature = inspect.signature(download_ckpt_from_hf)
+        if "version" in signature.parameters:
+            return download_ckpt_from_hf(version="sam3.1")
+
+    try:
+        from huggingface_hub import hf_hub_download
+    except ImportError as e:
+        raise ImportError(
+            "SAM 3.1 requires either a sam3 package whose "
+            "download_ckpt_from_hf supports version='sam3.1' or "
+            "huggingface_hub to download facebook/sam3.1 directly."
+        ) from e
+
+    _ = hf_hub_download(repo_id=SAM31_MODEL_ID, filename=SAM31_CONFIG_NAME)
+    return hf_hub_download(repo_id=SAM31_MODEL_ID, filename=SAM31_CKPT_NAME)
 
 
 class SamGeo3:
@@ -127,7 +152,7 @@ class SamGeo3:
                 f"Invalid backend '{backend}'. Choose 'meta' or 'transformers'."
             )
 
-        if backend == "transformers" and model_id == "facebook/sam3.1":
+        if backend == "transformers" and model_id == SAM31_MODEL_ID:
             raise ValueError(
                 "facebook/sam3.1 is a checkpoint repository and is only "
                 "supported with backend='meta'. Use model_id='facebook/sam3' "
@@ -245,15 +270,9 @@ class SamGeo3:
         if (
             load_from_HF
             and checkpoint_path is None
-            and model_id == "facebook/sam3.1"
+            and model_id == SAM31_MODEL_ID
         ):
-            if download_ckpt_from_hf is None:
-                raise ImportError(
-                    "SAM 3.1 requires a newer sam3 package with "
-                    "download_ckpt_from_hf(version='sam3.1'). "
-                    "Please upgrade segment-geospatial[samgeo3]."
-                )
-            checkpoint_path = download_ckpt_from_hf(version="sam3.1")
+            checkpoint_path = _download_sam31_checkpoint()
             load_from_HF = False
 
         model = build_sam3_image_model(
