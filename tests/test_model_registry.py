@@ -21,6 +21,12 @@ def test_default_model_ids_are_available_models():
         assert model_id in model_registry.AVAILABLE_MODELS[model_version]
 
 
+def test_registry_keys_stay_in_sync():
+    """Shared registry sections should describe the same model versions."""
+    assert set(model_registry.DEFAULT_MODEL_IDS) == set(model_registry.AVAILABLE_MODELS)
+    assert set(model_registry.DEFAULT_MODEL_IDS) == set(model_registry.EXTRAS_MAP)
+
+
 def test_sam31_is_registered_as_a_sam3_model():
     """SAM 3.1 is exposed as a SAM3-compatible model id."""
     assert "facebook/sam3" in model_registry.SAM3_MODEL_IDS

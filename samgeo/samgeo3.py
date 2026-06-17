@@ -13,6 +13,7 @@ from tqdm import tqdm
 
 
 SAM3_META_IMPORT_ERROR = None
+download_ckpt_from_hf = None
 try:
     from sam3.model_builder import build_sam3_image_model, build_sam3_video_predictor
 
