@@ -276,12 +276,24 @@ def test_get_model_returns_400_for_invalid_constructor_config():
     import samgeo.api as api
 
     with patch("samgeo.samgeo3.SamGeo3") as mock_sam3:
-        mock_sam3.side_effect = ValueError("bad config")
+        mock_sam3.side_effect = ValueError(
+            "facebook/sam3.1 is only supported with backend='meta'"
+        )
         with pytest.raises(api.HTTPException) as excinfo:
             api.get_model("sam3", "facebook/sam3.1", backend="transformers")
 
     assert excinfo.value.status_code == 400
-    assert "bad config" in excinfo.value.detail
+    assert "backend='meta'" in excinfo.value.detail
+
+
+def test_get_model_does_not_hide_unexpected_constructor_value_errors():
+    """Unexpected constructor ValueErrors should not be reported as bad input."""
+    import samgeo.api as api
+
+    with patch("samgeo.samgeo3.SamGeo3") as mock_sam3:
+        mock_sam3.side_effect = ValueError("unexpected runtime failure")
+        with pytest.raises(ValueError, match="unexpected runtime failure"):
+            api.get_model("sam3", "facebook/sam3.1", backend="meta")
 
 
 def test_freeze_kwargs_is_order_independent():

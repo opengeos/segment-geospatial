@@ -182,7 +182,14 @@ def get_model(model_version: str, model_id: Optional[str] = None, **kwargs):
                 kwargs.setdefault("enable_inst_interactivity", True)
                 model = SamGeo3(model_id=model_id, **kwargs)
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            msg = str(e)
+            is_user_config_error = model_version == "sam3" and (
+                msg.startswith("Invalid backend")
+                or "only supported with backend='meta'" in msg
+            )
+            if is_user_config_error:
+                raise HTTPException(status_code=400, detail=msg) from e
+            raise
         except ImportError as e:
             raise HTTPException(
                 status_code=503,
