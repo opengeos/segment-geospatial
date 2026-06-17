@@ -15,6 +15,12 @@ from tqdm import tqdm
 SAM3_META_IMPORT_ERROR = None
 try:
     from sam3.model_builder import build_sam3_image_model, build_sam3_video_predictor
+
+    try:
+        from sam3.model_builder import download_ckpt_from_hf
+    except ImportError:
+        download_ckpt_from_hf = None
+
     from sam3.model.sam3_image_processor import Sam3Processor as MetaSam3Processor
     from sam3.visualization_utils import load_frame
 
@@ -43,6 +49,7 @@ except ImportError as e:
     print(f"To use SamGeo 3, install it as:\n\tpip install segment-geospatial[samgeo3]")
 
 from samgeo import common
+from samgeo.model_registry import DEFAULT_MODEL_IDS, SAM3_MODEL_IDS
 from .common import show_image
 
 try:
@@ -59,7 +66,7 @@ class SamGeo3:
     def __init__(
         self,
         backend="meta",
-        model_id="facebook/sam3",
+        model_id=DEFAULT_MODEL_IDS["sam3"],
         bpe_path=None,
         device=None,
         eval_mode=True,
@@ -78,8 +85,10 @@ class SamGeo3:
 
         Args:
             backend (str): Backend to use ('meta' or 'transformers'). Default is 'meta'.
-            model_id (str): Model ID for Transformers backend (e.g., 'facebook/sam3').
-                Only used when backend='transformers'.
+            model_id (str): Model ID to use. Supported values are
+                'facebook/sam3' and 'facebook/sam3.1'. The Meta backend uses
+                this to select the Hugging Face checkpoint when
+                load_from_HF=True and checkpoint_path is not provided.
             bpe_path (str, optional): Path to the BPE tokenizer vocabulary (Meta backend only).
             device (str, optional): Device to load the model on ('cuda' or 'cpu').
             eval_mode (bool, optional): Whether to set the model to evaluation mode (Meta backend only).
@@ -112,9 +121,22 @@ class SamGeo3:
             ... )
         """
 
+        if model_id not in SAM3_MODEL_IDS:
+            raise ValueError(
+                f"Invalid SAM3 model_id '{model_id}'. "
+                f"Choose one of: {list(SAM3_MODEL_IDS)}."
+            )
+
         if backend not in ["meta", "transformers"]:
             raise ValueError(
                 f"Invalid backend '{backend}'. Choose 'meta' or 'transformers'."
+            )
+
+        if backend == "transformers" and model_id == "facebook/sam3.1":
+            raise ValueError(
+                "facebook/sam3.1 is a checkpoint repository and is only "
+                "supported with backend='meta'. Use model_id='facebook/sam3' "
+                "for the Transformers backend."
             )
 
         if backend == "meta" and not SAM3_META_AVAILABLE:
@@ -152,6 +174,7 @@ class SamGeo3:
         # Initialize backend-specific components
         if backend == "meta":
             self._init_meta_backend(
+                model_id=model_id,
                 bpe_path=bpe_path,
                 device=device,
                 eval_mode=eval_mode,
@@ -191,6 +214,7 @@ class SamGeo3:
 
     def _init_meta_backend(
         self,
+        model_id,
         bpe_path,
         device,
         eval_mode,
@@ -221,6 +245,20 @@ class SamGeo3:
         if checkpoint_path is not None:
             if not os.path.exists(checkpoint_path):
                 raise ValueError(f"Checkpoint path {checkpoint_path} does not exist.")
+            load_from_HF = False
+
+        if (
+            load_from_HF
+            and checkpoint_path is None
+            and model_id == "facebook/sam3.1"
+        ):
+            if download_ckpt_from_hf is None:
+                raise ImportError(
+                    "SAM 3.1 requires a newer sam3 package with "
+                    "download_ckpt_from_hf(version='sam3.1'). "
+                    "Please upgrade segment-geospatial[samgeo3]."
+                )
+            checkpoint_path = download_ckpt_from_hf(version="sam3.1")
             load_from_HF = False
 
         model = build_sam3_image_model(

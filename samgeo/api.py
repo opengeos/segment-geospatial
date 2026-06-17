@@ -35,6 +35,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from samgeo import __version__
+from samgeo.model_registry import AVAILABLE_MODELS, DEFAULT_MODEL_IDS, EXTRAS_MAP
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -76,31 +77,6 @@ _model_cache_lock = threading.Lock()
 # Image encoding cache: maps model cache key -> hash of last encoded image.
 # When the same image is sent again, we skip the expensive set_image() call.
 _image_hash_cache: dict = {}
-
-# Default model IDs per version
-_DEFAULT_MODEL_IDS = {
-    "sam": "vit_h",
-    "sam2": "sam2-hiera-large",
-    "sam3": "facebook/sam3",
-}
-
-_AVAILABLE_MODELS = {
-    "sam": ["vit_h", "vit_l", "vit_b"],
-    "sam2": [
-        "sam2-hiera-tiny",
-        "sam2-hiera-small",
-        "sam2-hiera-base-plus",
-        "sam2-hiera-large",
-    ],
-    "sam3": ["facebook/sam3"],
-}
-
-# Maps model_version to the correct pip extra name
-_EXTRAS_MAP = {
-    "sam": "samgeo",
-    "sam2": "samgeo2",
-    "sam3": "samgeo3",
-}
 
 
 def _freeze_kwargs(kwargs: dict):
@@ -147,19 +123,19 @@ def get_model(model_version: str, model_id: Optional[str] = None, **kwargs):
         HTTPException: If model_version or model_id is invalid, or
             dependencies are missing.
     """
-    if model_version not in _DEFAULT_MODEL_IDS:
+    if model_version not in DEFAULT_MODEL_IDS:
         raise HTTPException(
             status_code=400,
             detail=(
                 f"Invalid model_version '{model_version}'. "
-                f"Must be one of: {list(_DEFAULT_MODEL_IDS.keys())}"
+                f"Must be one of: {list(DEFAULT_MODEL_IDS.keys())}"
             ),
         )
 
     if not model_id:
-        model_id = _DEFAULT_MODEL_IDS[model_version]
+        model_id = DEFAULT_MODEL_IDS[model_version]
 
-    valid_ids = _AVAILABLE_MODELS[model_version]
+    valid_ids = AVAILABLE_MODELS[model_version]
     if model_id not in valid_ids:
         raise HTTPException(
             status_code=400,
@@ -185,7 +161,7 @@ def get_model(model_version: str, model_id: Optional[str] = None, **kwargs):
             return model, lock, key
 
         logger.info("Loading model %s", key)
-        extra = _EXTRAS_MAP.get(model_version, model_version)
+        extra = EXTRAS_MAP.get(model_version, model_version)
         try:
             if model_version == "sam":
                 from samgeo.samgeo import SamGeo
@@ -199,7 +175,7 @@ def get_model(model_version: str, model_id: Optional[str] = None, **kwargs):
                 from samgeo.samgeo3 import SamGeo3
 
                 kwargs.setdefault("enable_inst_interactivity", True)
-                model = SamGeo3(**kwargs)
+                model = SamGeo3(model_id=model_id, **kwargs)
         except ImportError as e:
             raise HTTPException(
                 status_code=503,
@@ -570,7 +546,7 @@ def health():
 def list_models():
     """List available and currently loaded models."""
     loaded = [list(key) for key in _model_cache]
-    return {"models": _AVAILABLE_MODELS, "loaded": loaded}
+    return {"models": AVAILABLE_MODELS, "loaded": loaded}
 
 
 @app.delete("/models")

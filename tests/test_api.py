@@ -55,6 +55,7 @@ def test_list_models():
     assert "sam" in data["models"]
     assert "sam2" in data["models"]
     assert "sam3" in data["models"]
+    assert "facebook/sam3.1" in data["models"]["sam3"]
     assert data["loaded"] == []
 
 
@@ -236,6 +237,29 @@ def test_get_model_caches_distinct_configs_separately():
         s_b, _, k_b = api.get_model("sam2", "sam2-hiera-tiny", points_per_side=32)
     assert k_a != k_b
     assert s_a is not s_b
+
+
+def test_get_model_accepts_sam31_model_id():
+    """SAM 3.1 is a supported SAM3 model id and keeps its own cache key."""
+    import samgeo.api as api
+
+    with patch("samgeo.samgeo3.SamGeo3") as mock_sam3:
+        mock_sam3.side_effect = lambda **kw: MagicMock()
+        sam3_model, _, sam3_key = api.get_model("sam3", "facebook/sam3")
+        sam31_model, _, sam31_key = api.get_model("sam3", "facebook/sam3.1")
+        sam31_again, _, _ = api.get_model("sam3", "facebook/sam3.1")
+
+    assert sam3_key != sam31_key
+    assert sam3_model is not sam31_model
+    assert sam31_again is sam31_model
+    mock_sam3.assert_any_call(
+        model_id="facebook/sam3",
+        enable_inst_interactivity=True,
+    )
+    mock_sam3.assert_any_call(
+        model_id="facebook/sam3.1",
+        enable_inst_interactivity=True,
+    )
 
 
 def test_freeze_kwargs_is_order_independent():
