@@ -145,9 +145,9 @@ If CUDA is `False`, check:
 
 ---
 
-### 6) Request access to SAM 3 (Optional)
+### 6) Request access to SAM 3 and SAM 3.1 (Optional)
 
-To use SAM 3, you will need to request access by filling out this form on Hugging Face at <https://huggingface.co/facebook/sam3>. Once your request has been approved, run the following command in the terminal to authenticate:
+To use SAM 3, you will need to request access by filling out this form on Hugging Face at <https://huggingface.co/facebook/sam3>. To use SAM 3.1, request access at <https://huggingface.co/facebook/sam3.1>. Once your request has been approved, run the following command in the terminal to authenticate:
 
 ```bash
 pixi run hf auth login
@@ -159,7 +159,17 @@ After authentication, you can download the SAM 3 model from Hugging Face:
 pixi run hf download facebook/sam3
 ```
 
-**Important Note**: SAM 3 currently requires an NVIDIA GPU with CUDA support. You won't be able to use SAM 3 if you have a CPU only system ([source](https://github.com/facebookresearch/sam3/issues/164)). You will get an error message like this: `Failed to load model: Torch not compiled with CUDA enabled`.
+For SAM 3.1:
+
+```bash
+pixi run hf download facebook/sam3.1
+```
+
+When `segment-geospatial` is installed with a released `sam3` package whose
+checkpoint helper only downloads `facebook/sam3`, SAM 3.1 still downloads
+`facebook/sam3.1` directly through Hugging Face Hub.
+
+**Important Note**: SAM 3 and SAM 3.1 currently require an NVIDIA GPU with CUDA support. You won't be able to use them if you have a CPU only system ([source](https://github.com/facebookresearch/sam3/issues/164)). You will get an error message like this: `Failed to load model: Torch not compiled with CUDA enabled`.
 
 ---
 

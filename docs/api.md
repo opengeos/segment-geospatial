@@ -96,7 +96,7 @@ Runs automatic mask generation on an uploaded image. Supports SAM, SAM2, and SAM
 |-----------|------|---------|-------------|
 | `file` | file | required | Image file (TIFF, PNG, JPEG) |
 | `model_version` | string | `sam2` | One of `sam`, `sam2`, `sam3` |
-| `model_id` | string | auto | Model identifier (e.g., `sam2-hiera-large`) |
+| `model_id` | string | auto | Model identifier (e.g., `sam2-hiera-large`, `facebook/sam3.1`) |
 | `output_format` | string | `geojson` | One of `geojson`, `geotiff`, `png`, `json`, `detections` |
 | `foreground` | bool | `true` | Extract foreground objects only |
 | `unique` | bool | `true` | Assign unique ID to each object |
@@ -131,7 +131,7 @@ For SAM3 with bounding box prompts, the model finds **all similar objects** in t
 |-----------|------|---------|-------------|
 | `file` | file | required | Image file (TIFF, PNG, JPEG) |
 | `model_version` | string | `sam3` | One of `sam`, `sam2`, `sam3` |
-| `model_id` | string | auto | Model identifier |
+| `model_id` | string | auto | Model identifier (e.g., `facebook/sam3.1`) |
 | `output_format` | string | `geojson` | One of `geojson`, `geotiff`, `png`, `json`, `detections` |
 | `point_coords` | string | none | JSON array of `[[x, y], ...]` |
 | `point_labels` | string | none | JSON array of `[1, 0, ...]` (1=foreground, 0=background) |
@@ -222,8 +222,8 @@ Runs text-prompt segmentation using SAM3.
 |-----------|------|---------|-------------|
 | `file` | file | required | Image file (TIFF, PNG, JPEG) |
 | `prompt` | string | required | Text description (e.g., `building`, `tree`) |
-| `model_id` | string | auto | SAM3 model identifier |
-| `backend` | string | `meta` | One of `meta`, `transformers` |
+| `model_id` | string | auto | SAM3 model identifier (`facebook/sam3` or `facebook/sam3.1`) |
+| `backend` | string | `meta` | One of `meta`, `transformers`; SAM 3.1 uses `meta` |
 | `output_format` | string | `geojson` | One of `geojson`, `geotiff`, `png`, `json`, `detections` |
 | `confidence_threshold` | float | `0.5` | Detection confidence threshold |
 | `min_size` | int | `0` | Minimum mask size in pixels |

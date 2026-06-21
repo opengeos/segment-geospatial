@@ -3,6 +3,7 @@ https://github.com/facebookresearch/sam3
 """
 
 import glob
+import inspect
 import os
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -13,8 +14,15 @@ from tqdm import tqdm
 
 
 SAM3_META_IMPORT_ERROR = None
+download_ckpt_from_hf = None
 try:
     from sam3.model_builder import build_sam3_image_model, build_sam3_video_predictor
+
+    try:
+        from sam3.model_builder import download_ckpt_from_hf
+    except ImportError:
+        download_ckpt_from_hf = None
+
     from sam3.model.sam3_image_processor import Sam3Processor as MetaSam3Processor
     from sam3.visualization_utils import load_frame
 
@@ -43,6 +51,7 @@ except ImportError as e:
     print(f"To use SamGeo 3, install it as:\n\tpip install segment-geospatial[samgeo3]")
 
 from samgeo import common
+from samgeo.model_registry import DEFAULT_MODEL_IDS, SAM31_MODEL_ID
 from .common import show_image
 
 try:
@@ -53,13 +62,37 @@ except ImportError:
     pass
 
 
+SAM31_CKPT_NAME = "sam3.1_multiplex.pt"
+SAM31_CONFIG_NAME = "config.json"
+
+
+def _download_sam31_checkpoint():
+    """Download the SAM 3.1 checkpoint with released and source sam3 builds."""
+    if download_ckpt_from_hf is not None:
+        signature = inspect.signature(download_ckpt_from_hf)
+        if "version" in signature.parameters:
+            return download_ckpt_from_hf(version="sam3.1")
+
+    try:
+        from huggingface_hub import hf_hub_download
+    except ImportError as e:
+        raise ImportError(
+            "SAM 3.1 requires either a sam3 package whose "
+            "download_ckpt_from_hf supports version='sam3.1' or "
+            "huggingface_hub to download facebook/sam3.1 directly."
+        ) from e
+
+    _ = hf_hub_download(repo_id=SAM31_MODEL_ID, filename=SAM31_CONFIG_NAME)
+    return hf_hub_download(repo_id=SAM31_MODEL_ID, filename=SAM31_CKPT_NAME)
+
+
 class SamGeo3:
     """The main class for segmenting geospatial data with the Segment Anything Model 3 (SAM3)."""
 
     def __init__(
         self,
         backend="meta",
-        model_id="facebook/sam3",
+        model_id=DEFAULT_MODEL_IDS["sam3"],
         bpe_path=None,
         device=None,
         eval_mode=True,
@@ -78,8 +111,10 @@ class SamGeo3:
 
         Args:
             backend (str): Backend to use ('meta' or 'transformers'). Default is 'meta'.
-            model_id (str): Model ID for Transformers backend (e.g., 'facebook/sam3').
-                Only used when backend='transformers'.
+            model_id (str): Model ID to use. Official values include
+                'facebook/sam3' and 'facebook/sam3.1'. The Meta backend uses
+                'facebook/sam3.1' to select the SAM 3.1 Hugging Face checkpoint
+                when load_from_HF=True and checkpoint_path is not provided.
             bpe_path (str, optional): Path to the BPE tokenizer vocabulary (Meta backend only).
             device (str, optional): Device to load the model on ('cuda' or 'cpu').
             eval_mode (bool, optional): Whether to set the model to evaluation mode (Meta backend only).
@@ -117,6 +152,13 @@ class SamGeo3:
                 f"Invalid backend '{backend}'. Choose 'meta' or 'transformers'."
             )
 
+        if backend == "transformers" and model_id == SAM31_MODEL_ID:
+            raise ValueError(
+                "facebook/sam3.1 is a checkpoint repository and is only "
+                "supported with backend='meta'. Use model_id='facebook/sam3' "
+                "for the Transformers backend."
+            )
+
         if backend == "meta" and not SAM3_META_AVAILABLE:
             error_msg = (
                 "Meta SAM3 is not available. Please install it as:\n"
@@ -152,6 +194,7 @@ class SamGeo3:
         # Initialize backend-specific components
         if backend == "meta":
             self._init_meta_backend(
+                model_id=model_id,
                 bpe_path=bpe_path,
                 device=device,
                 eval_mode=eval_mode,
@@ -191,6 +234,7 @@ class SamGeo3:
 
     def _init_meta_backend(
         self,
+        model_id,
         bpe_path,
         device,
         eval_mode,
@@ -221,6 +265,14 @@ class SamGeo3:
         if checkpoint_path is not None:
             if not os.path.exists(checkpoint_path):
                 raise ValueError(f"Checkpoint path {checkpoint_path} does not exist.")
+            load_from_HF = False
+
+        if (
+            load_from_HF
+            and checkpoint_path is None
+            and model_id == SAM31_MODEL_ID
+        ):
+            checkpoint_path = _download_sam31_checkpoint()
             load_from_HF = False
 
         model = build_sam3_image_model(

@@ -55,7 +55,17 @@ def test_list_models():
     assert "sam" in data["models"]
     assert "sam2" in data["models"]
     assert "sam3" in data["models"]
+    assert "facebook/sam3.1" in data["models"]["sam3"]
     assert data["loaded"] == []
+
+
+def test_private_model_constant_aliases_remain_available():
+    """Legacy private constants still point to the shared registry values."""
+    from samgeo import api
+
+    assert api._DEFAULT_MODEL_IDS is api.DEFAULT_MODEL_IDS
+    assert api._AVAILABLE_MODELS is api.AVAILABLE_MODELS
+    assert api._EXTRAS_MAP is api.EXTRAS_MAP
 
 
 def test_clear_models():
@@ -190,7 +200,7 @@ def test_get_model_caches_automatic_and_predict_separately():
     ``'SamGeo2' object has no attribute 'predictor'``. The cache key now
     includes the ``automatic`` flag so the two are distinct instances.
     """
-    import samgeo.api as api
+    from samgeo import api
 
     with patch("samgeo.samgeo2.SamGeo2") as mock_cls:
         mock_cls.side_effect = lambda **kw: MagicMock()
@@ -217,7 +227,7 @@ def test_get_model_caches_distinct_configs_separately():
     request with a different ``points_per_side``) silently reused the first,
     differently-configured instance. The key now folds in the kwargs.
     """
-    import samgeo.api as api
+    from samgeo import api
 
     # SAM3: two text requests differing only by confidence_threshold.
     with patch("samgeo.samgeo3.SamGeo3") as mock_sam3:
@@ -236,6 +246,54 @@ def test_get_model_caches_distinct_configs_separately():
         s_b, _, k_b = api.get_model("sam2", "sam2-hiera-tiny", points_per_side=32)
     assert k_a != k_b
     assert s_a is not s_b
+
+
+def test_get_model_accepts_sam31_model_id():
+    """SAM 3.1 is a supported SAM3 model id and keeps its own cache key."""
+    from samgeo import api
+
+    with patch("samgeo.samgeo3.SamGeo3") as mock_sam3:
+        mock_sam3.side_effect = lambda **kw: MagicMock()
+        sam3_model, _, sam3_key = api.get_model("sam3", "facebook/sam3")
+        sam31_model, _, sam31_key = api.get_model("sam3", "facebook/sam3.1")
+        sam31_again, _, _ = api.get_model("sam3", "facebook/sam3.1")
+
+    assert sam3_key != sam31_key
+    assert sam3_model is not sam31_model
+    assert sam31_again is sam31_model
+    mock_sam3.assert_any_call(
+        model_id="facebook/sam3",
+        enable_inst_interactivity=True,
+    )
+    mock_sam3.assert_any_call(
+        model_id="facebook/sam3.1",
+        enable_inst_interactivity=True,
+    )
+
+
+def test_get_model_returns_400_for_invalid_constructor_config():
+    """Invalid model/backend config should be reported as a user error."""
+    from samgeo import api
+
+    with patch("samgeo.samgeo3.SamGeo3") as mock_sam3:
+        mock_sam3.side_effect = ValueError(
+            "facebook/sam3.1 is only supported with backend='meta'"
+        )
+        with pytest.raises(api.HTTPException) as excinfo:
+            api.get_model("sam3", "facebook/sam3.1", backend="transformers")
+
+    assert excinfo.value.status_code == 400
+    assert "backend='meta'" in excinfo.value.detail
+
+
+def test_get_model_does_not_hide_unexpected_constructor_value_errors():
+    """Unexpected constructor ValueErrors should not be reported as bad input."""
+    from samgeo import api
+
+    with patch("samgeo.samgeo3.SamGeo3") as mock_sam3:
+        mock_sam3.side_effect = ValueError("unexpected runtime failure")
+        with pytest.raises(ValueError, match="unexpected runtime failure"):
+            api.get_model("sam3", "facebook/sam3.1", backend="meta")
 
 
 def test_freeze_kwargs_is_order_independent():
