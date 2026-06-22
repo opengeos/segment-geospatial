@@ -22,7 +22,7 @@ jobs:
         env:
             SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@v7
 
             - name: Setup micromamba
               uses: mamba-org/setup-micromamba@v3
