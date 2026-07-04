@@ -4,7 +4,10 @@ https://github.com/facebookresearch/sam3
 
 import glob
 import inspect
+import logging
 import os
+import warnings
+import weakref
 from contextlib import nullcontext
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -63,6 +66,8 @@ try:
 except ImportError:
     pass
 
+
+logger = logging.getLogger(__name__)
 
 SAM31_CKPT_NAME = "sam3.1_multiplex.pt"
 SAM31_CONFIG_NAME = "config.json"
@@ -4088,9 +4093,12 @@ class SamGeo3Video:
         >>> sam.close()
     """
 
-    # Tracks the most recently created predictor so a new instance can tear
-    # down a previous one before initializing (see _cleanup_previous_predictor).
-    _active_predictor: Optional["SamGeo3Video"] = None
+    # Weak reference to the most recently created instance so a new instance
+    # can tear down a previous one before initializing (see
+    # _cleanup_previous_predictor). A weakref is used so this class-level
+    # tracking does not itself keep the instance (and its worker processes /
+    # GPU memory) alive after the user drops their own reference.
+    _active_predictor: Optional["weakref.ReferenceType[SamGeo3Video]"] = None
 
     def __init__(
         self,
@@ -4148,7 +4156,7 @@ class SamGeo3Video:
         self.predictor = build_sam3_video_predictor(
             gpus_to_use=gpus_to_use, bpe_path=bpe_path, **kwargs
         )
-        SamGeo3Video._active_predictor = self
+        SamGeo3Video._active_predictor = weakref.ref(self)
         self.gpus_to_use = gpus_to_use
         self.session_id = None
         self.video_path = None
@@ -4175,26 +4183,50 @@ class SamGeo3Video:
 
         This method shuts down the previously tracked predictor (which notifies
         its workers and destroys its process group) and, as a fallback, destroys
-        any process group that is still initialized.
+        any process group that is still initialized. If a process group is found
+        but no previous ``SamGeo3Video`` was tracked, the group may belong to
+        other code in the process, so a warning is emitted before it is
+        destroyed (the SAM3 predictor cannot start while a group is
+        initialized).
         """
         import torch
 
-        previous = SamGeo3Video._active_predictor
+        ref = SamGeo3Video._active_predictor
+        previous = ref() if ref is not None else None
         if previous is not None:
             try:
                 previous.shutdown()
             except Exception:
-                pass
+                # Don't let a partial teardown block creating the new predictor,
+                # but surface it so cleanup problems can be diagnosed.
+                logger.warning(
+                    "Failed to shut down the previous SamGeo3Video cleanly; "
+                    "falling back to destroying the process group.",
+                    exc_info=True,
+                )
             finally:
                 SamGeo3Video._active_predictor = None
 
-        # Fallback: a process group may still be initialized (e.g. it was set up
-        # outside of SamGeo3Video, or the previous shutdown failed part-way).
+        # Fallback: a process group may still be initialized (the previous
+        # shutdown failed part-way, the previous instance was garbage-collected
+        # without shutdown(), or it was set up outside of SamGeo3Video).
         if torch.distributed.is_available() and torch.distributed.is_initialized():
+            if previous is None:
+                warnings.warn(
+                    "An existing torch.distributed process group was found and "
+                    "will be destroyed so the SAM3 video predictor can "
+                    "initialize. If this group belongs to other code, create "
+                    "the SamGeo3Video instance before initializing that group.",
+                    stacklevel=2,
+                )
             try:
                 torch.distributed.destroy_process_group()
             except Exception:
-                pass
+                logger.warning(
+                    "Failed to destroy the existing torch.distributed process "
+                    "group.",
+                    exc_info=True,
+                )
 
     def set_video(
         self,
@@ -5442,7 +5474,8 @@ class SamGeo3Video:
         """
         self.close()
         self.predictor.shutdown()
-        if SamGeo3Video._active_predictor is self:
+        ref = SamGeo3Video._active_predictor
+        if ref is not None and ref() is self:
             SamGeo3Video._active_predictor = None
         print("Predictor shutdown complete.")
 
