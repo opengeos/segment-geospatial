@@ -4088,6 +4088,10 @@ class SamGeo3Video:
         >>> sam.close()
     """
 
+    # Tracks the most recently created predictor so a new instance can tear
+    # down a previous one before initializing (see _cleanup_previous_predictor).
+    _active_predictor: Optional["SamGeo3Video"] = None
+
     def __init__(
         self,
         gpus_to_use: Optional[List[int]] = None,
@@ -4134,9 +4138,17 @@ class SamGeo3Video:
 
         print(f"Using GPUs: {gpus_to_use}")
 
+        # The SAM3 multi-GPU predictor asserts that no torch.distributed process
+        # group is already initialized. A previous SamGeo3Video created in the
+        # same session (e.g. re-running a notebook cell) leaves its group and
+        # worker processes alive, which would trip that assertion. Tear down any
+        # previous predictor and stale process group before building a new one.
+        self._cleanup_previous_predictor()
+
         self.predictor = build_sam3_video_predictor(
             gpus_to_use=gpus_to_use, bpe_path=bpe_path, **kwargs
         )
+        SamGeo3Video._active_predictor = self
         self.gpus_to_use = gpus_to_use
         self.session_id = None
         self.video_path = None
@@ -4147,6 +4159,42 @@ class SamGeo3Video:
         self._tif_source = None
         self._tif_dir = None
         self._tif_names = None
+
+    @staticmethod
+    def _cleanup_previous_predictor() -> None:
+        """Tear down a previously created predictor and any stale process group.
+
+        The SAM3 multi-GPU video predictor initializes a ``torch.distributed``
+        process group and spawns worker processes, and it asserts that no
+        process group is already initialized when it starts. Because
+        ``__del__`` only closes the active session (not the predictor), a
+        previous ``SamGeo3Video`` instance created in the same Python process
+        keeps its process group and workers alive, causing an ``AssertionError``
+        when a new instance is created (for example, when a notebook cell is
+        re-run).
+
+        This method shuts down the previously tracked predictor (which notifies
+        its workers and destroys its process group) and, as a fallback, destroys
+        any process group that is still initialized.
+        """
+        import torch
+
+        previous = SamGeo3Video._active_predictor
+        if previous is not None:
+            try:
+                previous.shutdown()
+            except Exception:
+                pass
+            finally:
+                SamGeo3Video._active_predictor = None
+
+        # Fallback: a process group may still be initialized (e.g. it was set up
+        # outside of SamGeo3Video, or the previous shutdown failed part-way).
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            try:
+                torch.distributed.destroy_process_group()
+            except Exception:
+                pass
 
     def set_video(
         self,
@@ -5394,6 +5442,8 @@ class SamGeo3Video:
         """
         self.close()
         self.predictor.shutdown()
+        if SamGeo3Video._active_predictor is self:
+            SamGeo3Video._active_predictor = None
         print("Predictor shutdown complete.")
 
     def __del__(self):
