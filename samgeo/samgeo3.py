@@ -68,6 +68,28 @@ SAM31_CKPT_NAME = "sam3.1_multiplex.pt"
 SAM31_CONFIG_NAME = "config.json"
 
 
+def _tensor_to_numpy(tensor):
+    """Convert a torch tensor to a numpy array, upcasting unsupported dtypes.
+
+    NumPy has no bfloat16 (or float16) scalar type, so tensors produced under
+    the Meta backend's bfloat16 autocast raise ``TypeError: Got unsupported
+    ScalarType BFloat16`` when passed directly to ``.numpy()``. This helper
+    moves the tensor to CPU and casts bfloat16/float16 tensors to float32
+    before conversion. Non-floating tensors (e.g. boolean masks) are converted
+    unchanged.
+
+    Args:
+        tensor (torch.Tensor): The tensor to convert.
+
+    Returns:
+        numpy.ndarray: The tensor as a numpy array.
+    """
+    tensor = tensor.detach().cpu()
+    if tensor.dtype in (torch.bfloat16, torch.float16):
+        tensor = tensor.float()
+    return tensor.numpy()
+
+
 def _download_sam31_checkpoint():
     """Download the SAM 3.1 checkpoint with released and source sam3 builds."""
     if download_ckpt_from_hf is not None:
@@ -697,14 +719,14 @@ class SamGeo3:
                 # If it's a batched tensor, split into list
                 if masks.dim() >= 3:
                     for i in range(masks.shape[0]):
-                        converted_masks.append(masks[i].cpu().numpy())
+                        converted_masks.append(_tensor_to_numpy(masks[i]))
                 else:
-                    converted_masks.append(masks.cpu().numpy())
+                    converted_masks.append(_tensor_to_numpy(masks))
             else:
                 # It's already a list
                 for mask in masks:
-                    if hasattr(mask, "cpu"):
-                        mask_np = mask.cpu().numpy()
+                    if isinstance(mask, torch.Tensor):
+                        mask_np = _tensor_to_numpy(mask)
                     elif hasattr(mask, "numpy"):
                         mask_np = mask.numpy()
                     else:
@@ -720,13 +742,13 @@ class SamGeo3:
                 # If it's a batched tensor [N, 4], split into list
                 if boxes.dim() == 2:
                     for i in range(boxes.shape[0]):
-                        converted_boxes.append(boxes[i].cpu().numpy())
+                        converted_boxes.append(_tensor_to_numpy(boxes[i]))
                 else:
-                    converted_boxes.append(boxes.cpu().numpy())
+                    converted_boxes.append(_tensor_to_numpy(boxes))
             else:
                 for box in boxes:
-                    if hasattr(box, "cpu"):
-                        box_np = box.cpu().numpy()
+                    if isinstance(box, torch.Tensor):
+                        box_np = _tensor_to_numpy(box)
                     elif hasattr(box, "numpy"):
                         box_np = box.numpy()
                     else:
@@ -740,7 +762,7 @@ class SamGeo3:
             converted_scores = []
             if isinstance(scores, torch.Tensor):
                 # If it's a 1D tensor of scores
-                scores_np = scores.cpu().numpy()
+                scores_np = _tensor_to_numpy(scores)
                 if scores_np.ndim == 0:
                     converted_scores.append(float(scores_np))
                 else:
@@ -748,11 +770,11 @@ class SamGeo3:
                         converted_scores.append(float(s))
             else:
                 for score in scores:
-                    if hasattr(score, "cpu"):
+                    if isinstance(score, torch.Tensor):
                         score_val = (
-                            score.cpu().item()
-                            if hasattr(score, "numel") and score.numel() == 1
-                            else score.cpu().numpy()
+                            score.item()
+                            if score.numel() == 1
+                            else _tensor_to_numpy(score)
                         )
                     elif hasattr(score, "item"):
                         score_val = score.item()
@@ -2227,11 +2249,11 @@ class SamGeo3:
         # Convert masks to numpy
         converted_masks = []
         for mask in self.masks:
-            if hasattr(mask, "cpu"):
-                # PyTorch tensor on GPU
-                mask_np = mask.cpu().numpy()
+            if isinstance(mask, torch.Tensor):
+                # PyTorch tensor (upcasts bf16/fp16 which numpy cannot handle)
+                mask_np = _tensor_to_numpy(mask)
             elif hasattr(mask, "numpy"):
-                # PyTorch tensor on CPU
+                # Array-like exposing numpy()
                 mask_np = mask.numpy()
             else:
                 # Already numpy or other array-like
@@ -2243,8 +2265,8 @@ class SamGeo3:
         if self.boxes is not None:
             converted_boxes = []
             for box in self.boxes:
-                if hasattr(box, "cpu"):
-                    box_np = box.cpu().numpy()
+                if isinstance(box, torch.Tensor):
+                    box_np = _tensor_to_numpy(box)
                 elif hasattr(box, "numpy"):
                     box_np = box.numpy()
                 else:
@@ -2256,11 +2278,11 @@ class SamGeo3:
         if self.scores is not None:
             converted_scores = []
             for score in self.scores:
-                if hasattr(score, "cpu"):
+                if isinstance(score, torch.Tensor):
                     score_val = (
-                        score.cpu().item()
+                        score.item()
                         if score.numel() == 1
-                        else score.cpu().numpy()
+                        else _tensor_to_numpy(score)
                     )
                 elif hasattr(score, "item"):
                     score_val = score.item()
