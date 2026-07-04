@@ -5,6 +5,7 @@ https://github.com/facebookresearch/sam3
 import glob
 import inspect
 import os
+from contextlib import nullcontext
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import cv2
@@ -16,6 +17,7 @@ from tqdm import tqdm
 SAM3_META_IMPORT_ERROR = None
 download_ckpt_from_hf = None
 try:
+    import torch
     from sam3.model_builder import build_sam3_image_model, build_sam3_video_predictor
 
     try:
@@ -315,6 +317,24 @@ class SamGeo3:
             )
         # For transformers backend, the threshold is stored and used during generate_masks
 
+    def _meta_autocast(self):
+        """Return a bfloat16 autocast context for the Meta backend on CUDA.
+
+        SAM3's fused ``addmm_act`` kernel (``sam3/perflib/fused.py``) casts
+        activations to bfloat16 on CUDA while the surrounding ``Linear`` layers
+        keep their float32 weights. Running the forward pass under bfloat16
+        autocast keeps activation and weight dtypes consistent (matching how
+        Meta runs the model) and avoids a ``mat1 and mat2 must have the same
+        dtype`` runtime error. On non-CUDA devices this is a no-op context.
+
+        Returns:
+            A context manager: ``torch.autocast`` on CUDA, otherwise
+            ``contextlib.nullcontext``.
+        """
+        if self.backend == "meta" and str(self.device).startswith("cuda"):
+            return torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+        return nullcontext()
+
     def set_image(
         self,
         image: Union[str, np.ndarray],
@@ -375,9 +395,10 @@ class SamGeo3:
         if self.backend == "meta":
             # SAM3's processor expects PIL Image or tensor with (C, H, W) format
             # Numpy arrays from cv2 have (H, W, C) format which causes incorrect dimension extraction
-            self.inference_state = self.processor.set_image(
-                image_for_processor, state=state
-            )
+            with self._meta_autocast():
+                self.inference_state = self.processor.set_image(
+                    image_for_processor, state=state
+                )
         else:  # transformers
             # For Transformers backend, we just store the PIL image
             # Processing will happen during generate_masks
@@ -456,7 +477,8 @@ class SamGeo3:
         self.sources_batch = sources
 
         # Call the processor's set_image_batch method
-        self.batch_state = self.processor.set_image_batch(pil_images, state=state)
+        with self._meta_autocast():
+            self.batch_state = self.processor.set_image_batch(pil_images, state=state)
 
         print(f"Set {len(pil_images)} images for batch processing.")
 
@@ -518,7 +540,10 @@ class SamGeo3:
 
             # Reset prompts and set text prompt for this image
             self.processor.reset_all_prompts(image_state)
-            output = self.processor.set_text_prompt(state=image_state, prompt=prompt)
+            with self._meta_autocast():
+                output = self.processor.set_text_prompt(
+                    state=image_state, prompt=prompt
+                )
 
             # Build result for this image
             result = {
@@ -1144,9 +1169,10 @@ class SamGeo3:
         """
         if self.backend == "meta":
             self.processor.reset_all_prompts(self.inference_state)
-            output = self.processor.set_text_prompt(
-                state=self.inference_state, prompt=prompt
-            )
+            with self._meta_autocast():
+                output = self.processor.set_text_prompt(
+                    state=self.inference_state, prompt=prompt
+                )
 
             self.masks = output["masks"]
             self.boxes = output["boxes"]
@@ -1384,7 +1410,8 @@ class SamGeo3:
                 self.pil_image = pil_image
 
                 if self.backend == "meta":
-                    self.inference_state = self.processor.set_image(pil_image)
+                    with self._meta_autocast():
+                        self.inference_state = self.processor.set_image(pil_image)
                 else:
                     # For transformers backend, process directly
                     pass
@@ -1737,9 +1764,10 @@ class SamGeo3:
                 norm_box = [cx / width, cy / height, w / width, h / height]
 
                 # Add geometric prompt
-                self.inference_state = self.processor.add_geometric_prompt(
-                    state=self.inference_state, box=norm_box, label=label
-                )
+                with self._meta_autocast():
+                    self.inference_state = self.processor.add_geometric_prompt(
+                        state=self.inference_state, box=norm_box, label=label
+                    )
 
             # Get the masks from the inference state
             output = self.inference_state
@@ -3283,16 +3311,17 @@ class SamGeo3:
                 box = np.array(transformed_boxes)
 
         # Call the model's predict_inst method
-        masks, scores, logits = self.model.predict_inst(
-            self.inference_state,
-            point_coords=point_coords,
-            point_labels=point_labels,
-            box=box,
-            mask_input=mask_input,
-            multimask_output=multimask_output,
-            return_logits=return_logits,
-            normalize_coords=normalize_coords,
-        )
+        with self._meta_autocast():
+            masks, scores, logits = self.model.predict_inst(
+                self.inference_state,
+                point_coords=point_coords,
+                point_labels=point_labels,
+                box=box,
+                mask_input=mask_input,
+                multimask_output=multimask_output,
+                return_logits=return_logits,
+                normalize_coords=normalize_coords,
+            )
 
         # Store results
         self.masks = (
@@ -3420,16 +3449,17 @@ class SamGeo3:
             )
 
         # Call the model's predict_inst_batch method
-        masks_batch, scores_batch, logits_batch = self.model.predict_inst_batch(
-            self.batch_state,
-            point_coords_batch,
-            point_labels_batch,
-            box_batch=box_batch,
-            mask_input_batch=mask_input_batch,
-            multimask_output=multimask_output,
-            return_logits=return_logits,
-            normalize_coords=normalize_coords,
-        )
+        with self._meta_autocast():
+            masks_batch, scores_batch, logits_batch = self.model.predict_inst_batch(
+                self.batch_state,
+                point_coords_batch,
+                point_labels_batch,
+                box_batch=box_batch,
+                mask_input_batch=mask_input_batch,
+                multimask_output=multimask_output,
+                return_logits=return_logits,
+                normalize_coords=normalize_coords,
+            )
 
         return masks_batch, scores_batch, logits_batch
 
@@ -3647,22 +3677,26 @@ class SamGeo3:
         # Use set_image_batch with the current image
         if self.images_batch is None:
             pil_image = Image.fromarray(self.image)
-            self.batch_state = self.processor.set_image_batch([pil_image], state=None)
+            with self._meta_autocast():
+                self.batch_state = self.processor.set_image_batch(
+                    [pil_image], state=None
+                )
             self.images_batch = [self.image]
             self.sources_batch = [self.source]
 
         # Call predict_inst_batch with the formatted points
         # predict_inst_batch expects batches per image, we have one image with multiple points
-        masks_batch, scores_batch, logits_batch = self.model.predict_inst_batch(
-            self.batch_state,
-            [points],  # One entry for our single image
-            [labels],  # One entry for our single image
-            box_batch=None,
-            mask_input_batch=None,
-            multimask_output=multimask_output,
-            return_logits=False,
-            normalize_coords=True,
-        )
+        with self._meta_autocast():
+            masks_batch, scores_batch, logits_batch = self.model.predict_inst_batch(
+                self.batch_state,
+                [points],  # One entry for our single image
+                [labels],  # One entry for our single image
+                box_batch=None,
+                mask_input_batch=None,
+                multimask_output=multimask_output,
+                return_logits=False,
+                normalize_coords=True,
+            )
 
         # Extract results for our single image
         masks = masks_batch[0]
