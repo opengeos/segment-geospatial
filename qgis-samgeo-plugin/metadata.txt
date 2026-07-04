@@ -2,7 +2,7 @@
 name=SamGeo
 qgisMinimumVersion=3.22
 description=Segment remote sensing images using SAM (Segment Anything Model) with text, point, and box prompts.
-version=1.4.0
+version=1.4.1
 author=Qiusheng Wu
 email=giswqs@gmail.com
 about=A QGIS plugin for remote sensing image segmentation powered by Meta's Segment Anything Model (SAM).
