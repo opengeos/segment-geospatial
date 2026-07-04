@@ -5,6 +5,7 @@ https://github.com/facebookresearch/sam3
 import glob
 import inspect
 import os
+from contextlib import nullcontext
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import cv2
@@ -16,6 +17,7 @@ from tqdm import tqdm
 SAM3_META_IMPORT_ERROR = None
 download_ckpt_from_hf = None
 try:
+    import torch
     from sam3.model_builder import build_sam3_image_model, build_sam3_video_predictor
 
     try:
@@ -64,6 +66,28 @@ except ImportError:
 
 SAM31_CKPT_NAME = "sam3.1_multiplex.pt"
 SAM31_CONFIG_NAME = "config.json"
+
+
+def _tensor_to_numpy(tensor):
+    """Convert a torch tensor to a numpy array, upcasting unsupported dtypes.
+
+    NumPy has no bfloat16 (or float16) scalar type, so tensors produced under
+    the Meta backend's bfloat16 autocast raise ``TypeError: Got unsupported
+    ScalarType BFloat16`` when passed directly to ``.numpy()``. This helper
+    moves the tensor to CPU and casts bfloat16/float16 tensors to float32
+    before conversion. Non-floating tensors (e.g. boolean masks) are converted
+    unchanged.
+
+    Args:
+        tensor (torch.Tensor): The tensor to convert.
+
+    Returns:
+        numpy.ndarray: The tensor as a numpy array.
+    """
+    tensor = tensor.detach().cpu()
+    if tensor.dtype in (torch.bfloat16, torch.float16):
+        tensor = tensor.float()
+    return tensor.numpy()
 
 
 def _download_sam31_checkpoint():
@@ -315,6 +339,24 @@ class SamGeo3:
             )
         # For transformers backend, the threshold is stored and used during generate_masks
 
+    def _meta_autocast(self):
+        """Return a bfloat16 autocast context for the Meta backend on CUDA.
+
+        SAM3's fused ``addmm_act`` kernel (``sam3/perflib/fused.py``) casts
+        activations to bfloat16 on CUDA while the surrounding ``Linear`` layers
+        keep their float32 weights. Running the forward pass under bfloat16
+        autocast keeps activation and weight dtypes consistent (matching how
+        Meta runs the model) and avoids a ``mat1 and mat2 must have the same
+        dtype`` runtime error. On non-CUDA devices this is a no-op context.
+
+        Returns:
+            A context manager: ``torch.autocast`` on CUDA, otherwise
+            ``contextlib.nullcontext``.
+        """
+        if self.backend == "meta" and str(self.device).startswith("cuda"):
+            return torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+        return nullcontext()
+
     def set_image(
         self,
         image: Union[str, np.ndarray],
@@ -375,9 +417,10 @@ class SamGeo3:
         if self.backend == "meta":
             # SAM3's processor expects PIL Image or tensor with (C, H, W) format
             # Numpy arrays from cv2 have (H, W, C) format which causes incorrect dimension extraction
-            self.inference_state = self.processor.set_image(
-                image_for_processor, state=state
-            )
+            with self._meta_autocast():
+                self.inference_state = self.processor.set_image(
+                    image_for_processor, state=state
+                )
         else:  # transformers
             # For Transformers backend, we just store the PIL image
             # Processing will happen during generate_masks
@@ -456,7 +499,8 @@ class SamGeo3:
         self.sources_batch = sources
 
         # Call the processor's set_image_batch method
-        self.batch_state = self.processor.set_image_batch(pil_images, state=state)
+        with self._meta_autocast():
+            self.batch_state = self.processor.set_image_batch(pil_images, state=state)
 
         print(f"Set {len(pil_images)} images for batch processing.")
 
@@ -518,7 +562,10 @@ class SamGeo3:
 
             # Reset prompts and set text prompt for this image
             self.processor.reset_all_prompts(image_state)
-            output = self.processor.set_text_prompt(state=image_state, prompt=prompt)
+            with self._meta_autocast():
+                output = self.processor.set_text_prompt(
+                    state=image_state, prompt=prompt
+                )
 
             # Build result for this image
             result = {
@@ -672,14 +719,14 @@ class SamGeo3:
                 # If it's a batched tensor, split into list
                 if masks.dim() >= 3:
                     for i in range(masks.shape[0]):
-                        converted_masks.append(masks[i].cpu().numpy())
+                        converted_masks.append(_tensor_to_numpy(masks[i]))
                 else:
-                    converted_masks.append(masks.cpu().numpy())
+                    converted_masks.append(_tensor_to_numpy(masks))
             else:
                 # It's already a list
                 for mask in masks:
-                    if hasattr(mask, "cpu"):
-                        mask_np = mask.cpu().numpy()
+                    if isinstance(mask, torch.Tensor):
+                        mask_np = _tensor_to_numpy(mask)
                     elif hasattr(mask, "numpy"):
                         mask_np = mask.numpy()
                     else:
@@ -695,13 +742,13 @@ class SamGeo3:
                 # If it's a batched tensor [N, 4], split into list
                 if boxes.dim() == 2:
                     for i in range(boxes.shape[0]):
-                        converted_boxes.append(boxes[i].cpu().numpy())
+                        converted_boxes.append(_tensor_to_numpy(boxes[i]))
                 else:
-                    converted_boxes.append(boxes.cpu().numpy())
+                    converted_boxes.append(_tensor_to_numpy(boxes))
             else:
                 for box in boxes:
-                    if hasattr(box, "cpu"):
-                        box_np = box.cpu().numpy()
+                    if isinstance(box, torch.Tensor):
+                        box_np = _tensor_to_numpy(box)
                     elif hasattr(box, "numpy"):
                         box_np = box.numpy()
                     else:
@@ -715,7 +762,7 @@ class SamGeo3:
             converted_scores = []
             if isinstance(scores, torch.Tensor):
                 # If it's a 1D tensor of scores
-                scores_np = scores.cpu().numpy()
+                scores_np = _tensor_to_numpy(scores)
                 if scores_np.ndim == 0:
                     converted_scores.append(float(scores_np))
                 else:
@@ -723,11 +770,11 @@ class SamGeo3:
                         converted_scores.append(float(s))
             else:
                 for score in scores:
-                    if hasattr(score, "cpu"):
+                    if isinstance(score, torch.Tensor):
                         score_val = (
-                            score.cpu().item()
-                            if hasattr(score, "numel") and score.numel() == 1
-                            else score.cpu().numpy()
+                            score.item()
+                            if score.numel() == 1
+                            else _tensor_to_numpy(score)
                         )
                     elif hasattr(score, "item"):
                         score_val = score.item()
@@ -1144,9 +1191,10 @@ class SamGeo3:
         """
         if self.backend == "meta":
             self.processor.reset_all_prompts(self.inference_state)
-            output = self.processor.set_text_prompt(
-                state=self.inference_state, prompt=prompt
-            )
+            with self._meta_autocast():
+                output = self.processor.set_text_prompt(
+                    state=self.inference_state, prompt=prompt
+                )
 
             self.masks = output["masks"]
             self.boxes = output["boxes"]
@@ -1384,7 +1432,8 @@ class SamGeo3:
                 self.pil_image = pil_image
 
                 if self.backend == "meta":
-                    self.inference_state = self.processor.set_image(pil_image)
+                    with self._meta_autocast():
+                        self.inference_state = self.processor.set_image(pil_image)
                 else:
                     # For transformers backend, process directly
                     pass
@@ -1737,9 +1786,10 @@ class SamGeo3:
                 norm_box = [cx / width, cy / height, w / width, h / height]
 
                 # Add geometric prompt
-                self.inference_state = self.processor.add_geometric_prompt(
-                    state=self.inference_state, box=norm_box, label=label
-                )
+                with self._meta_autocast():
+                    self.inference_state = self.processor.add_geometric_prompt(
+                        state=self.inference_state, box=norm_box, label=label
+                    )
 
             # Get the masks from the inference state
             output = self.inference_state
@@ -2199,11 +2249,11 @@ class SamGeo3:
         # Convert masks to numpy
         converted_masks = []
         for mask in self.masks:
-            if hasattr(mask, "cpu"):
-                # PyTorch tensor on GPU
-                mask_np = mask.cpu().numpy()
+            if isinstance(mask, torch.Tensor):
+                # PyTorch tensor (upcasts bf16/fp16 which numpy cannot handle)
+                mask_np = _tensor_to_numpy(mask)
             elif hasattr(mask, "numpy"):
-                # PyTorch tensor on CPU
+                # Array-like exposing numpy()
                 mask_np = mask.numpy()
             else:
                 # Already numpy or other array-like
@@ -2215,8 +2265,8 @@ class SamGeo3:
         if self.boxes is not None:
             converted_boxes = []
             for box in self.boxes:
-                if hasattr(box, "cpu"):
-                    box_np = box.cpu().numpy()
+                if isinstance(box, torch.Tensor):
+                    box_np = _tensor_to_numpy(box)
                 elif hasattr(box, "numpy"):
                     box_np = box.numpy()
                 else:
@@ -2228,11 +2278,11 @@ class SamGeo3:
         if self.scores is not None:
             converted_scores = []
             for score in self.scores:
-                if hasattr(score, "cpu"):
+                if isinstance(score, torch.Tensor):
                     score_val = (
-                        score.cpu().item()
+                        score.item()
                         if score.numel() == 1
-                        else score.cpu().numpy()
+                        else _tensor_to_numpy(score)
                     )
                 elif hasattr(score, "item"):
                     score_val = score.item()
@@ -3283,16 +3333,17 @@ class SamGeo3:
                 box = np.array(transformed_boxes)
 
         # Call the model's predict_inst method
-        masks, scores, logits = self.model.predict_inst(
-            self.inference_state,
-            point_coords=point_coords,
-            point_labels=point_labels,
-            box=box,
-            mask_input=mask_input,
-            multimask_output=multimask_output,
-            return_logits=return_logits,
-            normalize_coords=normalize_coords,
-        )
+        with self._meta_autocast():
+            masks, scores, logits = self.model.predict_inst(
+                self.inference_state,
+                point_coords=point_coords,
+                point_labels=point_labels,
+                box=box,
+                mask_input=mask_input,
+                multimask_output=multimask_output,
+                return_logits=return_logits,
+                normalize_coords=normalize_coords,
+            )
 
         # Store results
         self.masks = (
@@ -3420,16 +3471,17 @@ class SamGeo3:
             )
 
         # Call the model's predict_inst_batch method
-        masks_batch, scores_batch, logits_batch = self.model.predict_inst_batch(
-            self.batch_state,
-            point_coords_batch,
-            point_labels_batch,
-            box_batch=box_batch,
-            mask_input_batch=mask_input_batch,
-            multimask_output=multimask_output,
-            return_logits=return_logits,
-            normalize_coords=normalize_coords,
-        )
+        with self._meta_autocast():
+            masks_batch, scores_batch, logits_batch = self.model.predict_inst_batch(
+                self.batch_state,
+                point_coords_batch,
+                point_labels_batch,
+                box_batch=box_batch,
+                mask_input_batch=mask_input_batch,
+                multimask_output=multimask_output,
+                return_logits=return_logits,
+                normalize_coords=normalize_coords,
+            )
 
         return masks_batch, scores_batch, logits_batch
 
@@ -3647,22 +3699,26 @@ class SamGeo3:
         # Use set_image_batch with the current image
         if self.images_batch is None:
             pil_image = Image.fromarray(self.image)
-            self.batch_state = self.processor.set_image_batch([pil_image], state=None)
+            with self._meta_autocast():
+                self.batch_state = self.processor.set_image_batch(
+                    [pil_image], state=None
+                )
             self.images_batch = [self.image]
             self.sources_batch = [self.source]
 
         # Call predict_inst_batch with the formatted points
         # predict_inst_batch expects batches per image, we have one image with multiple points
-        masks_batch, scores_batch, logits_batch = self.model.predict_inst_batch(
-            self.batch_state,
-            [points],  # One entry for our single image
-            [labels],  # One entry for our single image
-            box_batch=None,
-            mask_input_batch=None,
-            multimask_output=multimask_output,
-            return_logits=False,
-            normalize_coords=True,
-        )
+        with self._meta_autocast():
+            masks_batch, scores_batch, logits_batch = self.model.predict_inst_batch(
+                self.batch_state,
+                [points],  # One entry for our single image
+                [labels],  # One entry for our single image
+                box_batch=None,
+                mask_input_batch=None,
+                multimask_output=multimask_output,
+                return_logits=False,
+                normalize_coords=True,
+            )
 
         # Extract results for our single image
         masks = masks_batch[0]
