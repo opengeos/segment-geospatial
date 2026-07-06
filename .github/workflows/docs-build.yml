@@ -32,7 +32,8 @@ jobs:
                   pip install --no-cache-dir Cython
                   pip install -r requirements.txt -r requirements_dev.txt -r requirements_docs.txt
                   pip install .
-            - run: mkdocs build
+            - run: python scripts/convert_notebooks.py
+            - run: zensical build --clean --strict
             - name: Deploy to Netlify
               uses: nwtgck/actions-netlify@v4.0
               with:
