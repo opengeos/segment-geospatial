@@ -25,6 +25,10 @@ output/
 
 docs/examples/*.geojson
 
+# Markdown files generated from notebooks for the Zensical build
+docs/examples/*.md
+docs/workshops/*.md
+
 # C extensions
 *.so
 
