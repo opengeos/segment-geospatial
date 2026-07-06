@@ -3,11 +3,12 @@ on:
     push:
         branches:
             - main
-permissions:
-    contents: write
 jobs:
     deploy:
         runs-on: ubuntu-latest
+        # Required to push the built site to the gh-pages branch.
+        permissions:
+            contents: write
         steps:
             - uses: actions/checkout@v7
             - uses: actions/setup-python@v6
@@ -17,13 +18,12 @@ jobs:
               run: |
                   python -m pip install --upgrade pip
                   pip install --user --no-cache-dir Cython
-                  pip install --user -r requirements.txt -r requirements_dev.txt
+                  pip install --user -r requirements.txt -r requirements_dev.txt -r requirements_docs.txt
                   pip install --user .
-            - run: pip install zensical mkdocstrings-python nbconvert nbformat
             - run: python scripts/convert_notebooks.py
-            - run: zensical build
+            - run: zensical build --clean --strict
             - name: Deploy to GitHub Pages
-              uses: peaceiris/actions-gh-pages@v4
+              uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4
               with:
                   github_token: ${{ secrets.GITHUB_TOKEN }}
                   publish_dir: ./site

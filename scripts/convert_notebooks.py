@@ -11,6 +11,7 @@ Usage:
 """
 
 import pathlib
+import sys
 
 import nbformat
 from nbconvert import MarkdownExporter
@@ -46,11 +47,26 @@ def convert_notebook(nb_path: pathlib.Path) -> pathlib.Path:
 
 
 def main() -> None:
-    """Convert all notebooks in the configured docs directories."""
+    """Convert all notebooks in the configured docs directories.
+
+    Conversion continues past individual failures so that one broken
+    notebook does not hide the status of the others; the script exits
+    with a non-zero status if any notebook failed to convert.
+    """
+    failures = []
     for dir_name in NOTEBOOK_DIRS:
         for nb_path in sorted((ROOT / dir_name).glob("*.ipynb")):
-            md_path = convert_notebook(nb_path)
-            print(f"Converted {nb_path.relative_to(ROOT)} -> {md_path.name}")
+            try:
+                md_path = convert_notebook(nb_path)
+            except Exception as e:
+                failures.append(nb_path)
+                print(f"FAILED to convert {nb_path.relative_to(ROOT)}: {e}")
+            else:
+                print(f"Converted {nb_path.relative_to(ROOT)} -> {md_path.name}")
+
+    if failures:
+        print(f"{len(failures)} notebook(s) failed to convert.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

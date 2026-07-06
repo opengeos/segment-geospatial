@@ -33,7 +33,7 @@ jobs:
                   pip install -r requirements.txt -r requirements_dev.txt -r requirements_docs.txt
                   pip install .
             - run: python scripts/convert_notebooks.py
-            - run: zensical build
+            - run: zensical build --clean --strict
             - name: Deploy to Netlify
               uses: nwtgck/actions-netlify@v4.0
               with:
