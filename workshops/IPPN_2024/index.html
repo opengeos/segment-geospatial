@@ -1,0 +1,3267 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A Python package for segmenting geospatial data with the Segment Anything Model (SAM)">
+      
+      
+      
+        <link rel="canonical" href="https://samgeo.gishub.org/workshops/IPPN_2024/">
+      
+      
+        <link rel="prev" href="../cn_workshop/">
+      
+      
+        <link rel="next" href="../AIforGood_2025/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.47">
+    
+    
+      
+        <title>IPPN 2024 - segment-geospatial</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.5e19f6ca.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.dfe2e883.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#introduction" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="segment-geospatial" class="md-header__button md-logo" aria-label="segment-geospatial" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            segment-geospatial
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              IPPN 2024
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/opengeos/segment-geospatial" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="segment-geospatial" class="md-nav__button md-logo" aria-label="segment-geospatial" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
+
+    </a>
+    segment-geospatial
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/opengeos/segment-geospatial" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Installation
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Usage
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  REST API
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Contributing
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  FAQ
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Changelog
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/opengeos/segment-geospatial/issues" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Report Issues
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Examples
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Examples
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/satellite/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Segment Anything Model for Geospatial Data
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/automatic_mask_generator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Automatically generating object masks with SAM
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/automatic_mask_generator_hq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Automatically generating object masks with HQ-SAM
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/input_prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Generating object masks from input prompts with SAM
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/input_prompts_hq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Generating object masks from input prompts with HQ-SAM
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/box_prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Segmenting remote sensing imagery with box prompts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/text_prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Segmenting remote sensing imagery with text prompts and the Segment Anything Model (SAM)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/text_prompts_batch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Batch segmentation with text prompts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/fast_sam/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Segmenting remote sensing imagery with FastSAM
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/text_swimming_pools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Mapping swimming pools with text prompts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/arcgis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Using the Segment-Geospatial Python Package with ArcGIS Pro
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/maxar_open_data/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Segmenting satellite imagery from the Maxar Open Data Program
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sam2_automatic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Automatic Mask Generation with SAM 2
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sam2_predictor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Generating object masks from input prompts with SAM 2
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sam2_video/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Segmenting objects from timeseries images with SAM 2
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sam2_box_prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Segmenting remote sensing imagery with box prompts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sam2_point_prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Segmenting remote sensing imagery with point prompts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sam2_text_prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Segmenting remote sensing imagery with text prompts and the Segment Anything Model 2 (SAM 2)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/tree_mapping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tree Mapping with SAMGeo and Segment Anything Model 2 (SAM 2)
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/image_captioning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Image Captioning
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sam3_image_segmentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  SAM3 Image Segmentation for Remote Sensing
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sam3_image_segmentation_jpg/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  SAM3 Image Segmentation for JPG images
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sam3_interactive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Interactive Segmentation with SAM3
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sam3_batch_segmentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Batch Segmentation for Remote Sensing Imagery with SAM 3
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sam3_video_segmentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Video Segmentation with SAM 3
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sam3_video_prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Video Segmentation with Point Prompts and SAM 3
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sam3_video_masks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  External Mask Tracking with SAM 3
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sam3_automated_segmentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Automated Segmentation of Remote Sensing Imagery with SAM 3
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sam3_object_tracking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Video Segmentation and Object Tracking with SAM 3
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sam3_point_prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Instance Segmentation with Point Prompts and SAM 3
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sam3_point_prompts_batch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Segmenting remote sensing imagery with point prompts and SAM 3
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sam3_box_prompts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Segmenting remote sensing imagery with box prompts and SAM 3
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/sam3_tiled_segmentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tiled Segmentation for Large GeoTIFF Images with SAM 3
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/detectree2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Tree Crown Delineation with detectree2
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Workshops
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Workshops
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../purdue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Purdue SamGeo Workshop
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cn_workshop/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  SamGeo Workshop
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  IPPN 2024
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  IPPN 2024
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#introduction" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Introduction
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agenda" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Agenda
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Environment setup
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Environment setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#change-colab-dark-theme" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Change Colab dark theme
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#change-runtime-type-to-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Change runtime type to GPU
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#install-packages" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Install packages
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#import-libraries" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Import libraries
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#creating-interactive-maps" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Creating interactive maps
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Creating interactive maps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#adding-basemaps" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Adding basemaps
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#visualizing-drone-imagery-from-d2s" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Visualizing Drone Imagery from D2S
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Visualizing Drone Imagery from D2S">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#login-to-d2s" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Login to D2S
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#choose-a-project-to-work-with" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Choose a project to work with
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-the-project-boundary" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Get the project boundary
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-project-flights" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Get project flights
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filter-flights-by-date" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Filter flights by date
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-data-products" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Get data products
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#visualize-ortho-imagery" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Visualize ortho imagery
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#visualize-dsm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Visualize DSM
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#visualize-chm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Visualize CHM
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-another-flight" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Get another flight
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#compare-two-ortho-images" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Compare two ortho images
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#download-data-from-d2s" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Download data from D2S
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#segmenting-drone-imagery-using-samgeo" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Segmenting Drone Imagery using Samgeo
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Segmenting Drone Imagery using Samgeo">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#initialize-sam-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Initialize SAM class
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#automatic-mask-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Automatic mask generation
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#automatic-mask-generation-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Automatic mask generation options
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using-box-prompts" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Using box prompts
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../AIforGood_2025/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  AI for Good Workshop 2025
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_11" >
+        
+          
+          <label class="md-nav__link" for="__nav_11" id="__nav_11_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_11_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_11">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  API Reference
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../caption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  caption module
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../common/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  common module
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../samgeo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  samgeo module
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../samgeo2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  samgeo2 module
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../samgeo3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  samgeo3 module
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fast_sam/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  fast_sam module
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../hq_sam/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  hq_sam module
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../text_sam/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  text_sam module
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../detectree2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  detectree2 module
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  api module
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#introduction" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Introduction
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#agenda" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Agenda
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Environment setup
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Environment setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#change-colab-dark-theme" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Change Colab dark theme
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#change-runtime-type-to-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Change runtime type to GPU
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#install-packages" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Install packages
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#import-libraries" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Import libraries
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#creating-interactive-maps" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Creating interactive maps
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Creating interactive maps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#adding-basemaps" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Adding basemaps
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#visualizing-drone-imagery-from-d2s" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Visualizing Drone Imagery from D2S
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Visualizing Drone Imagery from D2S">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#login-to-d2s" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Login to D2S
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#choose-a-project-to-work-with" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Choose a project to work with
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-the-project-boundary" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Get the project boundary
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-project-flights" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Get project flights
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filter-flights-by-date" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Filter flights by date
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-data-products" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Get data products
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#visualize-ortho-imagery" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Visualize ortho imagery
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#visualize-dsm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Visualize DSM
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#visualize-chm" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Visualize CHM
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-another-flight" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Get another flight
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#compare-two-ortho-images" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Compare two ortho images
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#download-data-from-d2s" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Download data from D2S
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#segmenting-drone-imagery-using-samgeo" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Segmenting Drone Imagery using Samgeo
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Segmenting Drone Imagery using Samgeo">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#initialize-sam-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Initialize SAM class
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#automatic-mask-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Automatic mask generation
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#automatic-mask-generation-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Automatic mask generation options
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using-box-prompts" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Using box prompts
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+  <h1 id="__skip">IPPN 2024</h1>
+
+<p><a href="https://github.com/opengeos/segment-geospatial/blob/main/docs/workshops/IPPN_2024.ipynb"><img alt="Download notebook" src="https://img.shields.io/badge/Download-notebook-blue" /></a></p>
+<p><a href="https://colab.research.google.com/github/opengeos/segment-geospatial/blob/main/docs/workshops/IPPN_2024.ipynb"><img alt="image" src="https://colab.research.google.com/assets/colab-badge.svg" /></a></p>
+<p><strong>Open Source Pipeline for UAS and satellite based High Throughput Phenotyping Applications - Part 1</strong></p>
+<p>This notebook is designed for workshop presented at the <a href="https://www.plant-phenotyping.org/ipps8">International Plant Phenotyping Network (IPPN)</a> conference on October 7, 2024. Click the <strong>Open in Colab</strong> button above to run this notebook interactively in the cloud. For Part 2 of the workshop, please click <a href="https://geemap.org/workshops/IPPN_2024/">here</a>.</p>
+<ul>
+<li>Registration: <a href="https://www.plant-phenotyping.org/index.php?index=935">https://www.plant-phenotyping.org/index.php?index=935</a></li>
+<li>Notebook: <a href="https://samgeo.gishub.org/workshops/IPPN_2024">https://samgeo.gishub.org/workshops/IPPN_2024</a></li>
+<li>Earth Engine: <a href="https://earthengine.google.com">https://earthengine.google.com</a></li>
+<li>Geemap: <a href="https://geemap.org">https://geemap.org</a></li>
+<li>Leafmap: <a href="https://leafmap.org">https://leafmap.org</a></li>
+<li>Samgeo: <a href="https://samgeo.gishub.org">https://samgeo.gishub.org</a></li>
+<li>Data to Science (D2S): <a href="https://ps2.d2s.org">https://ps2.d2s.org</a></li>
+<li>D2S Python API: <a href="https://py.d2s.org">https://py.d2s.org</a></li>
+</ul>
+<h2 id="introduction">Introduction<a class="headerlink" href="#introduction" title="Permanent link">&para;</a></h2>
+<p>Recent advances in sensor technology have revolutionized the assessment of crop health by providing fine spatial and high temporal resolutions at affordable costs. As plant scientists gain access to increasingly larger volumes of Unmanned Aerial Systems (UAS) and satellite High Throughput Phenotyping (HTP) data, there is a growing need to extract biologically informative and quantitative phenotypic information from the vast amount of freely available geospatial data. However, the lack of specialized software packages tailored for processing such data makes it challenging to develop transdisciplinary research collaboration around these data. This workshop aims to bridge the gap between big data and agricultural research scientists by providing training on an open-source online platform for managing big UAS HTP data known as Data to Science. Additionally, attendees will be introduced to powerful Python packages, namely leafmap and Leafmap, designed for the seamless integration and analysis of UAS and satellite images in various agricultural applications. By participating in this workshop, attendees will acquire the skills necessary to efficiently search, visualize, and analyze geospatial data within a Jupyter environment, even with minimal coding experience. The workshop provides a hands-on learning experience through practical examples and interactive exercises, enabling participants to enhance their proficiency and gain valuable insights into leveraging geospatial data for agricultural research purposes.</p>
+<h2 id="agenda">Agenda<a class="headerlink" href="#agenda" title="Permanent link">&para;</a></h2>
+<p>The main topics to be covered in this workshop include:</p>
+<ul>
+<li>Create interactive maps using leafmap</li>
+<li>Visualize drone imagery from D2S</li>
+<li>Segment drone imagery using samgeo</li>
+<li>Calculate zonal statistics from drone imagery</li>
+<li>Visualize Earth Engine data</li>
+<li>Create timelapse animations</li>
+</ul>
+<h2 id="environment-setup">Environment setup<a class="headerlink" href="#environment-setup" title="Permanent link">&para;</a></h2>
+<p><a href="https://colab.research.google.com/github/opengeos/segment-geospatial/blob/main/docs/workshops/IPPN_2024.ipynb"><img alt="image" src="https://colab.research.google.com/assets/colab-badge.svg" /></a></p>
+<h3 id="change-colab-dark-theme">Change Colab dark theme<a class="headerlink" href="#change-colab-dark-theme" title="Permanent link">&para;</a></h3>
+<p>Currently, ipywidgets does not work well with Colab dark theme. Some of the leafmap widgets may not display properly in Colab dark theme.It is recommended that you change Colab to the light theme.</p>
+<p><img alt="image" src="https://github.com/user-attachments/assets/dbb33f3c-084e-4913-9e06-2b66b8dcd4e3" /></p>
+<h3 id="change-runtime-type-to-gpu">Change runtime type to GPU<a class="headerlink" href="#change-runtime-type-to-gpu" title="Permanent link">&para;</a></h3>
+<p>To speed up the processing, you can change the Colab runtime type to GPU. Go to the "Runtime" menu, select "Change runtime type", and choose "T4 GPU" from the "Hardware accelerator" dropdown menu.</p>
+<p><img alt="image" src="https://github.com/user-attachments/assets/e92d2a19-0555-456d-b4be-36680c0af09f" /></p>
+<h3 id="install-packages">Install packages<a class="headerlink" href="#install-packages" title="Permanent link">&para;</a></h3>
+<p>Uncomment the following code to install the required packages.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># %pip install -U &quot;leafmap[raster]&quot; segment-geospatial d2spy</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># %pip install numpy==1.26.4</span>
+</code></pre></div></td></tr></table></div>
+<h3 id="import-libraries">Import libraries<a class="headerlink" href="#import-libraries" title="Permanent link">&para;</a></h3>
+<p>Import the necessary libraries for this workshop.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">leafmap</span>
+</code></pre></div></td></tr></table></div>
+<h2 id="creating-interactive-maps">Creating interactive maps<a class="headerlink" href="#creating-interactive-maps" title="Permanent link">&para;</a></h2>
+<p>Let's create an interactive map using the <code>ipyleaflet</code> plotting backend. The <a href="https://leafmap.org/leafmap/#leafmap.leafmap.m"><code>leafmap.Map</code></a> class inherits the <a href="https://ipyleaflet.readthedocs.io/en/latest/map_and_basemaps/map.html"><code>ipyleaflet.Map</code></a> class. Therefore, you can use the same syntax to create an interactive map as you would with <code>ipyleaflet.Map</code>.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">m</span> <span class="o">=</span> <span class="n">leafmap</span><span class="o">.</span><span class="n">Map</span><span class="p">()</span>
+</code></pre></div></td></tr></table></div>
+<p>To display it in a Jupyter notebook, simply ask for the object representation:</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">m</span>
+</code></pre></div></td></tr></table></div>
+<p>To customize the map, you can specify various keyword arguments, such as <code>center</code> ([lat, lon]), <code>zoom</code>, <code>width</code>, and <code>height</code>. The default <code>width</code> is <code>100%</code>, which takes up the entire cell width of the Jupyter notebook. The <code>height</code> argument accepts a number or a string. If a number is provided, it represents the height of the map in pixels. If a string is provided, the string must be in the format of a number followed by <code>px</code>, e.g., <code>600px</code>.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">m</span> <span class="o">=</span> <span class="n">leafmap</span><span class="o">.</span><span class="n">Map</span><span class="p">(</span><span class="n">center</span><span class="o">=</span><span class="p">[</span><span class="mi">40</span><span class="p">,</span> <span class="o">-</span><span class="mi">100</span><span class="p">],</span> <span class="n">zoom</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="s2">&quot;600px&quot;</span><span class="p">)</span>
+<span class="n">m</span>
+</code></pre></div></td></tr></table></div>
+<h3 id="adding-basemaps">Adding basemaps<a class="headerlink" href="#adding-basemaps" title="Permanent link">&para;</a></h3>
+<p>There are several ways to add basemaps to a map. You can specify the basemap to use in the <code>basemap</code> keyword argument when creating the map. Alternatively, you can add basemap layers to the map using the <code>add_basemap</code> method. leafmap has hundreds of built-in basemaps available that can be easily added to the map with only one line of code.</p>
+<p>Create a map by specifying the basemap to use as follows. For example, the <code>Esri.WorldImagery</code> basemap represents the Esri world imagery basemap.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">m</span> <span class="o">=</span> <span class="n">leafmap</span><span class="o">.</span><span class="n">Map</span><span class="p">(</span><span class="n">basemap</span><span class="o">=</span><span class="s2">&quot;Esri.WorldImagery&quot;</span><span class="p">)</span>
+<span class="n">m</span>
+</code></pre></div></td></tr></table></div>
+<p>You can add as many basemaps as you like to the map. For example, the following code adds the <code>OpenTopoMap</code> basemap to the map above:</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">m</span><span class="o">.</span><span class="n">add_basemap</span><span class="p">(</span><span class="s2">&quot;OpenTopoMap&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<p>You can also add an XYZ tile layer to the map.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">basemap_url</span> <span class="o">=</span> <span class="s2">&quot;https://mt1.google.com/vt/lyrs=y&amp;x=</span><span class="si">{x}</span><span class="s2">&amp;y=</span><span class="si">{y}</span><span class="s2">&amp;z=</span><span class="si">{z}</span><span class="s2">&quot;</span>
+<span class="n">m</span><span class="o">.</span><span class="n">add_tile_layer</span><span class="p">(</span><span class="n">basemap_url</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Hybrid&quot;</span><span class="p">,</span> <span class="n">attribution</span><span class="o">=</span><span class="s2">&quot;Google&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<p>You can also change basemaps interactively using the basemap GUI.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">m</span> <span class="o">=</span> <span class="n">leafmap</span><span class="o">.</span><span class="n">Map</span><span class="p">()</span>
+<span class="n">m</span><span class="o">.</span><span class="n">add_basemap_gui</span><span class="p">()</span>
+<span class="n">m</span>
+</code></pre></div></td></tr></table></div>
+<h2 id="visualizing-drone-imagery-from-d2s">Visualizing Drone Imagery from D2S<a class="headerlink" href="#visualizing-drone-imagery-from-d2s" title="Permanent link">&para;</a></h2>
+<p>The Data to Science (D2S) platform (https://ps2.d2s.org) hosts a large collection of drone imagery that can be accessed through the D2S API (https://py.d2s.org). To visualize drone imagery from D2S, you need to <a href="https://ps2.d2s.org/auth/register">sign up</a> for a free account on the D2S platform and obtain an API key.</p>
+<h3 id="login-to-d2s">Login to D2S<a class="headerlink" href="#login-to-d2s" title="Permanent link">&para;</a></h3>
+<p>Login and connect to your D2S workspace in one go using the d2spy.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span>
+<span class="normal">7</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">d2spy.workspace</span><span class="w"> </span><span class="kn">import</span> <span class="n">Workspace</span>
+
+<span class="c1"># Replace with URL to a D2S instance</span>
+<span class="n">d2s_url</span> <span class="o">=</span> <span class="s2">&quot;https://ps2.d2s.org&quot;</span>
+
+<span class="c1"># Login and connect to workspace with your email address</span>
+<span class="n">workspace</span> <span class="o">=</span> <span class="n">Workspace</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">d2s_url</span><span class="p">,</span> <span class="s2">&quot;workshop@d2s.org&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># Check for API key</span>
+<span class="n">api_key</span> <span class="o">=</span> <span class="n">workspace</span><span class="o">.</span><span class="n">api_key</span>
+<span class="k">if</span> <span class="ow">not</span> <span class="n">api_key</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span>
+        <span class="s2">&quot;No API key. Please request one from the D2S profile page and re-run this cell.&quot;</span>
+    <span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">date</span>
+
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;D2S_API_KEY&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">api_key</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">&quot;TITILER_ENDPOINT&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;https://tt.d2s.org&quot;</span>
+</code></pre></div></td></tr></table></div>
+<h3 id="choose-a-project-to-work-with">Choose a project to work with<a class="headerlink" href="#choose-a-project-to-work-with" title="Permanent link">&para;</a></h3>
+<p>The Workspace <code>get_projects</code> method will retrieve a collection of the projects your account can currently access on the D2S instance.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># Get list of all your projects</span>
+<span class="n">projects</span> <span class="o">=</span> <span class="n">workspace</span><span class="o">.</span><span class="n">get_projects</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">project</span> <span class="ow">in</span> <span class="n">projects</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">project</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<p>The <code>projects</code> variable is a <code>ProjectCollection</code>. The collection can be filtered by either the project descriptions or titles using the methods <code>filter_by_title</code> or <code>filter_by_name</code>.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># Example of creating new collection of only projects with the keyword &quot;Citrus Orchard&quot; in the title</span>
+<span class="n">filtered_projects</span> <span class="o">=</span> <span class="n">projects</span><span class="o">.</span><span class="n">filter_by_title</span><span class="p">(</span><span class="s2">&quot;Citrus Orchard&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">filtered_projects</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<p>Now you can choose a specific project to work with. In this case, the filtered projects returned only one project, so we will use that project.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">project</span> <span class="o">=</span> <span class="n">filtered_projects</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</code></pre></div></td></tr></table></div>
+<h3 id="get-the-project-boundary">Get the project boundary<a class="headerlink" href="#get-the-project-boundary" title="Permanent link">&para;</a></h3>
+<p><code>get_project_boundary</code> method of the <code>Project</code> class will retrieve a GeoJSON object of the project boundary.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># Get project boundary as Python dictionary in GeoJSON structure</span>
+<span class="n">project_boundary</span> <span class="o">=</span> <span class="n">project</span><span class="o">.</span><span class="n">get_project_boundary</span><span class="p">()</span>
+<span class="n">project_boundary</span>
+</code></pre></div></td></tr></table></div>
+<h3 id="get-project-flights">Get project flights<a class="headerlink" href="#get-project-flights" title="Permanent link">&para;</a></h3>
+<p>The <code>Project</code> <code>get_flights</code> method will retrieve a list of flights associated with the project.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># Get list of all flights for a project</span>
+<span class="n">flights</span> <span class="o">=</span> <span class="n">project</span><span class="o">.</span><span class="n">get_flights</span><span class="p">()</span>
+<span class="c1"># Print first flight object (if one exists)</span>
+<span class="k">for</span> <span class="n">flight</span> <span class="ow">in</span> <span class="n">flights</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">flight</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<h3 id="filter-flights-by-date">Filter flights by date<a class="headerlink" href="#filter-flights-by-date" title="Permanent link">&para;</a></h3>
+<p>The <code>flights</code> variable is a <code>FlightCollection</code>. The collection can be filtered by the acquisition date using the method <code>filter_by_date</code>. This method will return all flights with an acquisition date between the provided start and end dates.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># Example of creating new collection of only flights from June 2022</span>
+<span class="n">filtered_flights</span> <span class="o">=</span> <span class="n">flights</span><span class="o">.</span><span class="n">filter_by_date</span><span class="p">(</span>
+    <span class="n">start_date</span><span class="o">=</span><span class="n">date</span><span class="p">(</span><span class="mi">2022</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">end_date</span><span class="o">=</span><span class="n">date</span><span class="p">(</span><span class="mi">2022</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="k">for</span> <span class="n">flight</span> <span class="ow">in</span> <span class="n">filtered_flights</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">flight</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<p>Now, we can choose a flight from the filtered flight. Let's choose the flight on June 9, 2022.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">flight</span> <span class="o">=</span> <span class="n">filtered_flights</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">flight</span>
+</code></pre></div></td></tr></table></div>
+<h3 id="get-data-products">Get data products<a class="headerlink" href="#get-data-products" title="Permanent link">&para;</a></h3>
+<p>The Flight <code>get_data_products</code> method will retrieve a list of data products associated with the flight.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># Get list of data products from a flight</span>
+<span class="n">data_products</span> <span class="o">=</span> <span class="n">flight</span><span class="o">.</span><span class="n">get_data_products</span><span class="p">()</span>
+
+<span class="k">for</span> <span class="n">data_product</span> <span class="ow">in</span> <span class="n">data_products</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">data_product</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<p>The <code>data_products</code> variable is a <code>DataProductCollection</code>. The collection can be filtered by data type using the method <code>filter_by_data_type</code>. This method will return all data products that match the requested data type.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># Example of creating new collection of data products with the &quot;ortho&quot; data type</span>
+<span class="n">ortho_data_products</span> <span class="o">=</span> <span class="n">data_products</span><span class="o">.</span><span class="n">filter_by_data_type</span><span class="p">(</span><span class="s2">&quot;ortho&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">ortho_data_products</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<h3 id="visualize-ortho-imagery">Visualize ortho imagery<a class="headerlink" href="#visualize-ortho-imagery" title="Permanent link">&para;</a></h3>
+<p>Now we can grab the ortho URL to display it using leafmap.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span>
+<span class="normal">7</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">m</span> <span class="o">=</span> <span class="n">leafmap</span><span class="o">.</span><span class="n">Map</span><span class="p">()</span>
+<span class="n">m</span><span class="o">.</span><span class="n">add_basemap</span><span class="p">(</span><span class="s2">&quot;HYBRID&quot;</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">ortho_data</span> <span class="o">=</span> <span class="n">ortho_data_products</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">ortho_url_202206</span> <span class="o">=</span> <span class="n">ortho_data</span><span class="o">.</span><span class="n">url</span>
+<span class="n">ortho_url_202206</span> <span class="o">=</span> <span class="n">leafmap</span><span class="o">.</span><span class="n">d2s_tile</span><span class="p">(</span><span class="n">ortho_url_202206</span><span class="p">)</span>
+<span class="n">m</span><span class="o">.</span><span class="n">add_cog_layer</span><span class="p">(</span><span class="n">ortho_url_202206</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Ortho Imagery 202206&quot;</span><span class="p">)</span>
+<span class="n">m</span>
+</code></pre></div></td></tr></table></div>
+<h3 id="visualize-dsm">Visualize DSM<a class="headerlink" href="#visualize-dsm" title="Permanent link">&para;</a></h3>
+<p>Similarly, you can visualize the Digital Surface Model (DSM) from D2S using the code below.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># Example of creating new collection of data products with the &quot;dsm&quot; data type</span>
+<span class="n">dsm_data_products</span> <span class="o">=</span> <span class="n">data_products</span><span class="o">.</span><span class="n">filter_by_data_type</span><span class="p">(</span><span class="s2">&quot;dsm&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">dsm_data_products</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">dsm_data</span> <span class="o">=</span> <span class="n">dsm_data_products</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">dsm_url_202206</span> <span class="o">=</span> <span class="n">dsm_data</span><span class="o">.</span><span class="n">url</span>
+<span class="n">dsm_url_202206</span> <span class="o">=</span> <span class="n">leafmap</span><span class="o">.</span><span class="n">d2s_tile</span><span class="p">(</span><span class="n">dsm_url_202206</span><span class="p">)</span>
+<span class="n">m</span><span class="o">.</span><span class="n">add_cog_layer</span><span class="p">(</span><span class="n">dsm_url_202206</span><span class="p">,</span> <span class="n">colormap_name</span><span class="o">=</span><span class="s2">&quot;terrain&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;DSM 202206&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">leafmap</span><span class="o">.</span><span class="n">cog_stats</span><span class="p">(</span><span class="n">dsm_url_202206</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<p>Add a colorbar to the map.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">m</span><span class="o">.</span><span class="n">add_colormap</span><span class="p">(</span><span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;terrain&quot;</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mi">33</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Elevation (m)&quot;</span><span class="p">)</span>
+<span class="n">m</span>
+</code></pre></div></td></tr></table></div>
+<h3 id="visualize-chm">Visualize CHM<a class="headerlink" href="#visualize-chm" title="Permanent link">&para;</a></h3>
+<p>Similarly, you can visualize the Canopy Height Model (CHM) from D2S using the code below.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="c1"># Example of creating new collection of data products with the &quot;chm&quot; data type</span>
+<span class="n">chm_data_products</span> <span class="o">=</span> <span class="n">data_products</span><span class="o">.</span><span class="n">filter_by_data_type</span><span class="p">(</span><span class="s2">&quot;chm&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">chm_data_products</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">chm_data</span> <span class="o">=</span> <span class="n">chm_data_products</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">chm_url_202206</span> <span class="o">=</span> <span class="n">chm_data</span><span class="o">.</span><span class="n">url</span>
+<span class="n">chm_url_202206</span> <span class="o">=</span> <span class="n">leafmap</span><span class="o">.</span><span class="n">d2s_tile</span><span class="p">(</span><span class="n">chm_url_202206</span><span class="p">)</span>
+<span class="n">m</span><span class="o">.</span><span class="n">add_cog_layer</span><span class="p">(</span><span class="n">chm_url_202206</span><span class="p">,</span> <span class="n">colormap_name</span><span class="o">=</span><span class="s2">&quot;jet&quot;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;CHM 202206&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">leafmap</span><span class="o">.</span><span class="n">cog_stats</span><span class="p">(</span><span class="n">chm_url_202206</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">m</span><span class="o">.</span><span class="n">add_colormap</span><span class="p">(</span><span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;jet&quot;</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mi">13</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;Elevation (m)&quot;</span><span class="p">)</span>
+<span class="n">m</span>
+</code></pre></div></td></tr></table></div>
+<p>Add the project boundary to the map.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">m</span><span class="o">.</span><span class="n">add_geojson</span><span class="p">(</span><span class="n">project_boundary</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;Project Boundary&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<p>Add tree boundaries to the map.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">map_layers</span> <span class="o">=</span> <span class="n">project</span><span class="o">.</span><span class="n">get_map_layers</span><span class="p">()</span>
+<span class="n">tree_boundaries</span> <span class="o">=</span> <span class="n">map_layers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">m</span><span class="o">.</span><span class="n">add_geojson</span><span class="p">(</span><span class="n">tree_boundaries</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;Tree Boundaries&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<h3 id="get-another-flight">Get another flight<a class="headerlink" href="#get-another-flight" title="Permanent link">&para;</a></h3>
+<p>Retrieve the Ortho data product for the December 2022 flight.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">filtered_flights</span> <span class="o">=</span> <span class="n">flights</span><span class="o">.</span><span class="n">filter_by_date</span><span class="p">(</span>
+    <span class="n">start_date</span><span class="o">=</span><span class="n">date</span><span class="p">(</span><span class="mi">2022</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">end_date</span><span class="o">=</span><span class="n">date</span><span class="p">(</span><span class="mi">2022</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">31</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="k">for</span> <span class="n">flight</span> <span class="ow">in</span> <span class="n">filtered_flights</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">flight</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">flight_202212</span> <span class="o">=</span> <span class="n">filtered_flights</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">data_products</span> <span class="o">=</span> <span class="n">flight_202212</span><span class="o">.</span><span class="n">get_data_products</span><span class="p">()</span>
+<span class="n">ortho_data_products</span> <span class="o">=</span> <span class="n">data_products</span><span class="o">.</span><span class="n">filter_by_data_type</span><span class="p">(</span><span class="s2">&quot;ortho&quot;</span><span class="p">)</span>
+<span class="n">ortho_data</span> <span class="o">=</span> <span class="n">ortho_data_products</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">ortho_url_202212</span> <span class="o">=</span> <span class="n">ortho_data</span><span class="o">.</span><span class="n">url</span>
+<span class="n">ortho_url_202212</span> <span class="o">=</span> <span class="n">leafmap</span><span class="o">.</span><span class="n">d2s_tile</span><span class="p">(</span><span class="n">ortho_url_202212</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<h3 id="compare-two-ortho-images">Compare two ortho images<a class="headerlink" href="#compare-two-ortho-images" title="Permanent link">&para;</a></h3>
+<p>Create a split map for comparing the 2022 and 2024 ortho images.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span>
+<span class="normal">11</span>
+<span class="normal">12</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">ipyleaflet</span><span class="w"> </span><span class="kn">import</span> <span class="n">TileLayer</span>
+
+<span class="n">m</span> <span class="o">=</span> <span class="n">leafmap</span><span class="o">.</span><span class="n">Map</span><span class="p">()</span>
+<span class="n">left_layer</span> <span class="o">=</span> <span class="n">TileLayer</span><span class="p">(</span>
+    <span class="n">url</span><span class="o">=</span><span class="n">leafmap</span><span class="o">.</span><span class="n">cog_tile</span><span class="p">(</span><span class="n">ortho_url_202206</span><span class="p">),</span> <span class="n">max_zoom</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;2022-06 Ortho&quot;</span>
+<span class="p">)</span>
+<span class="n">right_layer</span> <span class="o">=</span> <span class="n">TileLayer</span><span class="p">(</span>
+    <span class="n">url</span><span class="o">=</span><span class="n">leafmap</span><span class="o">.</span><span class="n">cog_tile</span><span class="p">(</span><span class="n">ortho_url_202212</span><span class="p">),</span> <span class="n">max_zoom</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;2022-12 Ortho&quot;</span>
+<span class="p">)</span>
+<span class="n">m</span><span class="o">.</span><span class="n">split_map</span><span class="p">(</span><span class="n">left_layer</span><span class="p">,</span> <span class="n">right_layer</span><span class="p">,</span> <span class="n">left_label</span><span class="o">=</span><span class="s2">&quot;2022-06&quot;</span><span class="p">,</span> <span class="n">right_label</span><span class="o">=</span><span class="s2">&quot;2022-12&quot;</span><span class="p">)</span>
+<span class="n">m</span><span class="o">.</span><span class="n">set_center</span><span class="p">(</span><span class="o">-</span><span class="mf">97.955281</span><span class="p">,</span> <span class="mf">26.165595</span><span class="p">,</span> <span class="mi">18</span><span class="p">)</span>
+<span class="n">m</span>
+</code></pre></div></td></tr></table></div>
+<h2 id="download-data-from-d2s">Download data from D2S<a class="headerlink" href="#download-data-from-d2s" title="Permanent link">&para;</a></h2>
+<p>Read the ortho image from D2S as a DataArray.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">rioxarray</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rxr</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">data</span> <span class="o">=</span> <span class="n">rxr</span><span class="o">.</span><span class="n">open_rasterio</span><span class="p">(</span><span class="n">ortho_url_202206</span><span class="p">)</span>
+<span class="n">data</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">m</span> <span class="o">=</span> <span class="n">leafmap</span><span class="o">.</span><span class="n">Map</span><span class="p">()</span>
+<span class="n">m</span><span class="o">.</span><span class="n">add_cog_layer</span><span class="p">(</span><span class="n">ortho_url_202206</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;Ortho Imagery 202206&quot;</span><span class="p">)</span>
+<span class="n">m</span>
+</code></pre></div></td></tr></table></div>
+<p>Draw an area of interest (AOI) on the map. If an AOI is not provided, a default AOI will be used.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">if</span> <span class="n">m</span><span class="o">.</span><span class="n">user_roi</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">bbox</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">user_roi_bounds</span><span class="p">()</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">bbox</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="mf">97.956252</span><span class="p">,</span> <span class="mf">26.165315</span><span class="p">,</span> <span class="o">-</span><span class="mf">97.954992</span><span class="p">,</span> <span class="mf">26.165883</span><span class="p">]</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">geojson</span> <span class="o">=</span> <span class="n">leafmap</span><span class="o">.</span><span class="n">bbox_to_geojson</span><span class="p">(</span><span class="n">bbox</span><span class="p">)</span>
+<span class="n">gdf</span> <span class="o">=</span> <span class="n">leafmap</span><span class="o">.</span><span class="n">geojson_to_gdf</span><span class="p">(</span><span class="n">geojson</span><span class="p">)</span>
+<span class="n">m</span><span class="o">.</span><span class="n">add_gdf</span><span class="p">(</span><span class="n">gdf</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;AOI&quot;</span><span class="p">,</span> <span class="n">info_mode</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">crs</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rio</span><span class="o">.</span><span class="n">crs</span><span class="o">.</span><span class="n">to_string</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">crs</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">gdf</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">to_crs</span><span class="p">(</span><span class="n">crs</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">crs</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<p>Resample the ortho imagery from 1 cm to 10 cm resolution.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">resampled_data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">rio</span><span class="o">.</span><span class="n">reproject</span><span class="p">(</span><span class="n">crs</span><span class="p">,</span> <span class="n">resolution</span><span class="o">=</span><span class="p">(</span><span class="mf">0.1</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">))</span>
+<span class="n">resampled_data</span><span class="o">.</span><span class="n">shape</span>
+</code></pre></div></td></tr></table></div>
+<p>Clip the ortho image to the AOI.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">clipped_data</span> <span class="o">=</span> <span class="n">resampled_data</span><span class="o">.</span><span class="n">rio</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">geometry</span><span class="p">,</span> <span class="n">gdf</span><span class="o">.</span><span class="n">crs</span><span class="p">)</span>
+<span class="n">clipped_data</span><span class="o">.</span><span class="n">shape</span>
+</code></pre></div></td></tr></table></div>
+<p>Save the clipped ortho image to a GeoTIFF file.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">image</span> <span class="o">=</span> <span class="s2">&quot;ortho_image_202206.tif&quot;</span>
+<span class="n">clipped_data</span><span class="o">.</span><span class="n">sel</span><span class="p">(</span><span class="n">band</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span><span class="o">.</span><span class="n">rio</span><span class="o">.</span><span class="n">to_raster</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<p>Read the CHM dataset from D2S as a DataArray.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">chm_data</span> <span class="o">=</span> <span class="n">rxr</span><span class="o">.</span><span class="n">open_rasterio</span><span class="p">(</span><span class="n">chm_url_202206</span><span class="p">)</span>
+<span class="n">chm_data</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">resampled_chm_data</span> <span class="o">=</span> <span class="n">chm_data</span><span class="o">.</span><span class="n">rio</span><span class="o">.</span><span class="n">reproject_match</span><span class="p">(</span><span class="n">resampled_data</span><span class="p">)</span>
+<span class="n">resampled_chm_data</span><span class="o">.</span><span class="n">shape</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">clipped_chm_data</span> <span class="o">=</span> <span class="n">resampled_chm_data</span><span class="o">.</span><span class="n">rio</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">geometry</span><span class="p">,</span> <span class="n">gdf</span><span class="o">.</span><span class="n">crs</span><span class="p">)</span>
+<span class="n">clipped_chm_data</span><span class="o">.</span><span class="n">shape</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">chm_image</span> <span class="o">=</span> <span class="s2">&quot;chm_202206.tif&quot;</span>
+<span class="n">clipped_chm_data</span><span class="o">.</span><span class="n">sel</span><span class="p">(</span><span class="n">band</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">rio</span><span class="o">.</span><span class="n">to_raster</span><span class="p">(</span><span class="n">chm_image</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<p>Visualize the clipped ortho image.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">m</span> <span class="o">=</span> <span class="n">leafmap</span><span class="o">.</span><span class="n">Map</span><span class="p">()</span>
+<span class="n">m</span><span class="o">.</span><span class="n">add_raster</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;Ortho Image 202206&quot;</span><span class="p">)</span>
+<span class="n">m</span><span class="o">.</span><span class="n">add_geojson</span><span class="p">(</span><span class="n">tree_boundaries</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;Tree Boundaries&quot;</span><span class="p">)</span>
+<span class="n">m</span>
+</code></pre></div></td></tr></table></div>
+<h2 id="segmenting-drone-imagery-using-samgeo">Segmenting Drone Imagery using Samgeo<a class="headerlink" href="#segmenting-drone-imagery-using-samgeo" title="Permanent link">&para;</a></h2>
+<h3 id="initialize-sam-class">Initialize SAM class<a class="headerlink" href="#initialize-sam-class" title="Permanent link">&para;</a></h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">samgeo</span><span class="w"> </span><span class="kn">import</span> <span class="n">SamGeo</span><span class="p">,</span> <span class="n">SamGeo2</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">sam2</span> <span class="o">=</span> <span class="n">SamGeo2</span><span class="p">(</span><span class="n">model_id</span><span class="o">=</span><span class="s2">&quot;sam2-hiera-large&quot;</span><span class="p">,</span> <span class="n">automatic</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<h3 id="automatic-mask-generation">Automatic mask generation<a class="headerlink" href="#automatic-mask-generation" title="Permanent link">&para;</a></h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">sam2</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">sam2</span><span class="o">.</span><span class="n">save_masks</span><span class="p">(</span><span class="n">output</span><span class="o">=</span><span class="s2">&quot;masks.tif&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">sam2</span><span class="o">.</span><span class="n">show_masks</span><span class="p">(</span><span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;binary_r&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<p><img alt="image" src="https://github.com/user-attachments/assets/fec9ad33-338e-4d1f-95e5-5f7b58e15edb" /></p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">sam2</span><span class="o">.</span><span class="n">show_masks</span><span class="p">(</span><span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;jet&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<p><img alt="image" src="https://github.com/user-attachments/assets/32036cec-96a2-46c7-b948-a859925d8600" /></p>
+<p>Show the object annotations (objects with random color) on the map.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">sam2</span><span class="o">.</span><span class="n">show_anns</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="s2">&quot;off&quot;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="s2">&quot;annotations.tif&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<p><img alt="image" src="https://github.com/user-attachments/assets/8a05f797-5a08-4bb2-b6b3-ee8f82d8bd32" /></p>
+<p>Compare images with a slider.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">leafmap</span><span class="o">.</span><span class="n">image_comparison</span><span class="p">(</span>
+    <span class="n">image</span><span class="p">,</span>
+    <span class="s2">&quot;annotations.tif&quot;</span><span class="p">,</span>
+    <span class="n">label1</span><span class="o">=</span><span class="s2">&quot;Drone Imagery&quot;</span><span class="p">,</span>
+    <span class="n">label2</span><span class="o">=</span><span class="s2">&quot;Image Segmentation&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<p>Add segmentation result to the map.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">m</span><span class="o">.</span><span class="n">add_raster</span><span class="p">(</span><span class="s2">&quot;masks.tif&quot;</span><span class="p">,</span> <span class="n">colormap</span><span class="o">=</span><span class="s2">&quot;jet&quot;</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;Masks&quot;</span><span class="p">,</span> <span class="n">nodata</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">opacity</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
+<span class="n">m</span>
+</code></pre></div></td></tr></table></div>
+<p>Convert the object masks to vector format, such as GeoPackage, Shapefile, or GeoJSON.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">sam2</span><span class="o">.</span><span class="n">raster_to_vector</span><span class="p">(</span><span class="s2">&quot;masks.tif&quot;</span><span class="p">,</span> <span class="s2">&quot;masks.gpkg&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">m</span><span class="o">.</span><span class="n">add_vector</span><span class="p">(</span><span class="s2">&quot;masks.gpkg&quot;</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;Objects&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<h3 id="automatic-mask-generation-options">Automatic mask generation options<a class="headerlink" href="#automatic-mask-generation-options" title="Permanent link">&para;</a></h3>
+<p>There are several tunable parameters in automatic mask generation that control how densely points are sampled and what the thresholds are for removing low quality or duplicate masks. Additionally, generation can be automatically run on crops of the image to get improved performance on smaller objects, and post-processing can remove stray pixels and holes. Here is an example configuration that samples more masks:</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span>
+<span class="normal">11</span>
+<span class="normal">12</span>
+<span class="normal">13</span>
+<span class="normal">14</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">sam2</span> <span class="o">=</span> <span class="n">SamGeo2</span><span class="p">(</span>
+    <span class="n">model_id</span><span class="o">=</span><span class="s2">&quot;sam2-hiera-large&quot;</span><span class="p">,</span>
+    <span class="n">apply_postprocessing</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">points_per_side</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+    <span class="n">points_per_batch</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
+    <span class="n">pred_iou_thresh</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span>
+    <span class="n">stability_score_thresh</span><span class="o">=</span><span class="mf">0.92</span><span class="p">,</span>
+    <span class="n">stability_score_offset</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span>
+    <span class="n">crop_n_layers</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">box_nms_thresh</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span>
+    <span class="n">crop_n_points_downscale_factor</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+    <span class="n">min_mask_region_area</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span>
+    <span class="n">use_m2m</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">sam2</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="s2">&quot;masks2.tif&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">sam2</span><span class="o">.</span><span class="n">show_masks</span><span class="p">(</span><span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;jet&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<p><img alt="image" src="https://github.com/user-attachments/assets/ff07bff9-f0d1-41c6-a641-ce9f4734fd61" /></p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">sam2</span><span class="o">.</span><span class="n">show_anns</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="s2">&quot;off&quot;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="s2">&quot;annotations2.tif&quot;</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<p><img alt="image" src="https://github.com/user-attachments/assets/1e1df62c-ec44-4c5e-aa5a-4025d078ff6b" /></p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">leafmap</span><span class="o">.</span><span class="n">image_comparison</span><span class="p">(</span>
+    <span class="n">image</span><span class="p">,</span>
+    <span class="s2">&quot;annotations2.tif&quot;</span><span class="p">,</span>
+    <span class="n">label1</span><span class="o">=</span><span class="s2">&quot;Image&quot;</span><span class="p">,</span>
+    <span class="n">label2</span><span class="o">=</span><span class="s2">&quot;Image Segmentation&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<p>Remove small objects.</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">da</span><span class="p">,</span> <span class="n">gdf</span> <span class="o">=</span> <span class="n">sam2</span><span class="o">.</span><span class="n">region_groups</span><span class="p">(</span>
+    <span class="s2">&quot;masks2.tif&quot;</span><span class="p">,</span>
+    <span class="n">connectivity</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">min_size</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">max_size</span><span class="o">=</span><span class="mi">2000</span><span class="p">,</span>
+    <span class="n">intensity_image</span><span class="o">=</span><span class="s2">&quot;chm_202206.tif&quot;</span><span class="p">,</span>
+    <span class="n">out_image</span><span class="o">=</span><span class="s2">&quot;objects.tif&quot;</span><span class="p">,</span>
+    <span class="n">out_csv</span><span class="o">=</span><span class="s2">&quot;objects.csv&quot;</span><span class="p">,</span>
+    <span class="n">out_vector</span><span class="o">=</span><span class="s2">&quot;objects.gpkg&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<h3 id="using-box-prompts">Using box prompts<a class="headerlink" href="#using-box-prompts" title="Permanent link">&para;</a></h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">gdf</span> <span class="o">=</span> <span class="n">leafmap</span><span class="o">.</span><span class="n">geojson_to_gdf</span><span class="p">(</span><span class="n">tree_boundaries</span><span class="p">)</span>
+<span class="n">gdf</span><span class="o">.</span><span class="n">head</span><span class="p">()</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">geojson</span> <span class="o">=</span> <span class="s2">&quot;tree_boundaries.geojson&quot;</span>
+<span class="n">gdf</span><span class="o">.</span><span class="n">to_file</span><span class="p">(</span><span class="n">geojson</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">m</span> <span class="o">=</span> <span class="n">leafmap</span><span class="o">.</span><span class="n">Map</span><span class="p">()</span>
+<span class="n">m</span><span class="o">.</span><span class="n">add_raster</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;image&quot;</span><span class="p">)</span>
+<span class="n">style</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;color&quot;</span><span class="p">:</span> <span class="s2">&quot;#ffff00&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;weight&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+    <span class="s2">&quot;fillColor&quot;</span><span class="p">:</span> <span class="s2">&quot;#7c4185&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;fillOpacity&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+<span class="p">}</span>
+<span class="n">m</span><span class="o">.</span><span class="n">add_vector</span><span class="p">(</span><span class="n">geojson</span><span class="p">,</span> <span class="n">style</span><span class="o">=</span><span class="n">style</span><span class="p">,</span> <span class="n">zoom_to_layer</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;Bounding boxes&quot;</span><span class="p">)</span>
+<span class="n">m</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">sam</span> <span class="o">=</span> <span class="n">SamGeo</span><span class="p">(</span>
+    <span class="n">model_type</span><span class="o">=</span><span class="s2">&quot;vit_h&quot;</span><span class="p">,</span>
+    <span class="n">automatic</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">sam_kwargs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">sam</span><span class="o">.</span><span class="n">set_image</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">sam</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span>
+    <span class="n">boxes</span><span class="o">=</span><span class="n">geojson</span><span class="p">,</span> <span class="n">point_crs</span><span class="o">=</span><span class="s2">&quot;EPSG:4326&quot;</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="s2">&quot;tree_masks.tif&quot;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s2">&quot;uint16&quot;</span>
+<span class="p">)</span>
+</code></pre></div></td></tr></table></div>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="n">m</span><span class="o">.</span><span class="n">add_raster</span><span class="p">(</span>
+    <span class="s2">&quot;tree_masks.tif&quot;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s2">&quot;jet&quot;</span><span class="p">,</span> <span class="n">nodata</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">opacity</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">layer_name</span><span class="o">=</span><span class="s2">&quot;Tree masks&quot;</span>
+<span class="p">)</span>
+<span class="n">m</span>
+</code></pre></div></td></tr></table></div>
+<p><img alt="image" src="https://github.com/user-attachments/assets/0a9b794d-cf94-4e5c-9134-8799e67d338c" /></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["content.code.copy","navigation.instant","navigation.top","search.highlight"],"search":"../../assets/javascripts/workers/search.b6b7e04f.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.0df4f2d0.min.js"></script>
+      
+    
+  </body>
+</html>
