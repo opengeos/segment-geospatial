@@ -292,3 +292,32 @@ def test_save_masks_records_mask_scores(monkeypatch, samgeo3, tmp_path):
 
     model.save_masks(output=None, unique=False)
     assert model.mask_scores is None
+
+
+def test_save_masks_promotes_dtype_so_scores_stay_aligned(monkeypatch, samgeo3):
+    """More masks than uint8 can hold promote the dtype instead of wrapping
+    ids, so every raster value still matches its ``mask_scores`` key."""
+    import numpy as np
+
+    n = 300
+    model = samgeo3.SamGeo3.__new__(samgeo3.SamGeo3)
+    model.image_height = 2
+    model.image_width = n
+    model.source = None
+    model.scores = [i / n for i in range(n)]
+    masks = []
+    for i in range(n):
+        m = np.zeros((2, n), dtype=bool)
+        m[:, i] = True
+        masks.append(m)
+    model.masks = masks
+    monkeypatch.setattr(
+        samgeo3.common, "array_to_image", lambda *a, **k: None, raising=False
+    )
+
+    model.save_masks(output=None, dtype="uint8")
+
+    assert model.objects.dtype == np.uint16
+    assert int(model.objects.max()) == n
+    assert set(model.mask_scores) == set(range(1, n + 1))
+    assert model.mask_scores[n] == (n - 1) / n
