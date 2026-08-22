@@ -1,5 +1,9 @@
 # SamGeo QGIS Plugin
 
+[![DOI](https://joss.theoj.org/papers/10.21105/joss.05663/status.svg)](https://doi.org/10.21105/joss.05663)
+[![QGIS](https://img.shields.io/badge/QGIS-plugin-orange.svg)](https://github.com/opengeos/qgis-samgeo-plugin)
+[![QGIS](https://img.shields.io/badge/SamGeo-repository-blue.svg)](https://github.com/opengeos/segment-geospatial)
+
 A QGIS plugin for remote sensing image segmentation using [SamGeo](https://samgeo.gishub.org), powered by Meta's Segment Anything Model ([SAM](https://github.com/facebookresearch/sam3)).
 
 ## Features
@@ -11,19 +15,25 @@ A QGIS plugin for remote sensing image segmentation using [SamGeo](https://samge
 - **GeoTIFF support**: Works with georeferenced images, preserving spatial reference
 - **Multiple output formats**: Save as vector (GeoPackage, Shapefile) or raster (GeoTIFF)
 
-![](https://github.com/user-attachments/assets/21805e83-15a7-4619-92f4-391b90315eff)
+## Demos
+
+Check out this [short video demo](https://youtu.be/DKKrQKeU3Ik) and [full video tutorial](https://youtu.be/oPZc7BvDsHE) on how to use the plugin.
+
+[![](https://github.com/user-attachments/assets/0a9dbc4a-98fa-4a14-8238-be5b871926fa)](https://youtu.be/oPZc7BvDsHE)
 
 ## Requirements
 
 - QGIS 3.22 or later
 - Python 3.10+
 - SamGeo package
+- Hugging Face account (for model downloads)
+- Access to Meta's SAM 3 model
 
 ## Installation
 
 ### 1. Install SamGeo
 
-First, install SamGeo in your QGIS Python environment. It is recommended to create a new conda environment **and** install QGIS and SamGeo:
+First, install SamGeo in your QGIS Python environment. It is recommended to create a new conda environment **and** install QGIS and SamGeo. Install [Miniconda ](https://www.anaconda.com/docs/getting-started/miniconda/install), then run the following commands to install SamGeo on macOS/Linux:
 
 ```bash
 conda create -n geo python=3.12
@@ -37,6 +47,15 @@ Some SamGeo dependencies are only available on PyPI. Run the following command t
 pip install -U "segment-geospatial[samgeo3]"
 ```
 
+It is a bit tricky to install SAM 3 on Windows. Run the following commands on Windows to install SamGeo:
+
+```bash
+conda create -n geo python=3.12
+conda activate geo
+conda install pytorch torchvision pytorch-cuda=12.1 -c pytorch -c nvidia
+pip install "segment-geospatial[samgeo3]" triton-windows
+conda install -c conda-forge qgis
+```
 
 ### 2. Install the Plugin
 
@@ -56,15 +75,16 @@ chmod +x install_plugin.sh
 ./install_plugin.sh
 ```
 
-
 #### Option B: Manual installation
 
 1. Find your QGIS plugins directory:
+
    - Linux: `~/.local/share/QGIS/QGIS3/profiles/default/python/plugins`
    - macOS: `~/Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins`
    - Windows: `%APPDATA%\QGIS\QGIS3\profiles\default\python\plugins`
 
 2. Copy or symlink this entire folder (qgis-samgeo-plugin) to the plugins directory and rename it to `samgeo_plugin`:
+
    ```bash
    ln -s /path/to/qgis-samgeo-plugin ~/.local/share/QGIS/QGIS3/profiles/default/python/plugins/samgeo_plugin
    ```
@@ -72,6 +92,27 @@ chmod +x install_plugin.sh
 3. Restart QGIS
 
 4. Enable the plugin: Go to **Plugins > Manage and Install Plugins**, find "SamGeo", and enable it.
+
+### 3. Set up Hugging Face authentication
+
+Sign up for a free account at [Hugging Face](https://huggingface.co/join) if you don't have one. Then, generate an access token by following the instructions [here](https://huggingface.co/docs/hub/en/security-tokens).
+
+Run the following command in your terminal to log in to Hugging Face:
+
+```bash
+hf auth login
+```
+
+Provide your access token when prompted.
+
+### 4. Request access to SAM 3 model
+
+To use SamGeo3 (SAM 3), you need to request access to the model. Go to the [SAM 3 model page](https://huggingface.co/facebook/sam3) and log in with your Hugging Face account. Fill out the access request form and click on the "Submit" button to send your request. The approval process might take a few hours. Once approved, you can use SamGeo3 in the plugin.
+
+If your request is denied, you can try to download the model from [ModelScope](https://www.modelscope.cn/models/facebook/sam3/files), which does not require access permission. After downloading, place the model files in the following directory:
+
+- Linux/macOS: `~/.cache/huggingface/hub/models--facebook--sam3`
+- Windows: `%USERPROFILE%\.cache\huggingface\hub\models--facebook--sam3`
 
 ## Usage
 
@@ -111,11 +152,12 @@ qgis
 - Browse for an image file and click **Set Image from File**
 - You can download a sample image from [here](https://huggingface.co/datasets/giswqs/geospatial/resolve/main/uc_berkeley.tif)
 
-   ![](https://github.com/user-attachments/assets/b7c6a430-c4c3-4359-855c-b198cdcf2c91)
+  ![](https://github.com/user-attachments/assets/b7c6a430-c4c3-4359-855c-b198cdcf2c91)
 
 #### 3. Segment the Image
 
 ##### Text-Based Segmentation (Text tab)
+
 1. Enter a text prompt describing what to segment (e.g., "tree", "building")
 2. Optionally set min/max size filters
 3. Click **Segment by Text**
@@ -123,6 +165,7 @@ qgis
    ![](https://github.com/user-attachments/assets/37012722-e1aa-4abe-9b25-8955064cfd8d)
 
 ##### Point-Based Segmentation (Interactive tab)
+
 1. Click **Add Foreground Points** and click on objects to include
 2. Click **Add Background Points** and click on areas to exclude
 3. Click **Segment by Points**
@@ -131,6 +174,7 @@ qgis
    ![](https://github.com/user-attachments/assets/0eb1174d-5e22-4555-be7d-aec0714c147d)
 
 ##### Box-Based Segmentation (Interactive tab)
+
 1. Click **Draw Box**
 2. Draw a rectangle around the area to segment
 3. Click **Segment by Box**
@@ -138,6 +182,7 @@ qgis
    ![](https://github.com/user-attachments/assets/5aa962ae-4ed2-4696-a609-c586006a2ed8)
 
 ##### Batch Point Segmentation (Batch tab)
+
 Use this mode to process many points at once (e.g., building centroids):
 
 1. Select a point vector layer from the dropdown, or browse for a vector file (GeoJSON, Shapefile, etc.)
@@ -145,7 +190,6 @@ Use this mode to process many points at once (e.g., building centroids):
 3. Set min/max size filters if needed
 4. Optionally specify an output raster file path
 5. Click **Run Batch Segmentation**
-
 
    ![](https://github.com/user-attachments/assets/b7714361-2122-4953-9fe0-61f2e9ae9b1d)
 

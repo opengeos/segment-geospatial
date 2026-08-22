@@ -28,7 +28,19 @@ def test_samgeo_import():
     """Test that SamGeo can be imported."""
     print("[Test] SamGeo import...")
     try:
-        from samgeo import SamGeo3
+        try:
+            from samgeo._samgeo_lib import get_samgeo
+        except ImportError:
+            try:
+                from _samgeo_lib import get_samgeo
+            except ImportError:
+                # Fall back to normal import if helper is not available
+                get_samgeo = None
+
+        if get_samgeo is not None:
+            SamGeo3 = get_samgeo().SamGeo3
+        else:
+            from samgeo import SamGeo3
 
         print("  [OK] SamGeo3 imported successfully")
         return True
@@ -133,8 +145,7 @@ def show_programmatic_usage():
     print("Programmatic Usage Examples")
     print("=" * 60)
 
-    print(
-        """
+    print("""
 # Initialize the model
 from samgeo import SamGeo3
 
@@ -165,8 +176,7 @@ sam.save_masks("box_result.tif")
 # Convert raster to vector
 from samgeo import common
 common.raster_to_vector("buildings.tif", "buildings.gpkg")
-"""
-    )
+""")
 
 
 def run_tests():
