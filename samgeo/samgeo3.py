@@ -2663,18 +2663,25 @@ class SamGeo3:
         # unchanged, or the raster values no longer match ``mask_scores``
         # (and masks beyond the range wrap onto earlier ids), so promote an
         # unsigned dtype that is too narrow for the number of masks.
-        if unique and dtype == "uint8" and valid_mask_count > 255:
-            dtype = "uint16" if valid_mask_count <= 65535 else "uint32"
-            print(
-                f"Warning: {valid_mask_count} masks found, more than uint8 can "
-                f"represent; saving as {dtype} instead."
-            )
-        elif unique and dtype == "uint16" and valid_mask_count > 65535:
-            dtype = "uint32"
-            print(
-                f"Warning: {valid_mask_count} masks found, more than uint16 can "
-                "represent; saving as uint32 instead."
-            )
+        if unique:
+            requested = np.dtype(dtype)
+            if requested.kind not in "iu":
+                raise ValueError(
+                    f"Unique mask ids need an integer dtype, got {dtype!r}."
+                )
+            if valid_mask_count > np.iinfo(requested).max:
+                for candidate in ("uint16", "uint32"):
+                    if valid_mask_count <= np.iinfo(candidate).max:
+                        break
+                else:
+                    raise ValueError(
+                        f"{valid_mask_count} masks exceed what uint32 can represent."
+                    )
+                print(
+                    f"Warning: {valid_mask_count} masks found, more than {dtype} "
+                    f"can represent; saving as {candidate} instead."
+                )
+                dtype = candidate
         if dtype == "uint8":
             mask_array = mask_array.astype(np.uint8)
         elif dtype == "uint16":

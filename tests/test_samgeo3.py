@@ -318,6 +318,17 @@ def test_save_masks_promotes_dtype_so_scores_stay_aligned(monkeypatch, samgeo3):
     model.save_masks(output=None, dtype="uint8")
 
     assert model.objects.dtype == np.uint16
-    assert int(model.objects.max()) == n
-    assert set(model.mask_scores) == set(range(1, n + 1))
-    assert model.mask_scores[n] == (n - 1) / n
+    np.testing.assert_array_equal(
+        model.objects[0], np.arange(1, n + 1, dtype=np.uint16)
+    )
+    assert model.mask_scores == {i + 1: i / n for i in range(n)}
+
+    # Signed dtypes are promoted the same way once ids would wrap.
+    model.save_masks(output=None, dtype="int8")
+    assert model.objects.dtype == np.uint16
+    np.testing.assert_array_equal(
+        model.objects[0], np.arange(1, n + 1, dtype=np.uint16)
+    )
+
+    with pytest.raises(ValueError, match="integer dtype"):
+        model.save_masks(output=None, dtype="float32")
