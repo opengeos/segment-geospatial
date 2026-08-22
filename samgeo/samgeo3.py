@@ -246,6 +246,7 @@ class SamGeo3:
         self.masks = None
         self.boxes = None
         self.scores = None
+        self.mask_scores: Optional[Dict[int, float]] = None
         self.logits = None
         self.objects = None
         self.prediction = None
@@ -2530,6 +2531,26 @@ class SamGeo3:
         plt.axis(axis)
         plt.show()
 
+    def _score_at(self, index: int) -> Optional[float]:
+        """Return the confidence score of the mask at ``index`` as a float.
+
+        Args:
+            index: Position of the mask in ``self.masks``.
+
+        Returns:
+            The score as a Python float, or None when no score is available.
+        """
+        if self.scores is None:
+            return None
+        try:
+            value = self.scores[index]
+        except (IndexError, TypeError, KeyError):
+            return None
+        try:
+            return float(value.item()) if hasattr(value, "item") else float(value)
+        except (TypeError, ValueError):
+            return None
+
     def save_masks(
         self,
         output: Optional[str] = None,
@@ -2578,6 +2599,11 @@ class SamGeo3:
                 (self.image_height, self.image_width), dtype=np.float32
             )
 
+        # Map each unique raster value to its confidence score so downstream
+        # consumers (e.g. the REST API's GeoJSON output) can attach scores to
+        # vectorized masks without a second inference run.
+        self.mask_scores: Optional[Dict[int, float]] = {} if unique else None
+
         # Process each mask
         valid_mask_count = 0
         mask_index = 0
@@ -2609,23 +2635,21 @@ class SamGeo3:
                 continue
 
             # Get confidence score for this mask
-            if save_scores is not None:
-                if hasattr(self.scores[mask_index], "item"):
-                    score = self.scores[mask_index].item()
-                else:
-                    score = float(self.scores[mask_index])
+            score = self._score_at(mask_index)
 
             # Add mask to array
             if unique:
                 # Assign unique value to each mask (starting from 1)
                 mask_value = valid_mask_count + 1
                 mask_array[mask_bool] = mask_value
+                if score is not None and self.mask_scores is not None:
+                    self.mask_scores[mask_value] = score
             else:
                 # Binary mask: all foreground pixels are 255
                 mask_array[mask_bool] = 255
 
             # Add score to scores array
-            if save_scores is not None:
+            if save_scores is not None and score is not None:
                 scores_array[mask_bool] = score
 
             valid_mask_count += 1
@@ -2635,12 +2659,30 @@ class SamGeo3:
             print("No masks met the size criteria.")
             return
 
-        # Convert to requested dtype
-        if dtype == "uint8":
-            if unique and valid_mask_count > 255:
-                print(
-                    f"Warning: {valid_mask_count} masks found, but uint8 can only represent 255 unique values. Consider using dtype='uint16'."
+        # Convert to requested dtype. Unique mask ids must survive the cast
+        # unchanged, or the raster values no longer match ``mask_scores``
+        # (and masks beyond the range wrap onto earlier ids), so promote an
+        # unsigned dtype that is too narrow for the number of masks.
+        if unique:
+            requested = np.dtype(dtype)
+            if requested.kind not in "iu":
+                raise ValueError(
+                    f"Unique mask ids need an integer dtype, got {dtype!r}."
                 )
+            if valid_mask_count > np.iinfo(requested).max:
+                for candidate in ("uint16", "uint32"):
+                    if valid_mask_count <= np.iinfo(candidate).max:
+                        break
+                else:
+                    raise ValueError(
+                        f"{valid_mask_count} masks exceed what uint32 can represent."
+                    )
+                print(
+                    f"Warning: {valid_mask_count} masks found, more than {dtype} "
+                    f"can represent; saving as {candidate} instead."
+                )
+                dtype = candidate
+        if dtype == "uint8":
             mask_array = mask_array.astype(np.uint8)
         elif dtype == "uint16":
             mask_array = mask_array.astype(np.uint16)

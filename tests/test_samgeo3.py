@@ -262,3 +262,73 @@ def test_sam31_missing_checkpoint_helper_has_clear_error(monkeypatch, tmp_path, 
         )
 
     builder.assert_not_called()
+
+
+def test_save_masks_records_mask_scores(monkeypatch, samgeo3, tmp_path):
+    """``save_masks`` maps each unique raster value to its confidence score,
+    skipping masks filtered by size so the values stay aligned."""
+    import numpy as np
+
+    model = samgeo3.SamGeo3.__new__(samgeo3.SamGeo3)
+    model.image_height = 4
+    model.image_width = 4
+    model.source = None
+    model.scores = [0.9, 0.2, 0.6]
+    small = np.zeros((4, 4), dtype=bool)
+    small[0, 0] = True
+    big_a = np.zeros((4, 4), dtype=bool)
+    big_a[:2, :] = True
+    big_b = np.zeros((4, 4), dtype=bool)
+    big_b[2:, :] = True
+    model.masks = [big_a, small, big_b]
+    monkeypatch.setattr(
+        samgeo3.common, "array_to_image", lambda *a, **k: None, raising=False
+    )
+
+    model.save_masks(output=None, min_size=2)
+
+    assert model.mask_scores == {1: 0.9, 2: 0.6}
+    assert model.objects.max() == 2
+
+    model.save_masks(output=None, unique=False)
+    assert model.mask_scores is None
+
+
+def test_save_masks_promotes_dtype_so_scores_stay_aligned(monkeypatch, samgeo3):
+    """More masks than uint8 can hold promote the dtype instead of wrapping
+    ids, so every raster value still matches its ``mask_scores`` key."""
+    import numpy as np
+
+    n = 300
+    model = samgeo3.SamGeo3.__new__(samgeo3.SamGeo3)
+    model.image_height = 2
+    model.image_width = n
+    model.source = None
+    model.scores = [i / n for i in range(n)]
+    masks = []
+    for i in range(n):
+        m = np.zeros((2, n), dtype=bool)
+        m[:, i] = True
+        masks.append(m)
+    model.masks = masks
+    monkeypatch.setattr(
+        samgeo3.common, "array_to_image", lambda *a, **k: None, raising=False
+    )
+
+    model.save_masks(output=None, dtype="uint8")
+
+    assert model.objects.dtype == np.uint16
+    np.testing.assert_array_equal(
+        model.objects[0], np.arange(1, n + 1, dtype=np.uint16)
+    )
+    assert model.mask_scores == {i + 1: i / n for i in range(n)}
+
+    # Signed dtypes are promoted the same way once ids would wrap.
+    model.save_masks(output=None, dtype="int8")
+    assert model.objects.dtype == np.uint16
+    np.testing.assert_array_equal(
+        model.objects[0], np.arange(1, n + 1, dtype=np.uint16)
+    )
+
+    with pytest.raises(ValueError, match="integer dtype"):
+        model.save_masks(output=None, dtype="float32")

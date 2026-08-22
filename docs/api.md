@@ -286,6 +286,17 @@ curl -X POST http://localhost:8000/segment/text \
 }
 ```
 
+## GeoJSON output
+
+With `output_format=geojson`, every segmentation endpoint returns one polygon
+feature per mask. Each feature's `properties` carry the mask's raster `value`
+and, when the model reports one, its confidence `score`, so a single request
+yields both geometry and confidence:
+
+```json
+{"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [...]}, "properties": {"value": 1, "score": 0.887}}
+```
+
 ## Caching
 
 The API automatically caches models and image encodings for better performance:

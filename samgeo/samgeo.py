@@ -119,6 +119,7 @@ class SamGeo:
         self.prediction = None
         self.scores = None
         self.logits = None
+        self.mask_scores = None
 
         # Build the SAM model
         self.sam = sam_model_registry[self.model_type](checkpoint=self.checkpoint)
@@ -305,6 +306,7 @@ class SamGeo:
             **kwargs: Other arguments for array_to_image().
 
         """
+        self.mask_scores = None
 
         if self.masks is None:
             raise ValueError("No masks found. Please run generate() first.")
@@ -334,6 +336,7 @@ class SamGeo:
             )
             # Assign a unique value to each object
             count = len(sorted_masks)
+            self.mask_scores = {}
             for index, ann in enumerate(sorted_masks):
                 m = ann["segmentation"]
                 if min_size > 0 and ann["area"] < min_size:
@@ -341,6 +344,8 @@ class SamGeo:
                 if max_size is not None and ann["area"] > max_size:
                     continue
                 objects[m] = count - index
+                if "predicted_iou" in ann:
+                    self.mask_scores[count - index] = float(ann["predicted_iou"])
 
         # Generate a binary mask
         else:
@@ -591,6 +596,7 @@ class SamGeo:
             return_results (bool, optional): Whether to return the predicted masks, scores, and logits. Defaults to False.
 
         """
+        self.mask_scores = None
         out_of_bounds = []
 
         if isinstance(boxes, str):
