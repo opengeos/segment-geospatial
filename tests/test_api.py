@@ -330,3 +330,65 @@ def test_set_image_cached_skips_for_sam2_but_not_sam3():
     assert _set_image_cached(sam3_model, sam3_key, "/tmp/y.tif", "hash-b") is True
     assert _set_image_cached(sam3_model, sam3_key, "/tmp/y.tif", "hash-b") is True
     assert sam3_model.set_image.call_count == 2
+
+
+def test_attach_mask_scores_joins_by_value():
+    """Each feature gains the score recorded for its mask value."""
+    from samgeo.api import _attach_mask_scores
+
+    data = {
+        "type": "FeatureCollection",
+        "features": [
+            {"type": "Feature", "geometry": None, "properties": {"value": 1}},
+            {"type": "Feature", "geometry": None, "properties": {"value": 2.0}},
+            {"type": "Feature", "geometry": None, "properties": {"value": 3}},
+            {"type": "Feature", "geometry": None, "properties": None},
+        ],
+    }
+    out = _attach_mask_scores(data, {1: 0.9, 2: 0.5})
+    props = [f["properties"] for f in out["features"]]
+    assert props[0] == {"value": 1, "score": 0.9}
+    assert props[1] == {"value": 2.0, "score": 0.5}
+    assert props[2] == {"value": 3}
+    assert props[3] == {}
+    # No scores: the collection is returned untouched.
+    assert _attach_mask_scores(data, None) is data
+    assert _attach_mask_scores(data, {}) is data
+
+
+@patch("samgeo.api.get_model")
+def test_text_geojson_includes_scores(mock_get, sample_image_path):
+    """/segment/text geojson carries a ``score`` per mask in one inference run.
+
+    The model records ``mask_scores`` (raster value -> confidence) when it
+    saves the masks, and the API joins that onto the vectorized output so
+    clients do not need a second ``detections`` request.
+    """
+    from threading import Lock
+
+    mock_model = MagicMock()
+    mock_model.masks = [np.ones((64, 64), dtype=np.uint8)] * 2
+
+    def fake_save_masks(output, **kwargs):
+        from PIL import Image
+
+        arr = np.zeros((64, 64), dtype=np.uint8)
+        arr[:32, :] = 1
+        arr[32:, :] = 2
+        Image.fromarray(arr).save(output)
+        mock_model.mask_scores = {1: 0.91, 2: 0.47}
+
+    mock_model.save_masks = fake_save_masks
+    mock_get.return_value = (mock_model, Lock(), ("sam3", "facebook/sam3", True))
+
+    with open(sample_image_path, "rb") as f:
+        response = client.post(
+            "/segment/text",
+            files={"file": ("test.tif", f, "image/tiff")},
+            data={"prompt": "building", "output_format": "geojson"},
+        )
+    assert response.status_code == 200
+    features = response.json()["features"]
+    scores = {f["properties"]["value"]: f["properties"].get("score") for f in features}
+    assert scores == {1: 0.91, 2: 0.47}
+    mock_model.save_masks = None  # ensure no second inference path was needed

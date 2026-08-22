@@ -285,13 +285,66 @@ def _validate_output_format(output_format: str) -> None:
         )
 
 
-def _format_response(raster_path: str, output_format: str, tmpdir: str):
+def _attach_mask_scores(data: dict, mask_scores: Optional[dict]) -> dict:
+    """Add a ``score`` property to each GeoJSON feature from its mask value.
+
+    ``raster_to_geojson`` writes one feature per mask with the raster value in
+    the ``value`` property. The model records the confidence score of every
+    mask under that same value in ``mask_scores``, so the two are joined here
+    without a second inference run.
+
+    Args:
+        data: A GeoJSON FeatureCollection dict produced from the mask raster.
+        mask_scores: Mapping of raster value to confidence score, or None.
+
+    Returns:
+        The same FeatureCollection with ``score`` set where a score is known.
+    """
+    if not mask_scores or not isinstance(data, dict):
+        return data
+    for feature in data.get("features", []):
+        props = feature.get("properties") or {}
+        feature["properties"] = props
+        try:
+            key = int(props.get("value"))
+        except (TypeError, ValueError):
+            continue
+        if key in mask_scores:
+            props["score"] = mask_scores[key]
+    return data
+
+
+def _snapshot_mask_scores(model) -> Optional[dict]:
+    """Copy the model's per-mask scores while its lock is still held.
+
+    Cached models are shared between requests, so the mapping is copied before
+    the lock is released and another request can overwrite it.
+
+    Args:
+        model: The model instance that just saved its masks.
+
+    Returns:
+        A copy of ``model.mask_scores``, or None when the model has none.
+    """
+    scores = getattr(model, "mask_scores", None)
+    return dict(scores) if scores else None
+
+
+def _format_response(
+    raster_path: str,
+    output_format: str,
+    tmpdir: str,
+    mask_scores: Optional[dict] = None,
+):
     """Convert a raster mask to the requested output format.
 
     Args:
         raster_path: Path to the raster mask file.
         output_format: One of "geojson", "geotiff", "png".
         tmpdir: Temporary directory for intermediate files.
+        mask_scores: Mapping of raster value to confidence score recorded by
+            the model when it saved the masks. When given, each GeoJSON
+            feature gains a ``score`` property.
 
     Returns:
         FastAPI response object.
@@ -311,6 +364,7 @@ def _format_response(raster_path: str, output_format: str, tmpdir: str):
         raster_to_geojson(raster_path, geojson_path)
         with open(geojson_path) as f:
             data = json.load(f)
+        data = _attach_mask_scores(data, mask_scores)
         _cleanup_tmpdir(tmpdir)
         return JSONResponse(content=data)
 
@@ -617,6 +671,7 @@ async def segment_automatic(
         input_path, image_hash = await _save_upload(file, tmpdir)
         output_path = os.path.join(tmpdir, "mask.tif")
 
+        mask_scores = None
         t_start = time.time()
         if model_version == "sam3":
             model, lock, model_key = get_model(model_version, model_id)
@@ -634,6 +689,7 @@ async def segment_automatic(
                         detail="No objects found for automatic segmentation.",
                     )
                 model.save_masks(output=output_path, unique=unique)
+                mask_scores = _snapshot_mask_scores(model)
         else:
             sam_kwargs = {
                 "points_per_side": points_per_side,
@@ -656,6 +712,7 @@ async def segment_automatic(
                     min_size=min_size,
                     max_size=max_size,
                 )
+                mask_scores = _snapshot_mask_scores(model)
 
         t_inference = time.time() - t_start
         logger.info(
@@ -663,7 +720,12 @@ async def segment_automatic(
             t_inference,
             model_version,
         )
-        return _format_response(output_path, output_format, tmpdir)
+        return _format_response(
+            output_path,
+            output_format,
+            tmpdir,
+            mask_scores=mask_scores,
+        )
     except HTTPException:
         _cleanup_tmpdir(tmpdir)
         raise
@@ -745,6 +807,7 @@ async def segment_predict(
         if boxes is not None:
             parsed_boxes = np.array(json.loads(boxes))
 
+        mask_scores = None
         t_start = time.time()
 
         if model_version == "sam3":
@@ -781,6 +844,7 @@ async def segment_predict(
                     min_size=min_size,
                     max_size=max_size,
                 )
+                mask_scores = _snapshot_mask_scores(model)
         else:
             model, lock, model_key = get_model(
                 model_version, model_id, automatic=False
@@ -795,6 +859,7 @@ async def segment_predict(
                     multimask_output=multimask_output,
                     output=output_path,
                 )
+                mask_scores = _snapshot_mask_scores(model)
 
         t_inference = time.time() - t_start
         logger.info(
@@ -802,7 +867,12 @@ async def segment_predict(
             t_inference,
             model_version,
         )
-        return _format_response(output_path, output_format, tmpdir)
+        return _format_response(
+            output_path,
+            output_format,
+            tmpdir,
+            mask_scores=mask_scores,
+        )
     except HTTPException:
         _cleanup_tmpdir(tmpdir)
         raise
@@ -859,6 +929,7 @@ async def segment_text(
             backend=backend,
             confidence_threshold=confidence_threshold,
         )
+        mask_scores = None
         t_start = time.time()
         with lock:
             _set_image_cached(model, model_key, input_path, image_hash)
@@ -883,6 +954,7 @@ async def segment_text(
                     det_result = _build_detections_json(model)
             else:
                 model.save_masks(output=output_path)
+                mask_scores = _snapshot_mask_scores(model)
 
         t_inference = time.time() - t_start
         logger.info(
@@ -893,7 +965,12 @@ async def segment_text(
         if output_format in ("detections", "json"):
             _cleanup_tmpdir(tmpdir)
             return JSONResponse(content=det_result)
-        return _format_response(output_path, output_format, tmpdir)
+        return _format_response(
+            output_path,
+            output_format,
+            tmpdir,
+            mask_scores=mask_scores,
+        )
     except HTTPException:
         _cleanup_tmpdir(tmpdir)
         raise

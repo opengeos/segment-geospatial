@@ -143,6 +143,7 @@ class SamGeo2:
         self.model_id = model_id
         self.model_version = "sam2"
         self.device = device
+        self.mask_scores: Optional[Dict[int, float]] = None
 
         if video:
             automatic = False
@@ -307,6 +308,7 @@ class SamGeo2:
             max_size (int, optional): The maximum size of the object. Defaults to None.
             **kwargs: Additional keyword arguments for common.array_to_image().
         """
+        self.mask_scores = None
 
         if self.masks is None:
             raise ValueError("No masks found. Please run generate() first.")
@@ -336,6 +338,7 @@ class SamGeo2:
             )
             # Assign a unique value to each object
             count = len(sorted_masks)
+            self.mask_scores = {}
             for index, ann in enumerate(sorted_masks):
                 m = ann["segmentation"]
                 if min_size > 0 and ann["area"] < min_size:
@@ -343,6 +346,8 @@ class SamGeo2:
                 if max_size is not None and ann["area"] > max_size:
                     continue
                 objects[m] = count - index
+                if "predicted_iou" in ann:
+                    self.mask_scores[count - index] = float(ann["predicted_iou"])
 
         # Generate a binary mask
         else:
@@ -615,6 +620,7 @@ class SamGeo2:
             Tuple[np.ndarray, np.ndarray, np.ndarray]: The mask, the multimask,
                 and the logits.
         """
+        self.mask_scores = None
         import geopandas as gpd
 
         out_of_bounds = []
@@ -1157,6 +1163,10 @@ class SamGeo2:
 
         array = self.masks[index] * mask_multiplier
         self.prediction = array
+        try:
+            self.mask_scores = {int(mask_multiplier): float(self.scores[index])}
+        except (TypeError, ValueError, IndexError):
+            self.mask_scores = None
         common.array_to_image(array, output, self.source, dtype=dtype, **kwargs)
 
         if vector is not None:
