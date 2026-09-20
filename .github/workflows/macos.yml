@@ -28,10 +28,20 @@ jobs:
               uses: mamba-org/setup-micromamba@v3
               with:
                   environment-name: test-env
+                  # pytorch/torchvision come from conda-forge, not PyPI, so the
+                  # environment has exactly one OpenMP runtime. gdal and pyproj
+                  # pull in conda-forge's llvm-openmp; the PyPI torch wheels
+                  # bundle their own copy of libomp.dylib, and loading both
+                  # aborts the interpreter on `import samgeo`:
+                  #   OMP: Error #15: Initializing libomp.dylib, but found
+                  #   libomp.dylib already initialized.
+                  # See the pip step below, which must not undo this.
                   create-args: >-
                       python=${{ matrix.config.py }}
                       gdal
                       pyproj
+                      pytorch
+                      torchvision
                       -c conda-forge
                   cache-environment: true
 
@@ -42,8 +52,35 @@ jobs:
 
             - name: Install dependencies
               run: |
-                  pip install -r requirements.txt
-                  pip install .
+                  # Install everything EXCEPT torch/torchvision, which conda-forge
+                  # already provided above. Letting pip see them here would pull
+                  # the PyPI wheels and reintroduce the second libomp.dylib.
+                  grep -vxE 'torch|torchvision' requirements.txt > /tmp/requirements-no-torch.txt
+                  pip install -r /tmp/requirements-no-torch.txt
+                  # --no-deps for the same reason: this project's dependencies are
+                  # dynamic (pyproject reads requirements.txt), so a plain
+                  # `pip install .` would re-resolve torch from PyPI. Every other
+                  # dependency is already installed by the line above.
+                  pip install --no-deps .
+
+            - name: Verify a single OpenMP runtime
+              # Fail loudly here rather than as an opaque abort in the import
+              # test below, and catch a silent regression if a future dependency
+              # starts bundling its own libomp again.
+              run: |
+                  python - <<'PY'
+                  import pathlib, sys, sysconfig
+                  site = pathlib.Path(sysconfig.get_paths()["purelib"])
+                  bundled = sorted(site.rglob("libomp.dylib"))
+                  for p in bundled:
+                      print(f"bundled OpenMP runtime: {p.relative_to(site)}")
+                  if bundled:
+                      sys.exit(
+                          f"{len(bundled)} OpenMP runtime(s) bundled inside site-packages; "
+                          "expected 0 (conda-forge's llvm-openmp should be the only one)"
+                      )
+                  print("OK: no OpenMP runtime bundled in site-packages")
+                  PY
 
             - name: Test import
               run: python -c "import samgeo; print('samgeo import successful')"
