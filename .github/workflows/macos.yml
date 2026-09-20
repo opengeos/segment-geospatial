@@ -28,10 +28,20 @@ jobs:
               uses: mamba-org/setup-micromamba@v3
               with:
                   environment-name: test-env
+                  # pytorch/torchvision come from conda-forge, not PyPI, so the
+                  # environment has exactly one OpenMP runtime. gdal and pyproj
+                  # pull in conda-forge's llvm-openmp; the PyPI torch wheels
+                  # bundle their own copy of libomp.dylib, and loading both
+                  # aborts the interpreter on `import samgeo`:
+                  #   OMP: Error #15: Initializing libomp.dylib, but found
+                  #   libomp.dylib already initialized.
+                  # See the pip step below, which must not undo this.
                   create-args: >-
                       python=${{ matrix.config.py }}
                       gdal
                       pyproj
+                      pytorch
+                      torchvision
                       -c conda-forge
                   cache-environment: true
 
@@ -42,8 +52,48 @@ jobs:
 
             - name: Install dependencies
               run: |
-                  pip install -r requirements.txt
-                  pip install .
+                  # Install everything EXCEPT torch/torchvision, which conda-forge
+                  # already provided above. Letting pip see them here would pull
+                  # the PyPI wheels and reintroduce the second libomp.dylib.
+                  grep -vxE 'torch|torchvision' requirements.txt > /tmp/requirements-no-torch.txt
+                  pip install -r /tmp/requirements-no-torch.txt
+                  # --no-deps for the same reason: this project's dependencies are
+                  # dynamic (pyproject reads requirements.txt), so a plain
+                  # `pip install .` would re-resolve torch from PyPI. Every other
+                  # dependency is already installed by the line above.
+                  pip install --no-deps .
+
+            - name: Verify a single OpenMP runtime
+              # Fail loudly here rather than as an opaque `Abort trap: 6` in the
+              # import test below, and catch a regression if a future dependency
+              # starts shipping a second libomp.
+              #
+              # The invariant is one DISTINCT runtime, not one path. conda-forge's
+              # pytorch legitimately carries torch/lib/libomp.dylib pointing at the
+              # environment's llvm-openmp, so counting paths flags a healthy env.
+              # Resolve symlinks and count unique real files instead.
+              run: |
+                  python - <<'PY'
+                  import pathlib, sys
+
+                  prefix = pathlib.Path(sys.prefix)
+                  runtimes: dict[pathlib.Path, list[pathlib.Path]] = {}
+                  for path in sorted(prefix.rglob("libomp.dylib")):
+                      runtimes.setdefault(path.resolve(), []).append(path)
+
+                  for real, paths in runtimes.items():
+                      print(f"OpenMP runtime: {real}")
+                      for path in paths:
+                          if path != real:
+                              print(f"    linked from: {path.relative_to(prefix)}")
+
+                  if len(runtimes) > 1:
+                      sys.exit(
+                          f"{len(runtimes)} distinct OpenMP runtimes under {prefix}; expected at "
+                          "most 1. Loading two aborts the interpreter with OMP: Error #15."
+                      )
+                  print(f"OK: {len(runtimes)} distinct OpenMP runtime")
+                  PY
 
             - name: Test import
               run: python -c "import samgeo; print('samgeo import successful')"
