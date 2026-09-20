@@ -64,22 +64,35 @@ jobs:
                   pip install --no-deps .
 
             - name: Verify a single OpenMP runtime
-              # Fail loudly here rather than as an opaque abort in the import
-              # test below, and catch a silent regression if a future dependency
-              # starts bundling its own libomp again.
+              # Fail loudly here rather than as an opaque `Abort trap: 6` in the
+              # import test below, and catch a regression if a future dependency
+              # starts shipping a second libomp.
+              #
+              # The invariant is one DISTINCT runtime, not one path. conda-forge's
+              # pytorch legitimately carries torch/lib/libomp.dylib pointing at the
+              # environment's llvm-openmp, so counting paths flags a healthy env.
+              # Resolve symlinks and count unique real files instead.
               run: |
                   python - <<'PY'
-                  import pathlib, sys, sysconfig
-                  site = pathlib.Path(sysconfig.get_paths()["purelib"])
-                  bundled = sorted(site.rglob("libomp.dylib"))
-                  for p in bundled:
-                      print(f"bundled OpenMP runtime: {p.relative_to(site)}")
-                  if bundled:
+                  import pathlib, sys
+
+                  prefix = pathlib.Path(sys.prefix)
+                  runtimes: dict[pathlib.Path, list[pathlib.Path]] = {}
+                  for path in sorted(prefix.rglob("libomp.dylib")):
+                      runtimes.setdefault(path.resolve(), []).append(path)
+
+                  for real, paths in runtimes.items():
+                      print(f"OpenMP runtime: {real}")
+                      for path in paths:
+                          if path != real:
+                              print(f"    linked from: {path.relative_to(prefix)}")
+
+                  if len(runtimes) > 1:
                       sys.exit(
-                          f"{len(bundled)} OpenMP runtime(s) bundled inside site-packages; "
-                          "expected 0 (conda-forge's llvm-openmp should be the only one)"
+                          f"{len(runtimes)} distinct OpenMP runtimes under {prefix}; expected at "
+                          "most 1. Loading two aborts the interpreter with OMP: Error #15."
                       )
-                  print("OK: no OpenMP runtime bundled in site-packages")
+                  print(f"OK: {len(runtimes)} distinct OpenMP runtime")
                   PY
 
             - name: Test import
