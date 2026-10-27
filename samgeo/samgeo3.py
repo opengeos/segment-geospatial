@@ -2606,8 +2606,8 @@ class SamGeo3:
 
         # Process each mask
         valid_mask_count = 0
-        mask_index = 0
-        for mask in self.masks:
+        filter_by_size = min_size > 0 or max_size is not None
+        for mask_index, mask in enumerate(self.masks):
             # Convert mask to numpy array if it's a tensor
             if hasattr(mask, "cpu"):
                 mask_np = mask.squeeze().cpu().numpy()
@@ -2620,19 +2620,16 @@ class SamGeo3:
             if mask_np.ndim > 2:
                 mask_np = mask_np[0]
 
-            # Convert to boolean
-            mask_bool = mask_np > 0
-
-            # Calculate mask size
-            mask_size = np.sum(mask_bool)
+            # Convert to boolean (boolean masks can be used as-is)
+            mask_bool = mask_np if mask_np.dtype == np.bool_ else mask_np > 0
 
             # Filter by size
-            if mask_size < min_size:
-                mask_index += 1
-                continue
-            if max_size is not None and mask_size > max_size:
-                mask_index += 1
-                continue
+            if filter_by_size:
+                mask_size = np.count_nonzero(mask_bool)
+                if mask_size < min_size:
+                    continue
+                if max_size is not None and mask_size > max_size:
+                    continue
 
             # Get confidence score for this mask
             score = self._score_at(mask_index)
@@ -2653,7 +2650,6 @@ class SamGeo3:
                 scores_array[mask_bool] = score
 
             valid_mask_count += 1
-            mask_index += 1
 
         if valid_mask_count == 0:
             print("No masks met the size criteria.")
