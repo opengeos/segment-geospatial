@@ -332,3 +332,32 @@ def test_save_masks_promotes_dtype_so_scores_stay_aligned(monkeypatch, samgeo3):
 
     with pytest.raises(ValueError, match="integer dtype"):
         model.save_masks(output=None, dtype="float32")
+
+
+def test_generate_masks_by_boxes_combines_text_prompt(monkeypatch, samgeo3):
+    """A text prompt is set before the boxes so they refine it as exemplars."""
+    from contextlib import nullcontext
+
+    model = samgeo3.SamGeo3.__new__(samgeo3.SamGeo3)
+    model.backend = "meta"
+    model.source = None
+    model.image_width = 100
+    model.image_height = 100
+    model.inference_state = {"masks": [], "boxes": [], "scores": []}
+    model.processor = Mock()
+    model.processor.add_geometric_prompt.return_value = model.inference_state
+    monkeypatch.setattr(model, "_meta_autocast", nullcontext, raising=False)
+    monkeypatch.setattr(model, "_convert_results_to_numpy", lambda: None)
+
+    model.generate_masks_by_boxes(
+        [[0, 0, 50, 50]], box_labels=[False], prompt="building"
+    )
+
+    calls = [c[0] for c in model.processor.method_calls]
+    assert calls == ["reset_all_prompts", "set_text_prompt", "add_geometric_prompt"]
+    assert model.processor.set_text_prompt.call_args.kwargs["prompt"] == "building"
+    assert model.processor.add_geometric_prompt.call_args.kwargs["label"] is False
+
+    model.processor.reset_mock()
+    model.generate_masks_by_boxes([[0, 0, 50, 50]])
+    model.processor.set_text_prompt.assert_not_called()

@@ -1687,10 +1687,11 @@ class SamGeo3:
         box_crs: Optional[str] = None,
         min_size: int = 0,
         max_size: Optional[int] = None,
+        prompt: Optional[str] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """
-        Generate masks using bounding box prompts.
+        Generate masks using bounding box prompts, optionally combined with a text prompt.
 
         Args:
             boxes (List[List[float]]): List of bounding boxes in XYXY format
@@ -1707,6 +1708,10 @@ class SamGeo3:
                 will be filtered out. Defaults to 0.
             max_size (int, optional): Maximum mask size in pixels. Masks larger than
                 this will be filtered out. Defaults to None (no maximum).
+            prompt (str, optional): Text prompt describing the objects to segment.
+                When given, the boxes act as positive/negative exemplars that refine
+                the text prompt instead of being segmented on their own.
+                Defaults to None (box prompts only).
             **kwargs: Additional keyword arguments.
 
         Returns:
@@ -1716,6 +1721,9 @@ class SamGeo3:
             # For pixel coordinates:
             boxes = [[100, 200, 300, 400]]
             sam.generate_masks_by_boxes(boxes)
+
+            # Text prompt refined by a negative box (exclude objects like this one):
+            sam.generate_masks_by_boxes(boxes, box_labels=[False], prompt="building")
 
             # For geographic coordinates (GeoTIFF):
             boxes = [[-122.5, 37.7, -122.4, 37.8]]  # [lon_min, lat_min, lon_max, lat_max]
@@ -1778,6 +1786,12 @@ class SamGeo3:
         if self.backend == "meta":
             # Reset all prompts
             self.processor.reset_all_prompts(self.inference_state)
+            if prompt:
+                # Boxes added after the text prompt refine it as exemplars
+                with self._meta_autocast():
+                    self.processor.set_text_prompt(
+                        state=self.inference_state, prompt=prompt
+                    )
 
             # Process each box
             for box, label in zip(boxes, box_labels):
@@ -1815,7 +1829,11 @@ class SamGeo3:
 
             # Prepare inputs with boxes
             inputs = self.processor(
-                images=self.pil_image, input_boxes=input_boxes, return_tensors="pt"
+                images=self.pil_image,
+                text=prompt,
+                input_boxes=input_boxes,
+                input_boxes_labels=[[int(label) for label in box_labels]],
+                return_tensors="pt",
             ).to(self.device)
 
             # Get original sizes for post-processing
