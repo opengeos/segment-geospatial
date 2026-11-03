@@ -146,5 +146,5 @@ python -m pytest cli_anything/samgeo/tests/ -v -s
 | HQ-SAM | vit_h, vit_l, vit_b, vit_tiny | `pip install segment-geospatial[hq]` |
 | LangSAM | text-based (SAM2 backend) | `pip install segment-geospatial[text]` |
 
-FastSAM uses a separate AGPL Python integration (`segment-anything-fast[geo]`,
+FastSAM uses a separate AGPL Python integration (`segment-anything-fast[geo]>=0.1.3`,
 `from samgeo_fastsam import SamGeo`). Its API is not supported by this CLI.
