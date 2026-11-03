@@ -4,7 +4,7 @@
 
 **segment-geospatial** (samgeo) is a Python package for segmenting geospatial data
 using Meta AI's Segment Anything Model (SAM) family. It wraps SAM v1, SAM 2, SAM 3,
-FastSAM, HQ-SAM, and LangSAM with geospatial-aware I/O (GeoTIFF, GeoPackage, etc.).
+HQ-SAM, and LangSAM with geospatial-aware I/O (GeoTIFF, GeoPackage, etc.).
 
 ## Backend
 

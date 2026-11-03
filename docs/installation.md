@@ -214,8 +214,17 @@ mamba install -c conda-forge segment-geospatial "pytorch=*=cuda*"
 Samgeo-geospatial has some optional dependencies that are not included in the default conda environment. To install these dependencies, run the following command:
 
 ```bash
-mamba install -c conda-forge groundingdino-py segment-anything-fast
+mamba install -c conda-forge groundingdino-py
 ```
+
+## FastSAM (separate AGPL integration)
+
+FastSAM is installed separately using
+`pip install "segment-anything-fast[geo]>=0.1.3"` on Python 3.10 or later.
+Use `from samgeo_fastsam import SamGeo`; see the [migration guide](fast_sam.md).
+The old `[fast]` extra has been removed, and `[all]`/`[extra]` exclude FastSAM.
+The corrected integration must be released before this command is available on
+package indexes; older releases do not contain the new module.
 
 ## Install from GitHub
 

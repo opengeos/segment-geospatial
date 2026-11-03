@@ -7,7 +7,7 @@ description: "CLI harness for segment-geospatial — segment satellite/aerial im
 
 Segment geospatial imagery (satellite, aerial, drone) using Meta AI's Segment
 Anything Model (SAM) family from the command line. Supports SAM v1, SAM 2,
-SAM 3, FastSAM, HQ-SAM, and LangSAM (text-based).
+SAM 3, HQ-SAM, and LangSAM (text-based).
 
 ## Installation
 
@@ -45,7 +45,7 @@ cli-anything-samgeo model info MODEL_TYPE [-m MODEL_ID]
 cli-anything-samgeo model check MODEL_TYPE
 ```
 
-Model types: `sam`, `sam2`, `sam3`, `fast_sam`, `hq_sam`, `text_sam`
+Model types: `sam`, `sam2`, `sam3`, `hq_sam`, `text_sam`
 
 ### segment — Segmentation operations
 ```bash
