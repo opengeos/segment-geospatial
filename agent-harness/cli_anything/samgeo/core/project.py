@@ -36,7 +36,6 @@ def create_project(
         "sam": "vit_h",
         "sam2": "sam2-hiera-large",
         "sam3": "facebook/sam3",
-        "fast_sam": "FastSAM-x.pt",
         "hq_sam": "vit_h",
         "text_sam": "vit_h",
     }

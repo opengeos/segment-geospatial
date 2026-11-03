@@ -82,7 +82,6 @@ Depending on what tools you need to use, you might want to do:
 -   `segment-geospatial` or `segment-geospatial[samgeo]`: Installs only the minimum required dependencies to run SAMGeo
 -   `segment-geospatial[samgeo2]`: Installs the dependencies to run SAMGeo 2
 -   `segment-geospatial[samgeo3]`: Installs the dependencies to run SAMGeo 3
--   `segment-geospatial[fast]`: Installs the dependencies to run Fast SAM
 -   `segment-geospatial[hq]`: Installs the dependencies to run HQ-SAM
 -   `segment-geospatial[text]`: Installs Grounding DINO to use SAMGeo 1 and 2 with text prompts
 -   `segment-geospatial[fer]`: Installs the dependencies to run the feature
@@ -91,8 +90,8 @@ Depending on what tools you need to use, you might want to do:
 
 Additionally, these other two optional imports are defined:
 
--   `segment-geospatial[all]`: Installs the dependencies to run all of the SAMGeo models
--   `segment-geospatial[extra]`: Installs the dependencies to run all of the SAMGeo models and other utilities to run the examples like Jupyter notebook support, `leafmap`, etc.
+-   `segment-geospatial[all]`: Installs the dependencies for the models included in SAMGeo
+-   `segment-geospatial[extra]`: Installs the dependencies for the models included in SAMGeo and other utilities to run the examples like Jupyter notebook support, `leafmap`, etc.
 
 Simply running the following should install the dependencies for each use case:
 
@@ -101,6 +100,11 @@ pip install "segment-geospatial[samgeo3]" # Or any other choice of the above
 ```
 
 To see more in detail what packages come with each choice, please refer to `pyproject.toml`.
+
+FastSAM is a separate AGPL integration. Install `"segment-anything-fast[geo]>=0.1.3"`
+and import `SamGeo` from `samgeo_fastsam`. The old `[fast]` extra is removed, and
+`[all]`/`[extra]` no longer install FastSAM. See the
+[FastSAM migration guide](https://samgeo.gishub.org/fast_sam/).
 
 ### Install from conda-forge
 
@@ -122,7 +126,7 @@ conda install -c conda-forge segment-geospatial "pytorch=*=cuda*"
 segment-geospatial has some optional dependencies that are not included in the default conda environment. To install these dependencies, run the following command:
 
 ```bash
-conda install -c conda-forge groundingdino-py segment-anything-fast
+conda install -c conda-forge groundingdino-py
 ```
 
 ### Install SAM 3 on Windows
