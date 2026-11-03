@@ -658,6 +658,18 @@ class SamGeoPlugin:
         self.box_label = QLabel("Box: Not set")
         box_layout.addWidget(self.box_label)
 
+        self.box_text_prompt_edit = QLineEdit()
+        self.box_text_prompt_edit.setPlaceholderText(
+            "Text prompt (optional, SAM3), e.g., building"
+        )
+        box_layout.addWidget(self.box_text_prompt_edit)
+
+        self.box_exclude_check = QCheckBox("Exclude (negative box)")
+        self.box_exclude_check.setToolTip(
+            "With a text prompt, exclude objects like the one in the box."
+        )
+        box_layout.addWidget(self.box_exclude_check)
+
         box_action_row = QHBoxLayout()
         clear_box_btn = QPushButton("Clear Box")
         clear_box_btn.clicked.connect(self.clear_box)
@@ -1427,7 +1439,11 @@ class SamGeoPlugin:
 
             # Use appropriate method based on model type
             if hasattr(self.sam, "generate_masks_by_boxes"):
-                self.sam.generate_masks_by_boxes(boxes=[self.box_coords])
+                self.sam.generate_masks_by_boxes(
+                    boxes=[self.box_coords],
+                    box_labels=[not self.box_exclude_check.isChecked()],
+                    prompt=self.box_text_prompt_edit.text().strip() or None,
+                )
             else:
                 # Fallback for older SamGeo versions
                 import numpy as np
