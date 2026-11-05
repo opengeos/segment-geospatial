@@ -143,9 +143,10 @@ class SamGeo2:
         self.model_id = model_id
         self.model_version = "sam2"
         self.device = device
-        self.source: Optional[str] = None
+        self.source = None
         self.mask_scores: Optional[Dict[int, float]] = None
-        self.prompt_type: Optional[str] = None
+        self.prompt_type = None
+        self._mask_metadata = {}
 
         if video:
             automatic = False
@@ -259,6 +260,7 @@ class SamGeo2:
         self.source = source  # Store the input image path
         self.image = image  # Store the input image as a numpy array
         self.prompt_type = "automatic"
+        self._mask_metadata = {}
         mask_generator = self.mask_generator  # The automatic mask generator
         masks = mask_generator.generate(image)  # Segment the input image
         self.masks = masks  # Store the masks as a list of dictionaries
@@ -385,6 +387,7 @@ class SamGeo2:
 
         if output is not None:  # Save the output image
             common.array_to_image(self.objects, output, self.source, **kwargs)
+            self._record_mask_output(output)
 
     def show_masks(
         self,
@@ -532,6 +535,7 @@ class SamGeo2:
             raise ValueError("Input image must be either a path or a numpy array.")
 
         self.prompt_type = None
+        self._mask_metadata = {}
         self.predictor.set_image(image)
 
     @torch.no_grad()
@@ -572,6 +576,9 @@ class SamGeo2:
 
             images.append(image)
 
+        self.source = None
+        self.prompt_type = None
+        self._mask_metadata = {}
         self.predictor.set_image_batch(images)
 
     def predict(
@@ -711,12 +718,15 @@ class SamGeo2:
         self.masks = masks
         self.scores = scores
         self.logits = logits
-        if point_coords is not None and input_boxes is not None:
+        has_boxes = input_boxes is not None or boxes is not None
+        if point_coords is not None and has_boxes:
             self.prompt_type = "point_box"
         elif point_coords is not None:
             self.prompt_type = "point"
-        elif input_boxes is not None:
+        elif has_boxes:
             self.prompt_type = "box"
+        elif mask_input is not None:
+            self.prompt_type = "mask"
         else:
             self.prompt_type = "automatic"
 
@@ -877,7 +887,7 @@ class SamGeo2:
         self.masks = output_masks
         self.scores = scores
         self.logits = logits
-        self.prompt_type = "point"
+        self.prompt_type = "point_box" if box_batch is not None else "point"
 
         if output is not None:
             self.save_masks(
@@ -1140,6 +1150,7 @@ class SamGeo2:
             common.array_to_image(
                 mask_overlay, output, self.source, dtype=dtype, **save_args
             )
+            self._record_mask_output(output)
         else:
             return mask_overlay
 
@@ -1183,6 +1194,7 @@ class SamGeo2:
         except (TypeError, ValueError, IndexError):
             self.mask_scores = None
         common.array_to_image(array, output, self.source, dtype=dtype, **kwargs)
+        self._record_mask_output(output)
 
         if vector is not None:
             common.raster_to_vector(
@@ -1681,12 +1693,24 @@ class SamGeo2:
 
         plt.show()
 
+    def _record_mask_output(self, output_path: str | None) -> None:
+        """Record contextual vector attributes for a generated mask raster."""
+        if not isinstance(output_path, (str, os.PathLike)) or not str(output_path):
+            return
+        if not hasattr(self, "_mask_metadata") or self._mask_metadata is None:
+            self._mask_metadata = {}
+        self._mask_metadata[os.path.abspath(os.fspath(output_path))] = dict(
+            self._get_vector_attributes() or {}
+        )
+
     def _get_vector_attributes(
-        self, attributes: Optional[Dict[str, Any]] = None
-    ) -> Optional[Dict[str, Any]]:
+        self, attributes: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         """Build vector attributes dictionary from source image name and prompt type."""
-        attrs: Dict[str, Any] = {}
-        if isinstance(getattr(self, "source", None), (str, os.PathLike)) and str(self.source):
+        attrs: dict[str, Any] = {}
+        if isinstance(getattr(self, "source", None), (str, os.PathLike)) and str(
+            self.source
+        ):
             attrs["Name"] = os.path.basename(os.fspath(self.source))
         if getattr(self, "prompt_type", None):
             attrs["Type"] = self.prompt_type
@@ -1701,9 +1725,21 @@ class SamGeo2:
             raster (str): The path to the raster image.
             vector (str, optional): The path to the vector file. Defaults to None.
             simplify_tolerance (float, optional): The maximum allowed geometry displacement.
-                The higher this value, the smaller the number of vertices in the resulting geometry.
+
+        Returns:
+            str: The path to the saved vector file.
         """
-        attributes = self._get_vector_attributes(kwargs.pop("attributes", None))
+        caller_attributes = kwargs.pop("attributes", None)
+        mask_meta = getattr(self, "_mask_metadata", None) or {}
+        norm_raster = (
+            os.path.abspath(os.fspath(raster))
+            if isinstance(raster, (str, os.PathLike)) and str(raster)
+            else None
+        )
+        recorded = dict(mask_meta.get(norm_raster, {})) if norm_raster else {}
+        if caller_attributes:
+            recorded.update(caller_attributes)
+        attributes = recorded if recorded else None
         return common.raster_to_vector(
             raster,
             vector,

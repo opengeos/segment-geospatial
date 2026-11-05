@@ -3,6 +3,7 @@
 """Tests for `samgeo` package."""
 
 import os
+import shutil
 import tempfile
 import unittest
 
@@ -162,6 +163,16 @@ class TestCommon(unittest.TestCase):
             self.assertEqual(gpkg_path, os.path.join(tmpdir, "segmented_tile.gpkg"))
             self.assertTrue(os.path.exists(gpkg_path))
 
+            direct_dir = os.path.join(tmpdir, "direct_vector")
+            os.makedirs(direct_dir, exist_ok=True)
+            direct_mask = os.path.join(direct_dir, os.path.basename(mask_path))
+            shutil.copy(mask_path, direct_mask)
+            vector_path = common.raster_to_vector(direct_mask)
+            self.assertEqual(
+                vector_path, os.path.join(direct_dir, "segmented_tile.gpkg")
+            )
+            self.assertTrue(os.path.exists(vector_path))
+
             geojson_path = common.raster_to_geojson(
                 mask_path, attributes={"Name": "segmented_tile.tif", "Type": "text"}
             )
@@ -199,6 +210,10 @@ class TestCommon(unittest.TestCase):
                 common.raster_to_vector(mask_path, attributes=["invalid"])
             with self.assertRaises(ValueError):
                 common.raster_to_vector(mask_path, attributes={"bad_len": [1, 2, 3]})
+            with self.assertRaises(ValueError):
+                common.raster_to_vector(empty_mask, attributes={"bad_len": [1]})
+            with self.assertRaises(ValueError):
+                common.raster_to_vector(mask_path, attributes={"value": "reserved"})
 
     def test_github_raw_url(self):
         self.assertEqual(

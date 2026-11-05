@@ -49,6 +49,15 @@ MENU_TITLE = "&SamGeo"
 class SamGeoPlugin:
     """QGIS Plugin for remote sensing image segmentation using SamGeo."""
 
+    SAM1_MODELS = ("vit_h", "vit_l", "vit_b")
+    SAM2_MODELS = (
+        "sam2-hiera-large",
+        "sam2-hiera-base-plus",
+        "sam2-hiera-small",
+        "sam2-hiera-tiny",
+    )
+    SAM3_MODELS = ("facebook/sam3",)
+
     def __init__(self, iface):
         """Initialize the plugin.
 
@@ -465,8 +474,16 @@ class SamGeoPlugin:
         version_row.addWidget(QLabel("Model:"))
         self.model_combo = QComboBox()
         self.model_combo.addItems(["SamGeo3 (SAM3)", "SamGeo2 (SAM2)", "SamGeo (SAM1)"])
+        self.model_combo.currentTextChanged.connect(self.on_model_version_changed)
         version_row.addWidget(self.model_combo)
         backend_layout.addLayout(version_row)
+
+        # Model weights / checkpoint selection
+        weights_row = QHBoxLayout()
+        weights_row.addWidget(QLabel("Weights:"))
+        self.model_id_combo = QComboBox()
+        weights_row.addWidget(self.model_id_combo)
+        backend_layout.addLayout(weights_row)
 
         backend_row = QHBoxLayout()
         backend_row.addWidget(QLabel("Backend:"))
@@ -474,6 +491,8 @@ class SamGeoPlugin:
         self.backend_combo.addItems(["meta", "transformers"])
         backend_row.addWidget(self.backend_combo)
         backend_layout.addLayout(backend_row)
+
+        self.on_model_version_changed(self.model_combo.currentText())
 
         # Device selection
         device_row = QHBoxLayout()
@@ -946,7 +965,7 @@ class SamGeoPlugin:
             ext = ".tif"
 
         if self.current_image_path:
-            source_path = self.current_image_path.split("|")[0]
+            source_path = os.path.abspath(self.current_image_path.split("|")[0])
             source_dir = os.path.dirname(source_path)
             if (
                 source_dir
@@ -1028,6 +1047,29 @@ class SamGeoPlugin:
         if file_path:
             self.output_path_edit.setText(file_path)
 
+    def on_model_version_changed(self, model_version=None):
+        """Update selectable model weights when the SAM model version changes."""
+        if model_version is None and hasattr(self, "model_combo"):
+            model_version = self.model_combo.currentText()
+        model_version = model_version or ""
+
+        if not hasattr(self, "model_id_combo") or self.model_id_combo is None:
+            return
+
+        self.model_id_combo.clear()
+        if "SamGeo3" in model_version:
+            self.model_id_combo.addItems(self.SAM3_MODELS)
+            if hasattr(self, "backend_combo") and self.backend_combo is not None:
+                self.backend_combo.setEnabled(True)
+        elif "SamGeo2" in model_version:
+            self.model_id_combo.addItems(self.SAM2_MODELS)
+            if hasattr(self, "backend_combo") and self.backend_combo is not None:
+                self.backend_combo.setEnabled(False)
+        else:
+            self.model_id_combo.addItems(self.SAM1_MODELS)
+            if hasattr(self, "backend_combo") and self.backend_combo is not None:
+                self.backend_combo.setEnabled(False)
+
     def load_model(self):
         """Load the SamGeo model."""
         try:
@@ -1038,6 +1080,11 @@ class SamGeoPlugin:
             QCoreApplication.processEvents()
 
             model_version = self.model_combo.currentText()
+            selected_weight = (
+                self.model_id_combo.currentText().strip()
+                if hasattr(self, "model_id_combo") and self.model_id_combo is not None
+                else ""
+            )
             backend = self.backend_combo.currentText()
             device = self.device_combo.currentText()
             if device == "auto":
@@ -1071,11 +1118,18 @@ class SamGeoPlugin:
 
                 samgeo = get_samgeo()
                 SamGeo2 = samgeo.SamGeo2
+                model_id = (
+                    selected_weight
+                    if selected_weight in self.SAM2_MODELS
+                    else self.SAM2_MODELS[0]
+                )
 
                 self.sam = SamGeo2(
+                    model_id=model_id,
                     device=device,
+                    automatic=not enable_interactive,
                 )
-                model_name = "SamGeo2"
+                model_name = f"SamGeo2 ({model_id})"
             else:
                 try:
                     from ._samgeo_lib import get_samgeo
@@ -1084,12 +1138,20 @@ class SamGeoPlugin:
 
                 samgeo = get_samgeo()
                 SamGeo = samgeo.SamGeo
+                model_type = (
+                    selected_weight
+                    if selected_weight in self.SAM1_MODELS
+                    else self.SAM1_MODELS[0]
+                )
 
                 self.sam = SamGeo(
+                    model_type=model_type,
                     device=device,
+                    automatic=not enable_interactive,
                 )
-                model_name = "SamGeo"
+                model_name = f"SamGeo ({model_type})"
 
+            self.last_prompt_type = None
             self.model_status.setText(f"Model: {model_name} loaded")
             self.model_status.setStyleSheet("color: green;")
             self.log_message(f"{model_name} model loaded successfully")
@@ -1133,6 +1195,7 @@ class SamGeoPlugin:
             self.sam.set_image(source)
             self.current_layer = layer
             self.current_image_path = source
+            self.last_prompt_type = None
 
             self.image_status.setText(f"Image: {layer.name()}")
             self.image_status.setStyleSheet("color: green;")
@@ -1166,6 +1229,7 @@ class SamGeoPlugin:
             self.sam.set_image(file_path)
             self.current_image_path = file_path
             self.current_layer = None
+            self.last_prompt_type = None
 
             self.image_status.setText(f"Image: {os.path.basename(file_path)}")
             self.image_status.setStyleSheet("color: green;")
@@ -1502,9 +1566,7 @@ class SamGeoPlugin:
                 self.sam.generate_masks_by_boxes(boxes=[self.box_coords])
             else:
                 # Fallback for older SamGeo versions
-                import numpy as np
-
-                self.sam.predict(box=np.array(self.box_coords))
+                self.sam.predict(boxes=list(self.box_coords))
             self.last_prompt_type = "box"
 
             num_masks = len(self.sam.masks) if self.sam.masks else 0

@@ -247,7 +247,8 @@ class SamGeo3:
         self.boxes = None
         self.scores = None
         self.mask_scores: Optional[Dict[int, float]] = None
-        self.prompt_type: Optional[str] = None
+        self.prompt_type = None
+        self._mask_metadata = {}
         self.logits = None
         self.objects = None
         self.prediction = None
@@ -262,7 +263,6 @@ class SamGeo3:
         self.sources_batch = None
         self.batch_state = None
         self.batch_results = None
-        self.prompt_type = None
 
     def _init_meta_backend(
         self,
@@ -417,6 +417,8 @@ class SamGeo3:
         self.sources_batch = None
         self.batch_state = None
         self.batch_results = None
+        self.prompt_type = None
+        self._mask_metadata = {}
 
         # Convert to PIL Image for processing
         image_for_processor = Image.fromarray(self.image)
@@ -505,6 +507,10 @@ class SamGeo3:
         # Store batch information
         self.images_batch = numpy_images
         self.sources_batch = sources
+        self.batch_results = None
+        self.source = None
+        self.prompt_type = None
+        self._mask_metadata = {}
 
         # Call the processor's set_image_batch method
         with self._meta_autocast():
@@ -977,6 +983,11 @@ class SamGeo3:
             # Save
             common.array_to_image(
                 mask_array, output_path, source, dtype=dtype, **kwargs
+            )
+            self._record_mask_output(
+                output_path,
+                source=source,
+                prompt_type=getattr(self, "prompt_type", None) or "text",
             )
             saved_files.append(output_path)
             print(
@@ -1564,6 +1575,7 @@ class SamGeo3:
         self.objects = output_mask
         self.source = source
         self.prompt_type = "text"
+        self._record_mask_output(output, source=source, prompt_type="text")
 
         return output
 
@@ -2702,6 +2714,7 @@ class SamGeo3:
             common.array_to_image(
                 mask_array, output, self.source, dtype=dtype, **kwargs
             )
+            self._record_mask_output(output)
             print(f"Saved {valid_mask_count} mask(s) to {output}")
 
             # Save scores if requested
@@ -2741,6 +2754,7 @@ class SamGeo3:
         array = self.masks[index] * mask_multiplier
         self.prediction = array
         common.array_to_image(array, output, self.source, dtype=dtype, **kwargs)
+        self._record_mask_output(output)
 
         if vector is not None:
             common.raster_to_vector(
@@ -3099,12 +3113,36 @@ class SamGeo3:
             plt.axis(axis)
             plt.show()
 
+    def _record_mask_output(
+        self,
+        output_path: str | None,
+        source: str | None = None,
+        prompt_type: str | None = None,
+    ) -> None:
+        """Record contextual vector attributes for a generated mask raster."""
+        if not isinstance(output_path, (str, os.PathLike)) or not str(output_path):
+            return
+        if not hasattr(self, "_mask_metadata") or self._mask_metadata is None:
+            self._mask_metadata = {}
+        src = getattr(self, "source", None) if source is None else source
+        ptype = (
+            getattr(self, "prompt_type", None) if prompt_type is None else prompt_type
+        )
+        meta: dict[str, Any] = {}
+        if isinstance(src, (str, os.PathLike)) and str(src):
+            meta["Name"] = os.path.basename(os.fspath(src))
+        if ptype:
+            meta["Type"] = ptype
+        self._mask_metadata[os.path.abspath(os.fspath(output_path))] = meta
+
     def _get_vector_attributes(
-        self, attributes: Optional[Dict[str, Any]] = None
-    ) -> Optional[Dict[str, Any]]:
+        self, attributes: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         """Build vector attributes dictionary from source image name and prompt type."""
-        attrs: Dict[str, Any] = {}
-        if isinstance(self.source, (str, os.PathLike)) and str(self.source):
+        attrs: dict[str, Any] = {}
+        if isinstance(getattr(self, "source", None), (str, os.PathLike)) and str(
+            self.source
+        ):
             attrs["Name"] = os.path.basename(os.fspath(self.source))
         if getattr(self, "prompt_type", None):
             attrs["Type"] = self.prompt_type
@@ -3115,8 +3153,8 @@ class SamGeo3:
     def raster_to_vector(
         self,
         raster: str,
-        vector: Optional[str] = None,
-        simplify_tolerance: Optional[float] = None,
+        vector: str | None = None,
+        simplify_tolerance: float | None = None,
         **kwargs,
     ) -> str:
         """Convert a raster image file to a vector dataset.
@@ -3131,7 +3169,20 @@ class SamGeo3:
         Returns:
             str: The path to the saved vector file.
         """
-        attributes = self._get_vector_attributes(kwargs.pop("attributes", None))
+        caller_attributes = kwargs.pop("attributes", None)
+        mask_meta = getattr(self, "_mask_metadata", None) or {}
+        norm_raster = (
+            os.path.abspath(os.fspath(raster))
+            if isinstance(raster, (str, os.PathLike)) and str(raster)
+            else None
+        )
+        if norm_raster and norm_raster in mask_meta:
+            recorded = dict(mask_meta[norm_raster])
+            if caller_attributes:
+                recorded.update(caller_attributes)
+            attributes = recorded if recorded else None
+        else:
+            attributes = dict(caller_attributes) if caller_attributes else None
         return common.raster_to_vector(
             raster,
             vector,

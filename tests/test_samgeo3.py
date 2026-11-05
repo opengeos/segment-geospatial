@@ -392,6 +392,10 @@ def test_samgeo3_tracks_prompt_type_and_vector_attributes(monkeypatch, samgeo3):
     monkeypatch.setattr(
         samgeo3.common, "raster_to_vector", fake_raster_to_vector, raising=False
     )
+    monkeypatch.setattr(
+        samgeo3.common, "array_to_image", lambda *a, **kw: None, raising=False
+    )
+    model.save_masks("/data/imagery/masks.tif")
     out_path = model.raster_to_vector(
         "/data/imagery/masks.tif",
         "/data/imagery/masks.shp",
@@ -403,3 +407,283 @@ def test_samgeo3_tracks_prompt_type_and_vector_attributes(monkeypatch, samgeo3):
         "Type": "point",
         "custom": "val",
     }
+
+    # Unrelated raster should not receive stale Name/Type from model state
+    model.raster_to_vector(
+        "/data/imagery/unrelated.tif",
+        "/data/imagery/unrelated.shp",
+    )
+    assert recorded["kwargs"]["attributes"] is None
+
+    model.raster_to_vector(
+        "/data/imagery/unrelated.tif",
+        "/data/imagery/unrelated.shp",
+        attributes={"custom": "only_custom"},
+    )
+    assert recorded["kwargs"]["attributes"] == {"custom": "only_custom"}
+
+
+def test_samgeo1_and_samgeo2_mask_metadata_and_prompt_types(monkeypatch):
+    import numpy as np
+
+    repo_root = Path(__file__).resolve().parents[1]
+    samgeo_dir = repo_root / "samgeo"
+
+    package = types.ModuleType("samgeo")
+    package.__path__ = [str(samgeo_dir)]
+
+    class _StubCommon(types.ModuleType):
+        def __getattr__(self, name):
+            return lambda *a, **kw: None
+
+    common = _StubCommon("samgeo.common")
+    package.common = common
+
+    seg_mod = types.ModuleType("segment_anything")
+    seg_mod.SamAutomaticMaskGenerator = Mock()
+    seg_mod.SamPredictor = Mock()
+    seg_mod.sam_model_registry = {}
+
+    monkeypatch.setitem(sys.modules, "cv2", types.ModuleType("cv2"))
+    monkeypatch.setitem(sys.modules, "segment_anything", seg_mod)
+    monkeypatch.setitem(sys.modules, "samgeo", package)
+    monkeypatch.setitem(sys.modules, "samgeo.common", common)
+
+    spec1 = importlib.util.spec_from_file_location(
+        "samgeo.samgeo", samgeo_dir / "samgeo.py"
+    )
+    mod1 = importlib.util.module_from_spec(spec1)
+    monkeypatch.setitem(sys.modules, "samgeo.samgeo", mod1)
+    spec1.loader.exec_module(mod1)
+    SamGeo = mod1.SamGeo
+
+    spec2 = importlib.util.spec_from_file_location(
+        "samgeo.samgeo2", samgeo_dir / "samgeo2.py"
+    )
+    mod2 = importlib.util.module_from_spec(spec2)
+    monkeypatch.setitem(sys.modules, "samgeo.samgeo2", mod2)
+    spec2.loader.exec_module(mod2)
+    SamGeo2 = mod2.SamGeo2
+
+    # --- SamGeo (SAM 1) ---
+    sam1 = SamGeo.__new__(SamGeo)
+    sam1.source = "/data/imagery/scene1.tif"
+    sam1.image = np.zeros((8, 8, 3), dtype=np.uint8)
+    sam1.masks = [{"segmentation": np.ones((8, 8), dtype=bool), "area": 64}]
+    sam1.prompt_type = "automatic"
+    sam1._mask_metadata = {}
+    sam1.device = "cpu"
+    sam1.predictor = Mock()
+    sam1.predictor.predict.return_value = (
+        np.ones((1, 8, 8), dtype=bool),
+        np.array([0.9]),
+        np.zeros((1, 8, 8), dtype=np.float32),
+    )
+
+    # Mask-only predict sets prompt_type to None rather than "automatic"
+    sam1.predict(mask_input=np.zeros((1, 8, 8), dtype=np.float32))
+    assert sam1.prompt_type is None
+
+    # Box predict sets prompt_type to "box"
+    sam1.predict(boxes=[0.0, 0.0, 4.0, 4.0])
+    assert sam1.prompt_type == "box"
+
+    recorded_sam1 = {}
+
+    def fake_r2v_sam1(source, output=None, simplify_tolerance=None, **kwargs):
+        recorded_sam1["kwargs"] = kwargs
+        return output or "out.gpkg"
+
+    monkeypatch.setattr(mod1, "raster_to_vector", fake_r2v_sam1, raising=False)
+    sam1.save_prediction("/data/imagery/pred1.tif")
+    sam1.raster_to_vector("/data/imagery/pred1.tif", "/data/imagery/pred1.gpkg")
+    assert recorded_sam1["kwargs"]["attributes"] == {
+        "Name": "scene1.tif",
+        "Type": "box",
+    }
+
+    # Unrelated raster on SamGeo does not get stale Name/Type
+    sam1.raster_to_vector("/data/imagery/other.tif", "/data/imagery/other.gpkg")
+    assert recorded_sam1["kwargs"]["attributes"] is None
+
+    # --- SamGeo2 (SAM 2) ---
+    sam2 = SamGeo2.__new__(SamGeo2)
+    sam2.source = "/data/imagery/scene2.tif"
+    sam2.image = np.zeros((8, 8, 3), dtype=np.uint8)
+    sam2.prompt_type = None
+    sam2._mask_metadata = {}
+    sam2.predictor = Mock()
+    sam2.predictor.predict.return_value = (
+        np.ones((1, 8, 8), dtype=bool),
+        np.array([0.95]),
+        np.zeros((1, 8, 8), dtype=np.float32),
+    )
+    sam2.predictor.predict_batch.return_value = (
+        [np.ones((1, 8, 8), dtype=bool)],
+        [np.array([0.95])],
+        [np.zeros((1, 8, 8), dtype=np.float32)],
+    )
+
+    # Mask-only predict sets prompt_type = "mask"
+    sam2.predict(mask_input=np.zeros((1, 8, 8), dtype=np.float32))
+    assert sam2.prompt_type == "mask"
+
+    # predict_by_points with box_batch sets prompt_type = "point_box"
+    sam2.predict_by_points(
+        point_coords_batch=[[2, 2]],
+        box_batch=[np.array([0, 0, 4, 4])],
+    )
+    assert sam2.prompt_type == "point_box"
+
+    recorded_sam2 = {}
+
+    def fake_r2v_sam2(source, output=None, simplify_tolerance=None, **kwargs):
+        recorded_sam2["kwargs"] = kwargs
+        return output or "out2.gpkg"
+
+    monkeypatch.setattr(common, "raster_to_vector", fake_r2v_sam2, raising=False)
+    sam2.save_masks("/data/imagery/pred2.tif")
+    sam2.raster_to_vector(
+        "/data/imagery/pred2.tif",
+        "/data/imagery/pred2.gpkg",
+        attributes={"extra": 1},
+    )
+    assert recorded_sam2["kwargs"]["attributes"] == {
+        "Name": "scene2.tif",
+        "Type": "point_box",
+        "extra": 1,
+    }
+
+    # Unrelated raster on SamGeo2 does not get stale Name/Type
+    sam2.raster_to_vector(
+        "/data/imagery/unrelated2.tif", "/data/imagery/unrelated2.gpkg"
+    )
+    assert recorded_sam2["kwargs"]["attributes"] is None
+
+
+def test_qgis_samgeo_plugin_selectable_sam1_and_sam2_weights(monkeypatch):
+    import numpy as np
+
+    samgeo3 = _load_samgeo3(monkeypatch)
+    samgeo3.common.prepare_image_for_sam = lambda img, bands=None: img
+
+    # Verify SamGeo3.set_image resets prompt_type and _mask_metadata
+    model = samgeo3.SamGeo3.__new__(samgeo3.SamGeo3)
+    model.backend = "transformers"
+    model.prompt_type = "text"
+    model._mask_metadata = {"/tmp/old.tif": {"Name": "old.tif", "Type": "text"}}
+    model.set_image(np.zeros((8, 8, 3), dtype=np.uint8))
+    assert model.prompt_type is None
+    assert model._mask_metadata == {}
+
+    # Load qgis-samgeo-plugin/samgeo_plugin.py with lightweight stubs
+    repo_root = Path(__file__).resolve().parents[1]
+    plugin_dir = repo_root / "qgis-samgeo-plugin"
+
+    qgis_mod = types.ModuleType("qgis")
+    pyqt_mod = types.ModuleType("qgis.PyQt")
+    qtcore_mod = types.ModuleType("qgis.PyQt.QtCore")
+    qtcore_mod.Qt = Mock()
+    qtcore_mod.QCoreApplication = Mock()
+    qtcore_mod.QVariant = Mock()
+    qtgui_mod = types.ModuleType("qgis.PyQt.QtGui")
+    qtgui_mod.QIcon = Mock()
+
+    class _StubWidgets(types.ModuleType):
+        def __getattr__(self, name):
+            return Mock()
+
+    qtwidgets_mod = _StubWidgets("qgis.PyQt.QtWidgets")
+    qgscore_mod = _StubWidgets("qgis.core")
+    map_tools_mod = types.ModuleType("qgis_samgeo_plugin.map_tools")
+    map_tools_mod.PointPromptTool = Mock()
+    map_tools_mod.BoxPromptTool = Mock()
+
+    pkg_mod = types.ModuleType("qgis_samgeo_plugin")
+    pkg_mod.__path__ = [str(plugin_dir)]
+
+    monkeypatch.setitem(sys.modules, "qgis", qgis_mod)
+    monkeypatch.setitem(sys.modules, "qgis.PyQt", pyqt_mod)
+    monkeypatch.setitem(sys.modules, "qgis.PyQt.QtCore", qtcore_mod)
+    monkeypatch.setitem(sys.modules, "qgis.PyQt.QtGui", qtgui_mod)
+    monkeypatch.setitem(sys.modules, "qgis.PyQt.QtWidgets", qtwidgets_mod)
+    monkeypatch.setitem(sys.modules, "qgis.core", qgscore_mod)
+    monkeypatch.setitem(sys.modules, "qgis_samgeo_plugin", pkg_mod)
+    monkeypatch.setitem(sys.modules, "qgis_samgeo_plugin.map_tools", map_tools_mod)
+
+    spec_p = importlib.util.spec_from_file_location(
+        "qgis_samgeo_plugin.samgeo_plugin", plugin_dir / "samgeo_plugin.py"
+    )
+    mod_p = importlib.util.module_from_spec(spec_p)
+    monkeypatch.setitem(sys.modules, "qgis_samgeo_plugin.samgeo_plugin", mod_p)
+    spec_p.loader.exec_module(mod_p)
+    SamGeoPlugin = mod_p.SamGeoPlugin
+
+    class _ComboStub:
+        def __init__(self, text=""):
+            self.items = []
+            self._text = text
+            self.enabled = True
+
+        def clear(self):
+            self.items.clear()
+
+        def addItems(self, items):
+            self.items.extend(items)
+            if self.items and not self._text:
+                self._text = self.items[0]
+
+        def currentText(self):
+            return self._text
+
+        def setEnabled(self, enabled):
+            self.enabled = enabled
+
+    plugin = SamGeoPlugin.__new__(SamGeoPlugin)
+    plugin.model_combo = _ComboStub("SamGeo2 (SAM2)")
+    plugin.model_id_combo = _ComboStub()
+    plugin.backend_combo = _ComboStub("meta")
+    plugin.device_combo = _ComboStub("cpu")
+    plugin.conf_spin = Mock(value=lambda: 0.5)
+    plugin.interactive_check = Mock(isChecked=lambda: True)
+    plugin.progress_bar = Mock()
+    plugin.model_status = Mock()
+    plugin.log_message = Mock()
+    plugin.show_error = Mock()
+
+    # Switching between SAM 2 and SAM 1 updates selectable weights
+    plugin.on_model_version_changed("SamGeo2 (SAM2)")
+    assert tuple(plugin.model_id_combo.items) == SamGeoPlugin.SAM2_MODELS
+    assert plugin.backend_combo.enabled is False
+
+    plugin.on_model_version_changed("SamGeo (SAM1)")
+    assert tuple(plugin.model_id_combo.items) == SamGeoPlugin.SAM1_MODELS
+    assert plugin.backend_combo.enabled is False
+
+    plugin.on_model_version_changed("SamGeo3 (SAM3)")
+    assert tuple(plugin.model_id_combo.items) == SamGeoPlugin.SAM3_MODELS
+    assert plugin.backend_combo.enabled is True
+
+    # Verify load_model passes selected SAM 2 and SAM 1 weights
+    fake_lib = types.ModuleType("qgis_samgeo_plugin._samgeo_lib")
+    fake_samgeo_ns = Mock()
+    fake_lib.get_samgeo = lambda: fake_samgeo_ns
+    monkeypatch.setitem(sys.modules, "qgis_samgeo_plugin._samgeo_lib", fake_lib)
+
+    plugin.model_combo._text = "SamGeo2 (SAM2)"
+    plugin.model_id_combo._text = "sam2-hiera-small"
+    plugin.load_model()
+    fake_samgeo_ns.SamGeo2.assert_called_once_with(
+        model_id="sam2-hiera-small",
+        device="cpu",
+        automatic=False,
+    )
+
+    plugin.model_combo._text = "SamGeo (SAM1)"
+    plugin.model_id_combo._text = "vit_b"
+    plugin.load_model()
+    fake_samgeo_ns.SamGeo.assert_called_once_with(
+        model_type="vit_b",
+        device="cpu",
+        automatic=False,
+    )

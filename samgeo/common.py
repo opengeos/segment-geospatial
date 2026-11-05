@@ -1480,15 +1480,24 @@ def raster_to_vector(
 
         if not isinstance(attributes, dict):
             raise ValueError("attributes must be a dictionary.")
+        if "value" in attributes:
+            raise ValueError(
+                "The attribute name 'value' is reserved for raster values."
+            )
         for key, val in attributes.items():
             if len(gdf) == 0:
+                if (
+                    isinstance(val, (list, tuple, np.ndarray, pd.Series))
+                    and len(val) != 0
+                ):
+                    raise ValueError(
+                        f"Length of attribute '{key}' ({len(val)}) does not match "
+                        f"feature count (0)."
+                    )
                 if isinstance(val, dict):
                     sample = next(iter(val.values()), None)
-                elif (
-                    isinstance(val, (list, tuple, np.ndarray, pd.Series))
-                    and len(val) > 0
-                ):
-                    sample = val[0]
+                elif isinstance(val, (list, tuple, np.ndarray, pd.Series)):
+                    sample = None
                 else:
                     sample = val
                 if isinstance(sample, bool):
