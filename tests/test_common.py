@@ -215,6 +215,15 @@ class TestCommon(unittest.TestCase):
             with self.assertRaises(ValueError):
                 common.raster_to_vector(mask_path, attributes={"value": "reserved"})
 
+            with self.assertWarns(UserWarning):
+                common.raster_to_vector(mask_path)
+            with self.assertWarns(UserWarning):
+                common.raster_to_gpkg(mask_path)
+            with self.assertWarns(UserWarning):
+                common.raster_to_shp(mask_path)
+            with self.assertWarns(UserWarning):
+                common.raster_to_geojson(mask_path)
+
     def test_github_raw_url(self):
         self.assertEqual(
             common.github_raw_url(

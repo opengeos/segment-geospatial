@@ -267,6 +267,9 @@ class SamGeo:
 
         self.source = source  # Store the input image path
         self.image = image  # Store the input image as a numpy array
+        self.scores = None
+        self.logits = None
+        self.prediction = None
         self.prompt_type = "automatic"
         self._mask_metadata = {}
         mask_generator = self.mask_generator  # The automatic mask generator
@@ -523,6 +526,13 @@ class SamGeo:
         else:
             raise ValueError("Input image must be either a path or a numpy array.")
 
+        self.masks = None
+        self.boxes = None
+        self.scores = None
+        self.logits = None
+        self.objects = None
+        self.prediction = None
+        self.mask_scores = None
         self.prompt_type = None
         self._mask_metadata = {}
         self.predictor.set_image(image, image_format=image_format)
@@ -558,6 +568,10 @@ class SamGeo:
 
         array = self.masks[index] * mask_multiplier
         self.prediction = array
+        try:
+            self.mask_scores = {int(mask_multiplier): float(self.scores[index])}
+        except (TypeError, ValueError, IndexError):
+            self.mask_scores = None
         array_to_image(array, output, self.source, dtype=dtype, **kwargs)
         self._record_mask_output(output)
 

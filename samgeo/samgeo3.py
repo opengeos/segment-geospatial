@@ -417,6 +417,13 @@ class SamGeo3:
         self.sources_batch = None
         self.batch_state = None
         self.batch_results = None
+        self.masks = None
+        self.boxes = None
+        self.scores = None
+        self.logits = None
+        self.objects = None
+        self.prediction = None
+        self.mask_scores = None
         self.prompt_type = None
         self._mask_metadata = {}
 

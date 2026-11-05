@@ -4,6 +4,7 @@ The source code is adapted from https://github.com/aliaksandr960/segment-anythin
 
 import os
 import tempfile
+import warnings
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import cv2
@@ -1451,6 +1452,12 @@ def raster_to_vector(
 
     if output is None:
         output = os.path.splitext(os.fspath(source))[0] + ".gpkg"
+        if os.path.exists(output):
+            warnings.warn(
+                f"Default output path '{output}' already exists and will be overwritten.",
+                UserWarning,
+                stacklevel=2,
+            )
 
     with rasterio.open(source) as src:
         band = src.read()
@@ -1560,6 +1567,12 @@ def raster_to_gpkg(tiff_path, output=None, simplify_tolerance=None, **kwargs):
 
     if output is None:
         output = os.path.splitext(os.fspath(tiff_path))[0] + ".gpkg"
+        if os.path.exists(output):
+            warnings.warn(
+                f"Default output path '{output}' already exists and will be overwritten.",
+                UserWarning,
+                stacklevel=2,
+            )
     else:
         output = os.fspath(output)
         if not output.endswith(".gpkg"):
@@ -1587,6 +1600,12 @@ def raster_to_shp(tiff_path, output=None, simplify_tolerance=None, **kwargs):
 
     if output is None:
         output = os.path.splitext(os.fspath(tiff_path))[0] + ".shp"
+        if os.path.exists(output):
+            warnings.warn(
+                f"Default output path '{output}' already exists and will be overwritten.",
+                UserWarning,
+                stacklevel=2,
+            )
     else:
         output = os.fspath(output)
         if not output.endswith(".shp"):
@@ -1614,6 +1633,12 @@ def raster_to_geojson(tiff_path, output=None, simplify_tolerance=None, **kwargs)
 
     if output is None:
         output = os.path.splitext(os.fspath(tiff_path))[0] + ".geojson"
+        if os.path.exists(output):
+            warnings.warn(
+                f"Default output path '{output}' already exists and will be overwritten.",
+                UserWarning,
+                stacklevel=2,
+            )
     else:
         output = os.fspath(output)
         if not output.endswith(".geojson"):

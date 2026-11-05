@@ -1195,7 +1195,7 @@ class SamGeoPlugin:
             self.sam.set_image(source)
             self.current_layer = layer
             self.current_image_path = source
-            self.last_prompt_type = None
+            self._reset_segmentation_state()
 
             self.image_status.setText(f"Image: {layer.name()}")
             self.image_status.setStyleSheet("color: green;")
@@ -1229,7 +1229,7 @@ class SamGeoPlugin:
             self.sam.set_image(file_path)
             self.current_image_path = file_path
             self.current_layer = None
-            self.last_prompt_type = None
+            self._reset_segmentation_state()
 
             self.image_status.setText(f"Image: {os.path.basename(file_path)}")
             self.image_status.setStyleSheet("color: green;")
@@ -1280,7 +1280,7 @@ class SamGeoPlugin:
             self.sam.generate_masks(prompt, min_size=min_size, max_size=max_size)
             self.last_prompt_type = "text"
 
-            num_masks = len(self.sam.masks) if self.sam.masks else 0
+            num_masks = self._get_mask_count()
             self.results_text.setText(
                 f"Text Segmentation Results:\n"
                 f"Prompt: {prompt}\n"
@@ -1461,7 +1461,7 @@ class SamGeoPlugin:
                 )
             self.last_prompt_type = "point"
 
-            num_masks = len(self.sam.masks) if self.sam.masks else 0
+            num_masks = self._get_mask_count()
             self.results_text.setText(
                 f"Point Segmentation Results:\n"
                 f"Points used: {len(self.point_coords)}\n"
@@ -1569,7 +1569,7 @@ class SamGeoPlugin:
                 self.sam.predict(boxes=list(self.box_coords))
             self.last_prompt_type = "box"
 
-            num_masks = len(self.sam.masks) if self.sam.masks else 0
+            num_masks = self._get_mask_count()
             self.results_text.setText(
                 f"Box Segmentation Results:\n"
                 f"Box: {self.box_coords}\n"
@@ -1700,7 +1700,7 @@ class SamGeoPlugin:
             )
             self.last_prompt_type = "point"
 
-            num_masks = len(self.sam.masks) if self.sam.masks else 0
+            num_masks = self._get_mask_count()
 
             # Update results
             result_text = (
@@ -1754,6 +1754,53 @@ class SamGeoPlugin:
         finally:
             self.progress_bar.setVisible(False)
 
+    def _reset_segmentation_state(self):
+        """Clear previous segmentation outputs when a new image is loaded."""
+        self.last_prompt_type = None
+        if self.sam is not None:
+            for attr in (
+                "masks",
+                "boxes",
+                "scores",
+                "logits",
+                "objects",
+                "prediction",
+                "mask_scores",
+            ):
+                if hasattr(self.sam, attr):
+                    setattr(self.sam, attr, None)
+
+    def _get_mask_count(self):
+        """Return the number of masks currently stored on self.sam."""
+        if self.sam is None:
+            return 0
+        masks = getattr(self.sam, "masks", None)
+        if masks is None:
+            return 0
+        if hasattr(masks, "ndim"):
+            if masks.size == 0 or not bool(masks.any()):
+                return 0
+            if (
+                not hasattr(self.sam, "generate_masks")
+                and getattr(self.sam, "scores", None) is not None
+            ):
+                return 1
+            return int(masks.shape[0])
+        return len(masks)
+
+    def _save_current_masks_to_raster(self, output_path, unique=True):
+        """Save current masks or prediction array to a raster file."""
+        masks = getattr(self.sam, "masks", None)
+        if (
+            hasattr(masks, "ndim")
+            and not hasattr(self.sam, "generate_masks")
+            and hasattr(self.sam, "save_prediction")
+            and getattr(self.sam, "scores", None) is not None
+        ):
+            self.sam.save_prediction(output_path)
+        else:
+            self.sam.save_masks(output=output_path, unique=unique)
+
     def _auto_show_results(self):
         """Automatically save and show results based on Output tab settings.
 
@@ -1764,7 +1811,7 @@ class SamGeoPlugin:
         if not self.auto_show_check.isChecked():
             return
 
-        if self.sam is None or self.sam.masks is None or len(self.sam.masks) == 0:
+        if self._get_mask_count() == 0:
             return
 
         import tempfile
@@ -1795,7 +1842,7 @@ class SamGeoPlugin:
 
             if "Raster" in format_text:
                 # Save as raster
-                self.sam.save_masks(output=output_path, unique=unique)
+                self._save_current_masks_to_raster(output_path, unique=unique)
 
                 if self.add_to_map_check.isChecked():
                     layer_name = (
@@ -1812,7 +1859,7 @@ class SamGeoPlugin:
                     suffix=".tif", delete=False
                 ).name
                 try:
-                    self.sam.save_masks(output=temp_raster, unique=unique)
+                    self._save_current_masks_to_raster(temp_raster, unique=unique)
 
                     # Convert raster to vector
                     try:
@@ -1914,7 +1961,7 @@ class SamGeoPlugin:
 
     def save_masks(self):
         """Save the segmentation masks."""
-        if self.sam is None or self.sam.masks is None or len(self.sam.masks) == 0:
+        if self._get_mask_count() == 0:
             self.show_error("No masks to save. Please run segmentation first.")
             return
 
@@ -1950,7 +1997,7 @@ class SamGeoPlugin:
 
             if "Raster" in format_text:
                 # Save as raster
-                self.sam.save_masks(output=output_path, unique=unique)
+                self._save_current_masks_to_raster(output_path, unique=unique)
 
                 if self.add_to_map_check.isChecked():
                     layer_name = (
@@ -1967,7 +2014,7 @@ class SamGeoPlugin:
                     suffix=".tif", delete=False
                 ).name
                 try:
-                    self.sam.save_masks(output=temp_raster, unique=unique)
+                    self._save_current_masks_to_raster(temp_raster, unique=unique)
 
                     # Convert raster to vector
                     try:

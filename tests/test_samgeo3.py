@@ -570,9 +570,15 @@ def test_qgis_samgeo_plugin_selectable_sam1_and_sam2_weights(monkeypatch):
     # Verify SamGeo3.set_image resets prompt_type and _mask_metadata
     model = samgeo3.SamGeo3.__new__(samgeo3.SamGeo3)
     model.backend = "transformers"
+    model.masks = [np.ones((8, 8), dtype=np.uint8)]
+    model.scores = np.array([0.9])
+    model.mask_scores = {1: 0.9}
     model.prompt_type = "text"
     model._mask_metadata = {"/tmp/old.tif": {"Name": "old.tif", "Type": "text"}}
     model.set_image(np.zeros((8, 8, 3), dtype=np.uint8))
+    assert model.masks is None
+    assert model.scores is None
+    assert model.mask_scores is None
     assert model.prompt_type is None
     assert model._mask_metadata == {}
 
@@ -687,3 +693,18 @@ def test_qgis_samgeo_plugin_selectable_sam1_and_sam2_weights(monkeypatch):
         device="cpu",
         automatic=False,
     )
+
+    # Verify SAM1/SAM2 prediction numpy arrays work in _get_mask_count and _save_current_masks_to_raster
+    sam1_inst = Mock(spec=["masks", "scores", "save_prediction", "save_masks", "set_image"])
+    sam1_inst.masks = np.ones((3, 8, 8), dtype=bool)
+    sam1_inst.scores = np.array([0.5, 0.9, 0.2])
+    plugin.sam = sam1_inst
+    assert plugin._get_mask_count() == 1
+    plugin._save_current_masks_to_raster("pred.tif", unique=True)
+    sam1_inst.save_prediction.assert_called_once_with("pred.tif")
+
+    # Verify _reset_segmentation_state clears stale masks/scores
+    plugin._reset_segmentation_state()
+    assert sam1_inst.masks is None
+    assert sam1_inst.scores is None
+    assert plugin._get_mask_count() == 0
