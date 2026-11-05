@@ -143,7 +143,9 @@ class SamGeo2:
         self.model_id = model_id
         self.model_version = "sam2"
         self.device = device
+        self.source: Optional[str] = None
         self.mask_scores: Optional[Dict[int, float]] = None
+        self.prompt_type: Optional[str] = None
 
         if video:
             automatic = False
@@ -256,6 +258,7 @@ class SamGeo2:
 
         self.source = source  # Store the input image path
         self.image = image  # Store the input image as a numpy array
+        self.prompt_type = "automatic"
         mask_generator = self.mask_generator  # The automatic mask generator
         masks = mask_generator.generate(image)  # Segment the input image
         self.masks = masks  # Store the masks as a list of dictionaries
@@ -520,12 +523,15 @@ class SamGeo2:
         elif isinstance(image, Image):
             image = common.prepare_image_for_sam(np.array(image), bands=bands)
             self.image = image
+            self.source = None
         elif isinstance(image, np.ndarray):
             image = common.prepare_image_for_sam(image, bands=bands)
             self.image = image
+            self.source = None
         else:
             raise ValueError("Input image must be either a path or a numpy array.")
 
+        self.prompt_type = None
         self.predictor.set_image(image)
 
     @torch.no_grad()
@@ -705,6 +711,14 @@ class SamGeo2:
         self.masks = masks
         self.scores = scores
         self.logits = logits
+        if point_coords is not None and input_boxes is not None:
+            self.prompt_type = "point_box"
+        elif point_coords is not None:
+            self.prompt_type = "point"
+        elif input_boxes is not None:
+            self.prompt_type = "box"
+        else:
+            self.prompt_type = "automatic"
 
         if output is not None:
             if boxes is None or (not isinstance(boxes[0], list)):
@@ -863,6 +877,7 @@ class SamGeo2:
         self.masks = output_masks
         self.scores = scores
         self.logits = logits
+        self.prompt_type = "point"
 
         if output is not None:
             self.save_masks(
@@ -1171,7 +1186,10 @@ class SamGeo2:
 
         if vector is not None:
             common.raster_to_vector(
-                output, vector, simplify_tolerance=simplify_tolerance
+                output,
+                vector,
+                simplify_tolerance=simplify_tolerance,
+                attributes=self._get_vector_attributes(),
             )
 
     def show_map(
@@ -1663,18 +1681,35 @@ class SamGeo2:
 
         plt.show()
 
-    def raster_to_vector(self, raster, vector, simplify_tolerance=None, **kwargs):
+    def _get_vector_attributes(
+        self, attributes: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Build vector attributes dictionary from source image name and prompt type."""
+        attrs: Dict[str, Any] = {}
+        if isinstance(getattr(self, "source", None), (str, os.PathLike)) and str(self.source):
+            attrs["Name"] = os.path.basename(os.fspath(self.source))
+        if getattr(self, "prompt_type", None):
+            attrs["Type"] = self.prompt_type
+        if attributes:
+            attrs.update(attributes)
+        return attrs if attrs else None
+
+    def raster_to_vector(self, raster, vector=None, simplify_tolerance=None, **kwargs):
         """Convert a raster image file to a vector dataset.
 
         Args:
             raster (str): The path to the raster image.
-            output (str): The path to the vector file.
+            vector (str, optional): The path to the vector file. Defaults to None.
             simplify_tolerance (float, optional): The maximum allowed geometry displacement.
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
-
-        common.raster_to_vector(
-            raster, vector, simplify_tolerance=simplify_tolerance, **kwargs
+        attributes = self._get_vector_attributes(kwargs.pop("attributes", None))
+        return common.raster_to_vector(
+            raster,
+            vector,
+            simplify_tolerance=simplify_tolerance,
+            attributes=attributes,
+            **kwargs,
         )
 
     def region_groups(

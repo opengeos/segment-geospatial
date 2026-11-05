@@ -332,3 +332,74 @@ def test_save_masks_promotes_dtype_so_scores_stay_aligned(monkeypatch, samgeo3):
 
     with pytest.raises(ValueError, match="integer dtype"):
         model.save_masks(output=None, dtype="float32")
+
+
+def test_samgeo3_tracks_prompt_type_and_vector_attributes(monkeypatch, samgeo3):
+    """SamGeo3 tracks prompt_type across prompts and attaches Name/Type to vectors."""
+    import numpy as np
+
+    model = samgeo3.SamGeo3.__new__(samgeo3.SamGeo3)
+    model.backend = "meta"
+    model.device = "cpu"
+    model.source = "/data/imagery/aerial_scene.tif"
+    model.image_height = 8
+    model.image_width = 8
+    model.inference_state = {
+        "masks": [np.ones((8, 8), dtype=bool)],
+        "boxes": [np.array([0, 0, 4, 4])],
+        "scores": [0.92],
+    }
+    model.processor = Mock()
+    model.processor.set_text_prompt.return_value = model.inference_state
+    model.processor.add_geometric_prompt.return_value = model.inference_state
+
+    # Text prompt sets prompt_type = "text"
+    model.generate_masks("building", quiet=True)
+    assert model.prompt_type == "text"
+    assert model._get_vector_attributes() == {
+        "Name": "aerial_scene.tif",
+        "Type": "text",
+    }
+
+    # Box prompt sets prompt_type = "box"
+    model.generate_masks_by_boxes([[0, 0, 4, 4]])
+    assert model.prompt_type == "box"
+    assert model._get_vector_attributes() == {
+        "Name": "aerial_scene.tif",
+        "Type": "box",
+    }
+
+    # Point prompt via predict_inst sets prompt_type = "point"
+    dummy_model = Mock()
+    dummy_model.inst_interactive_predictor = True
+    dummy_model.predict_inst.return_value = (
+        np.ones((1, 8, 8), dtype=bool),
+        np.array([0.88]),
+        np.zeros((1, 8, 8), dtype=np.float32),
+    )
+    model.model = dummy_model
+    model.predict_inst(point_coords=[[2, 2]], point_labels=[1])
+    assert model.prompt_type == "point"
+
+    recorded = {}
+
+    def fake_raster_to_vector(source, output=None, simplify_tolerance=None, **kwargs):
+        recorded["source"] = source
+        recorded["output"] = output
+        recorded["kwargs"] = kwargs
+        return output or "/data/imagery/masks.gpkg"
+
+    monkeypatch.setattr(
+        samgeo3.common, "raster_to_vector", fake_raster_to_vector, raising=False
+    )
+    out_path = model.raster_to_vector(
+        "/data/imagery/masks.tif",
+        "/data/imagery/masks.shp",
+        attributes={"custom": "val"},
+    )
+    assert out_path == "/data/imagery/masks.shp"
+    assert recorded["kwargs"]["attributes"] == {
+        "Name": "aerial_scene.tif",
+        "Type": "point",
+        "custom": "val",
+    }

@@ -74,6 +74,7 @@ class SamGeoPlugin:
         self.sam = None
         self.current_layer = None
         self.current_image_path = None
+        self.last_prompt_type = None
 
         # Point and box prompts
         self.point_coords = []
@@ -850,7 +851,7 @@ class SamGeoPlugin:
         output_path_row = QHBoxLayout()
         self.output_path_edit = QLineEdit()
         self.output_path_edit.setPlaceholderText(
-            "Output file path (optional, uses temp file if empty)..."
+            "Output file path (optional, uses source directory if empty)..."
         )
         output_path_row.addWidget(self.output_path_edit)
 
@@ -923,10 +924,74 @@ class SamGeoPlugin:
         if file_path:
             self.vector_file_edit.setText(file_path)
 
+    def _get_default_output_path(self, format_text=None):
+        """Return a default output file path in the source image's local directory.
+
+        Args:
+            format_text (str, optional): Output format label from the UI combo box.
+
+        Returns:
+            str | None: Default file path in the source image directory, or None
+                if no writable local directory is available.
+        """
+        if format_text is None and hasattr(self, "output_format_combo"):
+            format_text = self.output_format_combo.currentText()
+        format_text = format_text or ""
+
+        if "GeoPackage" in format_text:
+            ext = ".gpkg"
+        elif "Shapefile" in format_text:
+            ext = ".shp"
+        else:
+            ext = ".tif"
+
+        if self.current_image_path:
+            source_path = self.current_image_path.split("|")[0]
+            source_dir = os.path.dirname(source_path)
+            if (
+                source_dir
+                and os.path.isdir(source_dir)
+                and os.access(source_dir, os.W_OK)
+            ):
+                stem = os.path.splitext(os.path.basename(source_path))[0] or "masks"
+                prompt_type = self.last_prompt_type or getattr(
+                    self.sam, "prompt_type", None
+                )
+                base_name = (
+                    f"{stem}_{prompt_type}_masks" if prompt_type else f"{stem}_masks"
+                )
+                candidate = os.path.join(source_dir, f"{base_name}{ext}")
+                counter = 1
+                while os.path.exists(candidate):
+                    candidate = os.path.join(
+                        source_dir, f"{base_name}_{counter}{ext}"
+                    )
+                    counter += 1
+                return candidate
+        return None
+
+    def _get_vector_attributes(self):
+        """Return contextual attributes (Name and Type) for vector mask exports."""
+        attrs = {}
+        if self.current_image_path:
+            source_path = self.current_image_path.split("|")[0]
+            attrs["Name"] = os.path.basename(source_path)
+        prompt_type = self.last_prompt_type or getattr(
+            self.sam, "prompt_type", None
+        )
+        if prompt_type:
+            attrs["Type"] = str(prompt_type)
+        return attrs
+
     def browse_batch_output(self):
         """Browse for batch output file location."""
+        default_path = (
+            self.batch_output_edit.text().strip()
+            or self._get_default_output_path("Raster")
+            or ""
+        )
         file_path, _ = QFileDialog.getSaveFileName(
-            self.iface.mainWindow(), "Save Batch Output", "", "GeoTIFF (*.tif)"
+            self.iface.mainWindow(), "Save Batch Output", default_path, "GeoTIFF (*.tif)"
         )
         if file_path:
             self.batch_output_edit.setText(file_path)
@@ -952,8 +1017,13 @@ class SamGeoPlugin:
         else:
             filter_str = "GeoTIFF (*.tif)"
 
+        default_path = (
+            self.output_path_edit.text().strip()
+            or self._get_default_output_path(format_text)
+            or ""
+        )
         file_path, _ = QFileDialog.getSaveFileName(
-            self.iface.mainWindow(), "Save Output", "", filter_str
+            self.iface.mainWindow(), "Save Output", default_path, filter_str
         )
         if file_path:
             self.output_path_edit.setText(file_path)
@@ -1144,6 +1214,7 @@ class SamGeoPlugin:
             )
 
             self.sam.generate_masks(prompt, min_size=min_size, max_size=max_size)
+            self.last_prompt_type = "text"
 
             num_masks = len(self.sam.masks) if self.sam.masks else 0
             self.results_text.setText(
@@ -1324,6 +1395,7 @@ class SamGeoPlugin:
                     point_coords=point_coords,
                     point_labels=point_labels,
                 )
+            self.last_prompt_type = "point"
 
             num_masks = len(self.sam.masks) if self.sam.masks else 0
             self.results_text.setText(
@@ -1433,6 +1505,7 @@ class SamGeoPlugin:
                 import numpy as np
 
                 self.sam.predict(box=np.array(self.box_coords))
+            self.last_prompt_type = "box"
 
             num_masks = len(self.sam.masks) if self.sam.masks else 0
             self.results_text.setText(
@@ -1563,6 +1636,7 @@ class SamGeoPlugin:
                 min_size=min_size,
                 max_size=max_size,
             )
+            self.last_prompt_type = "point"
 
             num_masks = len(self.sam.masks) if self.sam.masks else 0
 
@@ -1636,8 +1710,10 @@ class SamGeoPlugin:
         format_text = self.output_format_combo.currentText()
         output_path = self.output_path_edit.text().strip()
 
-        # Generate temp file path if not specified
+        # Default to source image directory if output path is not specified
         use_temp_file = False
+        if not output_path:
+            output_path = self._get_default_output_path(format_text)
         if not output_path:
             use_temp_file = True
             if "Raster" in format_text:
@@ -1683,8 +1759,13 @@ class SamGeoPlugin:
                         from _samgeo_lib import get_samgeo
 
                     common = get_samgeo().common
-
-                    common.raster_to_vector(temp_raster, output_path)
+                    vector_attrs = self._get_vector_attributes()
+                    try:
+                        common.raster_to_vector(
+                            temp_raster, output_path, attributes=vector_attrs
+                        )
+                    except TypeError:
+                        common.raster_to_vector(temp_raster, output_path)
                     self._attach_mask_scores(output_path)
 
                     if self.add_to_map_check.isChecked():
@@ -1710,40 +1791,62 @@ class SamGeoPlugin:
             self.show_error(f"Auto-show failed: {str(e)}")
 
     def _attach_mask_scores(self, output_path):
-        """Write each mask's confidence score into the saved vector layer.
+        """Write contextual attributes (Name, Type) and confidence score into the vector layer.
 
         ``save_masks`` records ``mask_scores`` (raster value -> confidence) on
         the model (segment-geospatial >= 1.4.2), and ``raster_to_vector``
         keeps the raster value in a ``value`` field, so the two are joined
-        here as a ``score`` attribute. Older segment-geospatial versions have
-        no ``mask_scores`` and the layer is left unchanged.
+        here as a ``score`` attribute alongside source image ``Name`` and
+        prompt ``Type``.
 
         Args:
             output_path: Path of the vector file written by raster_to_vector.
         """
         scores = getattr(self.sam, "mask_scores", None)
-        if not scores:
+        vector_attrs = self._get_vector_attributes()
+        if not scores and not vector_attrs:
             return
         layer = QgsVectorLayer(output_path, "samgeo_scores", "ogr")
         if not layer.isValid():
             return
-        value_idx = layer.fields().indexOf("value")
-        if value_idx < 0:
-            return
         provider = layer.dataProvider()
-        if layer.fields().indexOf("score") < 0:
-            if not provider.addAttributes([QgsField("score", QVariant.Double)]):
+        new_fields = []
+        for field_name in ("Name", "Type"):
+            if field_name in vector_attrs and layer.fields().indexOf(field_name) < 0:
+                new_fields.append(QgsField(field_name, QVariant.String))
+        value_idx = layer.fields().indexOf("value")
+        if scores and value_idx >= 0 and layer.fields().indexOf("score") < 0:
+            new_fields.append(QgsField("score", QVariant.Double))
+        if new_fields:
+            if not provider.addAttributes(new_fields):
                 return
             layer.updateFields()
-        score_idx = layer.fields().indexOf("score")
+
+        name_idx = (
+            layer.fields().indexOf("Name") if "Name" in vector_attrs else -1
+        )
+        type_idx = (
+            layer.fields().indexOf("Type") if "Type" in vector_attrs else -1
+        )
+        score_idx = (
+            layer.fields().indexOf("score") if (scores and value_idx >= 0) else -1
+        )
         changes = {}
         for feature in layer.getFeatures():
-            try:
-                key = int(feature[value_idx])
-            except (TypeError, ValueError):
-                continue
-            if key in scores:
-                changes[feature.id()] = {score_idx: float(scores[key])}
+            feat_changes = {}
+            if name_idx >= 0 and not feature[name_idx]:
+                feat_changes[name_idx] = vector_attrs["Name"]
+            if type_idx >= 0 and not feature[type_idx]:
+                feat_changes[type_idx] = vector_attrs["Type"]
+            if score_idx >= 0:
+                try:
+                    key = int(feature[value_idx])
+                except (TypeError, ValueError):
+                    key = None
+                if key is not None and key in scores:
+                    feat_changes[score_idx] = float(scores[key])
+            if feat_changes:
+                changes[feature.id()] = feat_changes
         if changes:
             provider.changeAttributeValues(changes)
 
@@ -1758,8 +1861,10 @@ class SamGeoPlugin:
         output_path = self.output_path_edit.text().strip()
         format_text = self.output_format_combo.currentText()
 
-        # Generate temp file path if not specified
+        # Default to source image directory if output path is not specified
         use_temp_file = False
+        if not output_path:
+            output_path = self._get_default_output_path(format_text)
         if not output_path:
             use_temp_file = True
             if "Raster" in format_text:
@@ -1809,8 +1914,13 @@ class SamGeoPlugin:
                         from _samgeo_lib import get_samgeo
 
                     common = get_samgeo().common
-
-                    common.raster_to_vector(temp_raster, output_path)
+                    vector_attrs = self._get_vector_attributes()
+                    try:
+                        common.raster_to_vector(
+                            temp_raster, output_path, attributes=vector_attrs
+                        )
+                    except TypeError:
+                        common.raster_to_vector(temp_raster, output_path)
                     self._attach_mask_scores(output_path)
 
                     if self.add_to_map_check.isChecked():
@@ -1903,6 +2013,7 @@ class SamGeoPlugin:
                 # Also clear internal state for image and layer
                 self.current_image_path = None
                 self.current_layer = None
+                self.last_prompt_type = None
 
             except Exception:  # nosec B110
                 pass
