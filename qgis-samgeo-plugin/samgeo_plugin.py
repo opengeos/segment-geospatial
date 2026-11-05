@@ -56,7 +56,7 @@ class SamGeoPlugin:
         "sam2-hiera-small",
         "sam2-hiera-tiny",
     )
-    SAM3_MODELS = ("facebook/sam3",)
+    SAM3_MODELS = ("facebook/sam3", "facebook/sam3.1")
 
     def __init__(self, iface):
         """Initialize the plugin.
@@ -482,6 +482,7 @@ class SamGeoPlugin:
         weights_row = QHBoxLayout()
         weights_row.addWidget(QLabel("Weights:"))
         self.model_id_combo = QComboBox()
+        self.model_id_combo.currentTextChanged.connect(self.on_model_weight_changed)
         weights_row.addWidget(self.model_id_combo)
         backend_layout.addLayout(weights_row)
 
@@ -1059,8 +1060,9 @@ class SamGeoPlugin:
         self.model_id_combo.clear()
         if "SamGeo3" in model_version:
             self.model_id_combo.addItems(self.SAM3_MODELS)
-            if hasattr(self, "backend_combo") and self.backend_combo is not None:
-                self.backend_combo.setEnabled(True)
+            self.on_model_weight_changed(
+                self.model_id_combo.currentText(), model_version=model_version
+            )
         elif "SamGeo2" in model_version:
             self.model_id_combo.addItems(self.SAM2_MODELS)
             if hasattr(self, "backend_combo") and self.backend_combo is not None:
@@ -1069,6 +1071,26 @@ class SamGeoPlugin:
             self.model_id_combo.addItems(self.SAM1_MODELS)
             if hasattr(self, "backend_combo") and self.backend_combo is not None:
                 self.backend_combo.setEnabled(False)
+
+    def on_model_weight_changed(self, weight, model_version=None):
+        """Update backend availability when model weights change."""
+        if not hasattr(self, "backend_combo") or self.backend_combo is None:
+            return
+        if model_version is None:
+            model_version = (
+                self.model_combo.currentText()
+                if hasattr(self, "model_combo") and self.model_combo is not None
+                else ""
+            )
+        if "SamGeo3" not in model_version:
+            self.backend_combo.setEnabled(False)
+            return
+        if weight.strip() == "facebook/sam3.1":
+            if hasattr(self.backend_combo, "setCurrentText"):
+                self.backend_combo.setCurrentText("meta")
+            self.backend_combo.setEnabled(False)
+        else:
+            self.backend_combo.setEnabled(True)
 
     def load_model(self):
         """Load the SamGeo model."""
@@ -1102,14 +1124,28 @@ class SamGeoPlugin:
 
                 samgeo = get_samgeo()
                 SamGeo3 = samgeo.SamGeo3
+                model_id = (
+                    selected_weight
+                    if selected_weight in self.SAM3_MODELS
+                    else self.SAM3_MODELS[0]
+                )
+                if model_id == "facebook/sam3.1" and backend != "meta":
+                    backend = "meta"
+                    if (
+                        hasattr(self, "backend_combo")
+                        and self.backend_combo is not None
+                        and hasattr(self.backend_combo, "setCurrentText")
+                    ):
+                        self.backend_combo.setCurrentText("meta")
 
                 self.sam = SamGeo3(
                     backend=backend,
+                    model_id=model_id,
                     device=device,
                     confidence_threshold=confidence,
                     enable_inst_interactivity=enable_interactive,
                 )
-                model_name = "SamGeo3"
+                model_name = f"SamGeo3 ({model_id})"
             elif "SamGeo2" in model_version:
                 try:
                     from ._samgeo_lib import get_samgeo

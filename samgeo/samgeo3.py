@@ -3490,6 +3490,8 @@ class SamGeo3:
             self.prompt_type = "point"
         elif box is not None:
             self.prompt_type = "box"
+        elif mask_input is not None:
+            self.prompt_type = "mask"
 
         # Store point prompts for visualization
         if point_coords is not None:

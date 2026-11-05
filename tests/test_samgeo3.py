@@ -633,6 +633,7 @@ def test_qgis_samgeo_plugin_selectable_sam1_and_sam2_weights(monkeypatch):
 
         def clear(self):
             self.items.clear()
+            self._text = ""
 
         def addItems(self, items):
             self.items.extend(items)
@@ -641,6 +642,9 @@ def test_qgis_samgeo_plugin_selectable_sam1_and_sam2_weights(monkeypatch):
 
         def currentText(self):
             return self._text
+
+        def setCurrentText(self, text):
+            self._text = text
 
         def setEnabled(self, enabled):
             self.enabled = enabled
@@ -666,9 +670,15 @@ def test_qgis_samgeo_plugin_selectable_sam1_and_sam2_weights(monkeypatch):
     assert tuple(plugin.model_id_combo.items) == SamGeoPlugin.SAM1_MODELS
     assert plugin.backend_combo.enabled is False
 
+    plugin.model_combo.setCurrentText("SamGeo3 (SAM3)")
     plugin.on_model_version_changed("SamGeo3 (SAM3)")
     assert tuple(plugin.model_id_combo.items) == SamGeoPlugin.SAM3_MODELS
+    assert "facebook/sam3.1" in SamGeoPlugin.SAM3_MODELS
     assert plugin.backend_combo.enabled is True
+    plugin.backend_combo.setCurrentText("transformers")
+    plugin.on_model_weight_changed("facebook/sam3.1")
+    assert plugin.backend_combo.currentText() == "meta"
+    assert plugin.backend_combo.enabled is False
 
     # Verify load_model passes selected SAM 2 and SAM 1 weights
     fake_lib = types.ModuleType("qgis_samgeo_plugin._samgeo_lib")
@@ -692,6 +702,18 @@ def test_qgis_samgeo_plugin_selectable_sam1_and_sam2_weights(monkeypatch):
         model_type="vit_b",
         device="cpu",
         automatic=False,
+    )
+
+    plugin.model_combo._text = "SamGeo3 (SAM3)"
+    plugin.model_id_combo._text = "facebook/sam3.1"
+    plugin.backend_combo._text = "transformers"
+    plugin.load_model()
+    fake_samgeo_ns.SamGeo3.assert_called_once_with(
+        backend="meta",
+        model_id="facebook/sam3.1",
+        device="cpu",
+        confidence_threshold=0.5,
+        enable_inst_interactivity=True,
     )
 
     # Verify SAM1/SAM2 prediction numpy arrays work in _get_mask_count and _save_current_masks_to_raster
