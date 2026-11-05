@@ -120,6 +120,8 @@ class SamGeo:
         self.scores = None
         self.logits = None
         self.mask_scores = None
+        self.prompt_type = None
+        self._mask_metadata = {}
 
         # Build the SAM model
         self.sam = sam_model_registry[self.model_type](checkpoint=self.checkpoint)
@@ -235,7 +237,11 @@ class SamGeo:
             if batch:  # Subdivide the image into tiles and segment each tile
                 self.batch = True
                 self.source = source
+                self.prompt_type = "automatic"
+                self._mask_metadata = {}
                 self.masks = output
+                if output is not None:
+                    self._record_mask_output(output)
                 return tiff_to_tiff(
                     source,
                     output,
@@ -261,6 +267,11 @@ class SamGeo:
 
         self.source = source  # Store the input image path
         self.image = image  # Store the input image as a numpy array
+        self.scores = None
+        self.logits = None
+        self.prediction = None
+        self.prompt_type = "automatic"
+        self._mask_metadata = {}
         mask_generator = self.mask_generator  # The automatic mask generator
         masks = mask_generator.generate(image)  # Segment the input image
         self.masks = masks  # Store the masks as a list of dictionaries
@@ -380,6 +391,7 @@ class SamGeo:
 
         if output is not None:  # Save the output image
             array_to_image(self.objects, output, self.source, **kwargs)
+            self._record_mask_output(output)
 
     def show_masks(
         self, figsize=(12, 10), cmap="binary_r", axis="off", foreground=True, **kwargs
@@ -510,9 +522,19 @@ class SamGeo:
         elif isinstance(image, np.ndarray):
             image = prepare_image_for_sam(image, bands=bands)
             self.image = image
+            self.source = None
         else:
             raise ValueError("Input image must be either a path or a numpy array.")
 
+        self.masks = None
+        self.boxes = None
+        self.scores = None
+        self.logits = None
+        self.objects = None
+        self.prediction = None
+        self.mask_scores = None
+        self.prompt_type = None
+        self._mask_metadata = {}
         self.predictor.set_image(image, image_format=image_format)
 
     def save_prediction(
@@ -546,10 +568,20 @@ class SamGeo:
 
         array = self.masks[index] * mask_multiplier
         self.prediction = array
+        try:
+            self.mask_scores = {int(mask_multiplier): float(self.scores[index])}
+        except (TypeError, ValueError, IndexError):
+            self.mask_scores = None
         array_to_image(array, output, self.source, dtype=dtype, **kwargs)
+        self._record_mask_output(output)
 
         if vector is not None:
-            raster_to_vector(output, vector, simplify_tolerance=simplify_tolerance)
+            raster_to_vector(
+                output,
+                vector,
+                simplify_tolerance=simplify_tolerance,
+                attributes=self._get_vector_attributes(raster_path=output),
+            )
 
     def predict(
         self,
@@ -700,6 +732,17 @@ class SamGeo:
         self.masks = masks
         self.scores = scores
         self.logits = logits
+        has_boxes = input_boxes is not None or boxes is not None
+        if point_coords is not None and has_boxes:
+            self.prompt_type = "point_box"
+        elif point_coords is not None:
+            self.prompt_type = "point"
+        elif has_boxes:
+            self.prompt_type = "box"
+        elif mask_input is None:
+            self.prompt_type = "automatic"
+        else:
+            self.prompt_type = None
 
         if output is not None:
             if boxes is None or (not isinstance(boxes[0], list)):
@@ -767,6 +810,7 @@ class SamGeo:
 
         if output is not None:
             array_to_image(mask_overlay, output, self.source, dtype=dtype, **save_args)
+            self._record_mask_output(output)
         else:
             return mask_overlay
 
@@ -822,72 +866,148 @@ class SamGeo:
         image = draw_tile(source, pt1[0], pt1[1], pt2[0], pt2[1], zoom, dist)
         return image
 
-    def raster_to_vector(self, image, output, simplify_tolerance=None, **kwargs):
+    def _record_mask_output(self, output_path):
+        """Record contextual vector attributes for a generated mask raster."""
+        if not isinstance(output_path, (str, os.PathLike)) or not str(output_path):
+            return
+        if not hasattr(self, "_mask_metadata") or self._mask_metadata is None:
+            self._mask_metadata = {}
+        self._mask_metadata[os.path.abspath(os.fspath(output_path))] = dict(
+            self._get_vector_attributes() or {}
+        )
+
+    def _get_vector_attributes(self, attributes=None, raster_path=None):
+        """Build vector attributes dictionary from source image name and prompt type."""
+        attrs = {}
+        if raster_path is not None:
+            norm_path = (
+                os.path.abspath(os.fspath(raster_path))
+                if isinstance(raster_path, (str, os.PathLike)) and str(raster_path)
+                else None
+            )
+            mask_meta = getattr(self, "_mask_metadata", None) or {}
+            if norm_path and norm_path in mask_meta:
+                attrs.update(mask_meta[norm_path])
+            elif (
+                norm_path
+                and isinstance(getattr(self, "source", None), (str, os.PathLike))
+                and str(self.source)
+                and norm_path == os.path.abspath(os.fspath(self.source))
+            ):
+                attrs["Name"] = os.path.basename(os.fspath(self.source))
+                if getattr(self, "prompt_type", None):
+                    attrs["Type"] = self.prompt_type
+        else:
+            if isinstance(getattr(self, "source", None), (str, os.PathLike)) and str(
+                self.source
+            ):
+                attrs["Name"] = os.path.basename(os.fspath(self.source))
+            if getattr(self, "prompt_type", None):
+                attrs["Type"] = self.prompt_type
+        if attributes:
+            attrs.update(attributes)
+        return attrs if attrs else None
+
+    def raster_to_vector(self, image, output=None, simplify_tolerance=None, **kwargs):
         """Save the result to a vector file.
 
         Args:
             image (str): The path to the image file.
-            output (str): The path to the vector file.
+            output (str, optional): The path to the vector file. Defaults to None.
             simplify_tolerance (float, optional): The maximum allowed geometry displacement.
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
+        attributes = self._get_vector_attributes(
+            kwargs.pop("attributes", None), raster_path=image
+        )
+        return raster_to_vector(
+            image,
+            output,
+            simplify_tolerance=simplify_tolerance,
+            attributes=attributes,
+            **kwargs,
+        )
 
-        raster_to_vector(image, output, simplify_tolerance=simplify_tolerance, **kwargs)
-
-    def tiff_to_vector(self, tiff_path, output, simplify_tolerance=None, **kwargs):
+    def tiff_to_vector(self, tiff_path, output=None, simplify_tolerance=None, **kwargs):
         """Convert a tiff file to a gpkg file.
 
         Args:
             tiff_path (str): The path to the tiff file.
-            output (str): The path to the vector file.
+            output (str, optional): The path to the vector file. Defaults to None.
             simplify_tolerance (float, optional): The maximum allowed geometry displacement.
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
-
-        raster_to_vector(
-            tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs
+        attributes = self._get_vector_attributes(
+            kwargs.pop("attributes", None), raster_path=tiff_path
+        )
+        return raster_to_vector(
+            tiff_path,
+            output,
+            simplify_tolerance=simplify_tolerance,
+            attributes=attributes,
+            **kwargs,
         )
 
-    def tiff_to_gpkg(self, tiff_path, output, simplify_tolerance=None, **kwargs):
+    def tiff_to_gpkg(self, tiff_path, output=None, simplify_tolerance=None, **kwargs):
         """Convert a tiff file to a gpkg file.
 
         Args:
             tiff_path (str): The path to the tiff file.
-            output (str): The path to the gpkg file.
+            output (str, optional): The path to the gpkg file. Defaults to None.
             simplify_tolerance (float, optional): The maximum allowed geometry displacement.
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
-
-        raster_to_gpkg(
-            tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs
+        attributes = self._get_vector_attributes(
+            kwargs.pop("attributes", None), raster_path=tiff_path
+        )
+        return raster_to_gpkg(
+            tiff_path,
+            output,
+            simplify_tolerance=simplify_tolerance,
+            attributes=attributes,
+            **kwargs,
         )
 
-    def tiff_to_shp(self, tiff_path, output, simplify_tolerance=None, **kwargs):
+    def tiff_to_shp(self, tiff_path, output=None, simplify_tolerance=None, **kwargs):
         """Convert a tiff file to a shapefile.
 
         Args:
             tiff_path (str): The path to the tiff file.
-            output (str): The path to the shapefile.
+            output (str, optional): The path to the shapefile. Defaults to None.
             simplify_tolerance (float, optional): The maximum allowed geometry displacement.
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
-
-        raster_to_shp(
-            tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs
+        attributes = self._get_vector_attributes(
+            kwargs.pop("attributes", None), raster_path=tiff_path
+        )
+        return raster_to_shp(
+            tiff_path,
+            output,
+            simplify_tolerance=simplify_tolerance,
+            attributes=attributes,
+            **kwargs,
         )
 
-    def tiff_to_geojson(self, tiff_path, output, simplify_tolerance=None, **kwargs):
+    def tiff_to_geojson(
+        self, tiff_path, output=None, simplify_tolerance=None, **kwargs
+    ):
         """Convert a tiff file to a GeoJSON file.
 
         Args:
             tiff_path (str): The path to the tiff file.
-            output (str): The path to the GeoJSON file.
+            output (str, optional): The path to the GeoJSON file. Defaults to None.
             simplify_tolerance (float, optional): The maximum allowed geometry displacement.
                 The higher this value, the smaller the number of vertices in the resulting geometry.
         """
-
-        raster_to_geojson(
-            tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs
+        attributes = self._get_vector_attributes(
+            kwargs.pop("attributes", None), raster_path=tiff_path
+        )
+        return raster_to_geojson(
+            tiff_path,
+            output,
+            simplify_tolerance=simplify_tolerance,
+            attributes=attributes,
+            **kwargs,
         )
 
 

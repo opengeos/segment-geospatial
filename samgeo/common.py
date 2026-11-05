@@ -4,6 +4,7 @@ The source code is adapted from https://github.com/aliaksandr960/segment-anythin
 
 import os
 import tempfile
+import warnings
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import cv2
@@ -1419,16 +1420,44 @@ def draw_tile(source, lat0, lon0, lat1, lon1, zoom, filename, **kwargs):
     return image
 
 
-def raster_to_vector(source, output, simplify_tolerance=None, dst_crs=None, **kwargs):
+def raster_to_vector(
+    source,
+    output=None,
+    simplify_tolerance=None,
+    dst_crs=None,
+    attributes=None,
+    **kwargs,
+):
     """Vectorize a raster dataset.
 
     Args:
         source (str): The path to the tiff file.
-        output (str): The path to the vector file.
+        output (str, optional): The path to the vector file. If None, defaults
+            to the same directory and stem as ``source`` with a ``.gpkg``
+            extension. Defaults to None.
         simplify_tolerance (float, optional): The maximum allowed geometry displacement.
             The higher this value, the smaller the number of vertices in the resulting geometry.
+        dst_crs (str, optional): The destination CRS to reproject the vector
+            dataset to. Defaults to None.
+        attributes (dict, optional): Additional attributes (column name -> value)
+            to attach to the output vector features (e.g., ``{"Name": "img.tif",
+            "Type": "point"}``). Values may be scalars (broadcast to all features),
+            dictionaries mapping raster ``value`` to attribute values, or sequences
+            matching the feature count. Defaults to None.
+
+    Returns:
+        str: The path to the saved vector file.
     """
     from rasterio import features
+
+    if output is None:
+        output = os.path.splitext(os.fspath(source))[0] + ".gpkg"
+        if os.path.exists(output):
+            warnings.warn(
+                f"Default output path '{output}' already exists and will be overwritten.",
+                UserWarning,
+                stacklevel=2,
+            )
 
     with rasterio.open(source) as src:
         band = src.read()
@@ -1452,6 +1481,65 @@ def raster_to_vector(source, output, simplify_tolerance=None, dst_crs=None, **kw
         # emit a valid (empty) layer instead of raising "no active geometry
         # column" from geopandas.
         gdf = gpd.GeoDataFrame({"value": []}, geometry=[])
+
+    if attributes is not None:
+        import pandas as pd
+
+        if not isinstance(attributes, dict):
+            raise ValueError("attributes must be a dictionary.")
+        if "value" in attributes:
+            raise ValueError(
+                "The attribute name 'value' is reserved for raster values."
+            )
+        for key, val in attributes.items():
+            if len(gdf) == 0:
+                if (
+                    isinstance(val, (list, tuple, np.ndarray, pd.Series))
+                    and len(val) != 0
+                ):
+                    raise ValueError(
+                        f"Length of attribute '{key}' ({len(val)}) does not match "
+                        f"feature count (0)."
+                    )
+                if isinstance(val, dict):
+                    sample = next(iter(val.values()), None)
+                elif isinstance(val, (list, tuple, np.ndarray, pd.Series)):
+                    sample = None
+                else:
+                    sample = val
+                if isinstance(sample, bool):
+                    col_dtype = "bool"
+                elif isinstance(sample, (int, np.integer)):
+                    col_dtype = "int64"
+                elif isinstance(sample, (float, np.floating)):
+                    col_dtype = "float64"
+                else:
+                    col_dtype = "str"
+                gdf[key] = pd.Series(dtype=col_dtype)
+            elif isinstance(val, dict):
+
+                def _lookup_attr(v, mapping=val):
+                    if v in mapping:
+                        return mapping[v]
+                    try:
+                        iv = int(v)
+                        if iv == v and iv in mapping:
+                            return mapping[iv]
+                    except (TypeError, ValueError):
+                        pass
+                    return None
+
+                gdf[key] = gdf["value"].map(_lookup_attr)
+            elif isinstance(val, (list, tuple, np.ndarray, pd.Series)):
+                if len(val) != len(gdf):
+                    raise ValueError(
+                        f"Length of attribute '{key}' ({len(val)}) does not match "
+                        f"feature count ({len(gdf)})."
+                    )
+                gdf[key] = list(val)
+            else:
+                gdf[key] = val
+
     if src.crs is not None:
         gdf.set_crs(crs=src.crs, inplace=True)
 
@@ -1459,54 +1547,106 @@ def raster_to_vector(source, output, simplify_tolerance=None, dst_crs=None, **kw
         gdf = gdf.to_crs(dst_crs)
 
     gdf.to_file(output, **kwargs)
+    return output
 
 
-def raster_to_gpkg(tiff_path, output, simplify_tolerance=None, **kwargs):
+def raster_to_gpkg(tiff_path, output=None, simplify_tolerance=None, **kwargs):
     """Convert a tiff file to a gpkg file.
 
     Args:
         tiff_path (str): The path to the tiff file.
-        output (str): The path to the gpkg file.
+        output (str, optional): The path to the gpkg file. If None, defaults to
+            the same directory and stem as ``tiff_path`` with a ``.gpkg``
+            extension. Defaults to None.
         simplify_tolerance (float, optional): The maximum allowed geometry displacement.
             The higher this value, the smaller the number of vertices in the resulting geometry.
+
+    Returns:
+        str: The path to the saved gpkg file.
     """
 
-    if not output.endswith(".gpkg"):
-        output += ".gpkg"
+    if output is None:
+        output = os.path.splitext(os.fspath(tiff_path))[0] + ".gpkg"
+        if os.path.exists(output):
+            warnings.warn(
+                f"Default output path '{output}' already exists and will be overwritten.",
+                UserWarning,
+                stacklevel=2,
+            )
+    else:
+        output = os.fspath(output)
+        if not output.endswith(".gpkg"):
+            output += ".gpkg"
 
-    raster_to_vector(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
+    return raster_to_vector(
+        tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs
+    )
 
 
-def raster_to_shp(tiff_path, output, simplify_tolerance=None, **kwargs):
+def raster_to_shp(tiff_path, output=None, simplify_tolerance=None, **kwargs):
     """Convert a tiff file to a shapefile.
 
     Args:
         tiff_path (str): The path to the tiff file.
-        output (str): The path to the shapefile.
+        output (str, optional): The path to the shapefile. If None, defaults to
+            the same directory and stem as ``tiff_path`` with a ``.shp``
+            extension. Defaults to None.
         simplify_tolerance (float, optional): The maximum allowed geometry displacement.
             The higher this value, the smaller the number of vertices in the resulting geometry.
+
+    Returns:
+        str: The path to the saved shapefile.
     """
 
-    if not output.endswith(".shp"):
-        output += ".shp"
+    if output is None:
+        output = os.path.splitext(os.fspath(tiff_path))[0] + ".shp"
+        if os.path.exists(output):
+            warnings.warn(
+                f"Default output path '{output}' already exists and will be overwritten.",
+                UserWarning,
+                stacklevel=2,
+            )
+    else:
+        output = os.fspath(output)
+        if not output.endswith(".shp"):
+            output += ".shp"
 
-    raster_to_vector(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
+    return raster_to_vector(
+        tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs
+    )
 
 
-def raster_to_geojson(tiff_path, output, simplify_tolerance=None, **kwargs):
+def raster_to_geojson(tiff_path, output=None, simplify_tolerance=None, **kwargs):
     """Convert a tiff file to a GeoJSON file.
 
     Args:
         tiff_path (str): The path to the tiff file.
-        output (str): The path to the GeoJSON file.
+        output (str, optional): The path to the GeoJSON file. If None, defaults
+            to the same directory and stem as ``tiff_path`` with a ``.geojson``
+            extension. Defaults to None.
         simplify_tolerance (float, optional): The maximum allowed geometry displacement.
             The higher this value, the smaller the number of vertices in the resulting geometry.
+
+    Returns:
+        str: The path to the saved GeoJSON file.
     """
 
-    if not output.endswith(".geojson"):
-        output += ".geojson"
+    if output is None:
+        output = os.path.splitext(os.fspath(tiff_path))[0] + ".geojson"
+        if os.path.exists(output):
+            warnings.warn(
+                f"Default output path '{output}' already exists and will be overwritten.",
+                UserWarning,
+                stacklevel=2,
+            )
+    else:
+        output = os.fspath(output)
+        if not output.endswith(".geojson"):
+            output += ".geojson"
 
-    raster_to_vector(tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs)
+    return raster_to_vector(
+        tiff_path, output, simplify_tolerance=simplify_tolerance, **kwargs
+    )
 
 
 def get_xyz_dict(free_only=True):

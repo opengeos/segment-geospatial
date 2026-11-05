@@ -49,6 +49,15 @@ MENU_TITLE = "&SamGeo"
 class SamGeoPlugin:
     """QGIS Plugin for remote sensing image segmentation using SamGeo."""
 
+    SAM1_MODELS = ("vit_h", "vit_l", "vit_b")
+    SAM2_MODELS = (
+        "sam2-hiera-large",
+        "sam2-hiera-base-plus",
+        "sam2-hiera-small",
+        "sam2-hiera-tiny",
+    )
+    SAM3_MODELS = ("facebook/sam3", "facebook/sam3.1")
+
     def __init__(self, iface):
         """Initialize the plugin.
 
@@ -74,6 +83,7 @@ class SamGeoPlugin:
         self.sam = None
         self.current_layer = None
         self.current_image_path = None
+        self.last_prompt_type = None
 
         # Point and box prompts
         self.point_coords = []
@@ -464,8 +474,17 @@ class SamGeoPlugin:
         version_row.addWidget(QLabel("Model:"))
         self.model_combo = QComboBox()
         self.model_combo.addItems(["SamGeo3 (SAM3)", "SamGeo2 (SAM2)", "SamGeo (SAM1)"])
+        self.model_combo.currentTextChanged.connect(self.on_model_version_changed)
         version_row.addWidget(self.model_combo)
         backend_layout.addLayout(version_row)
+
+        # Model weights / checkpoint selection
+        weights_row = QHBoxLayout()
+        weights_row.addWidget(QLabel("Weights:"))
+        self.model_id_combo = QComboBox()
+        self.model_id_combo.currentTextChanged.connect(self.on_model_weight_changed)
+        weights_row.addWidget(self.model_id_combo)
+        backend_layout.addLayout(weights_row)
 
         backend_row = QHBoxLayout()
         backend_row.addWidget(QLabel("Backend:"))
@@ -473,6 +492,8 @@ class SamGeoPlugin:
         self.backend_combo.addItems(["meta", "transformers"])
         backend_row.addWidget(self.backend_combo)
         backend_layout.addLayout(backend_row)
+
+        self.on_model_version_changed(self.model_combo.currentText())
 
         # Device selection
         device_row = QHBoxLayout()
@@ -850,7 +871,7 @@ class SamGeoPlugin:
         output_path_row = QHBoxLayout()
         self.output_path_edit = QLineEdit()
         self.output_path_edit.setPlaceholderText(
-            "Output file path (optional, uses temp file if empty)..."
+            "Output file path (optional, uses source directory if empty)..."
         )
         output_path_row.addWidget(self.output_path_edit)
 
@@ -923,10 +944,74 @@ class SamGeoPlugin:
         if file_path:
             self.vector_file_edit.setText(file_path)
 
+    def _get_default_output_path(self, format_text=None):
+        """Return a default output file path in the source image's local directory.
+
+        Args:
+            format_text (str, optional): Output format label from the UI combo box.
+
+        Returns:
+            str | None: Default file path in the source image directory, or None
+                if no writable local directory is available.
+        """
+        if format_text is None and hasattr(self, "output_format_combo"):
+            format_text = self.output_format_combo.currentText()
+        format_text = format_text or ""
+
+        if "GeoPackage" in format_text:
+            ext = ".gpkg"
+        elif "Shapefile" in format_text:
+            ext = ".shp"
+        else:
+            ext = ".tif"
+
+        if self.current_image_path:
+            source_path = os.path.abspath(self.current_image_path.split("|")[0])
+            source_dir = os.path.dirname(source_path)
+            if (
+                source_dir
+                and os.path.isdir(source_dir)
+                and os.access(source_dir, os.W_OK)
+            ):
+                stem = os.path.splitext(os.path.basename(source_path))[0] or "masks"
+                prompt_type = self.last_prompt_type or getattr(
+                    self.sam, "prompt_type", None
+                )
+                base_name = (
+                    f"{stem}_{prompt_type}_masks" if prompt_type else f"{stem}_masks"
+                )
+                candidate = os.path.join(source_dir, f"{base_name}{ext}")
+                counter = 1
+                while os.path.exists(candidate):
+                    candidate = os.path.join(
+                        source_dir, f"{base_name}_{counter}{ext}"
+                    )
+                    counter += 1
+                return candidate
+        return None
+
+    def _get_vector_attributes(self):
+        """Return contextual attributes (Name and Type) for vector mask exports."""
+        attrs = {}
+        if self.current_image_path:
+            source_path = self.current_image_path.split("|")[0]
+            attrs["Name"] = os.path.basename(source_path)
+        prompt_type = self.last_prompt_type or getattr(
+            self.sam, "prompt_type", None
+        )
+        if prompt_type:
+            attrs["Type"] = str(prompt_type)
+        return attrs
+
     def browse_batch_output(self):
         """Browse for batch output file location."""
+        default_path = (
+            self.batch_output_edit.text().strip()
+            or self._get_default_output_path("Raster")
+            or ""
+        )
         file_path, _ = QFileDialog.getSaveFileName(
-            self.iface.mainWindow(), "Save Batch Output", "", "GeoTIFF (*.tif)"
+            self.iface.mainWindow(), "Save Batch Output", default_path, "GeoTIFF (*.tif)"
         )
         if file_path:
             self.batch_output_edit.setText(file_path)
@@ -952,11 +1037,60 @@ class SamGeoPlugin:
         else:
             filter_str = "GeoTIFF (*.tif)"
 
+        default_path = (
+            self.output_path_edit.text().strip()
+            or self._get_default_output_path(format_text)
+            or ""
+        )
         file_path, _ = QFileDialog.getSaveFileName(
-            self.iface.mainWindow(), "Save Output", "", filter_str
+            self.iface.mainWindow(), "Save Output", default_path, filter_str
         )
         if file_path:
             self.output_path_edit.setText(file_path)
+
+    def on_model_version_changed(self, model_version=None):
+        """Update selectable model weights when the SAM model version changes."""
+        if model_version is None and hasattr(self, "model_combo"):
+            model_version = self.model_combo.currentText()
+        model_version = model_version or ""
+
+        if not hasattr(self, "model_id_combo") or self.model_id_combo is None:
+            return
+
+        self.model_id_combo.clear()
+        if "SamGeo3" in model_version:
+            self.model_id_combo.addItems(self.SAM3_MODELS)
+            self.on_model_weight_changed(
+                self.model_id_combo.currentText(), model_version=model_version
+            )
+        elif "SamGeo2" in model_version:
+            self.model_id_combo.addItems(self.SAM2_MODELS)
+            if hasattr(self, "backend_combo") and self.backend_combo is not None:
+                self.backend_combo.setEnabled(False)
+        else:
+            self.model_id_combo.addItems(self.SAM1_MODELS)
+            if hasattr(self, "backend_combo") and self.backend_combo is not None:
+                self.backend_combo.setEnabled(False)
+
+    def on_model_weight_changed(self, weight, model_version=None):
+        """Update backend availability when model weights change."""
+        if not hasattr(self, "backend_combo") or self.backend_combo is None:
+            return
+        if model_version is None:
+            model_version = (
+                self.model_combo.currentText()
+                if hasattr(self, "model_combo") and self.model_combo is not None
+                else ""
+            )
+        if "SamGeo3" not in model_version:
+            self.backend_combo.setEnabled(False)
+            return
+        if weight.strip() == "facebook/sam3.1":
+            if hasattr(self.backend_combo, "setCurrentText"):
+                self.backend_combo.setCurrentText("meta")
+            self.backend_combo.setEnabled(False)
+        else:
+            self.backend_combo.setEnabled(True)
 
     def load_model(self):
         """Load the SamGeo model."""
@@ -968,6 +1102,11 @@ class SamGeoPlugin:
             QCoreApplication.processEvents()
 
             model_version = self.model_combo.currentText()
+            selected_weight = (
+                self.model_id_combo.currentText().strip()
+                if hasattr(self, "model_id_combo") and self.model_id_combo is not None
+                else ""
+            )
             backend = self.backend_combo.currentText()
             device = self.device_combo.currentText()
             if device == "auto":
@@ -985,14 +1124,28 @@ class SamGeoPlugin:
 
                 samgeo = get_samgeo()
                 SamGeo3 = samgeo.SamGeo3
+                model_id = (
+                    selected_weight
+                    if selected_weight in self.SAM3_MODELS
+                    else self.SAM3_MODELS[0]
+                )
+                if model_id == "facebook/sam3.1" and backend != "meta":
+                    backend = "meta"
+                    if (
+                        hasattr(self, "backend_combo")
+                        and self.backend_combo is not None
+                        and hasattr(self.backend_combo, "setCurrentText")
+                    ):
+                        self.backend_combo.setCurrentText("meta")
 
                 self.sam = SamGeo3(
                     backend=backend,
+                    model_id=model_id,
                     device=device,
                     confidence_threshold=confidence,
                     enable_inst_interactivity=enable_interactive,
                 )
-                model_name = "SamGeo3"
+                model_name = f"SamGeo3 ({model_id})"
             elif "SamGeo2" in model_version:
                 try:
                     from ._samgeo_lib import get_samgeo
@@ -1001,11 +1154,18 @@ class SamGeoPlugin:
 
                 samgeo = get_samgeo()
                 SamGeo2 = samgeo.SamGeo2
+                model_id = (
+                    selected_weight
+                    if selected_weight in self.SAM2_MODELS
+                    else self.SAM2_MODELS[0]
+                )
 
                 self.sam = SamGeo2(
+                    model_id=model_id,
                     device=device,
+                    automatic=not enable_interactive,
                 )
-                model_name = "SamGeo2"
+                model_name = f"SamGeo2 ({model_id})"
             else:
                 try:
                     from ._samgeo_lib import get_samgeo
@@ -1014,12 +1174,20 @@ class SamGeoPlugin:
 
                 samgeo = get_samgeo()
                 SamGeo = samgeo.SamGeo
+                model_type = (
+                    selected_weight
+                    if selected_weight in self.SAM1_MODELS
+                    else self.SAM1_MODELS[0]
+                )
 
                 self.sam = SamGeo(
+                    model_type=model_type,
                     device=device,
+                    automatic=not enable_interactive,
                 )
-                model_name = "SamGeo"
+                model_name = f"SamGeo ({model_type})"
 
+            self.last_prompt_type = None
             self.model_status.setText(f"Model: {model_name} loaded")
             self.model_status.setStyleSheet("color: green;")
             self.log_message(f"{model_name} model loaded successfully")
@@ -1063,6 +1231,7 @@ class SamGeoPlugin:
             self.sam.set_image(source)
             self.current_layer = layer
             self.current_image_path = source
+            self._reset_segmentation_state()
 
             self.image_status.setText(f"Image: {layer.name()}")
             self.image_status.setStyleSheet("color: green;")
@@ -1096,6 +1265,7 @@ class SamGeoPlugin:
             self.sam.set_image(file_path)
             self.current_image_path = file_path
             self.current_layer = None
+            self._reset_segmentation_state()
 
             self.image_status.setText(f"Image: {os.path.basename(file_path)}")
             self.image_status.setStyleSheet("color: green;")
@@ -1144,8 +1314,9 @@ class SamGeoPlugin:
             )
 
             self.sam.generate_masks(prompt, min_size=min_size, max_size=max_size)
+            self.last_prompt_type = "text"
 
-            num_masks = len(self.sam.masks) if self.sam.masks else 0
+            num_masks = self._get_mask_count()
             self.results_text.setText(
                 f"Text Segmentation Results:\n"
                 f"Prompt: {prompt}\n"
@@ -1324,8 +1495,9 @@ class SamGeoPlugin:
                     point_coords=point_coords,
                     point_labels=point_labels,
                 )
+            self.last_prompt_type = "point"
 
-            num_masks = len(self.sam.masks) if self.sam.masks else 0
+            num_masks = self._get_mask_count()
             self.results_text.setText(
                 f"Point Segmentation Results:\n"
                 f"Points used: {len(self.point_coords)}\n"
@@ -1430,11 +1602,10 @@ class SamGeoPlugin:
                 self.sam.generate_masks_by_boxes(boxes=[self.box_coords])
             else:
                 # Fallback for older SamGeo versions
-                import numpy as np
+                self.sam.predict(boxes=list(self.box_coords))
+            self.last_prompt_type = "box"
 
-                self.sam.predict(box=np.array(self.box_coords))
-
-            num_masks = len(self.sam.masks) if self.sam.masks else 0
+            num_masks = self._get_mask_count()
             self.results_text.setText(
                 f"Box Segmentation Results:\n"
                 f"Box: {self.box_coords}\n"
@@ -1563,8 +1734,9 @@ class SamGeoPlugin:
                 min_size=min_size,
                 max_size=max_size,
             )
+            self.last_prompt_type = "point"
 
-            num_masks = len(self.sam.masks) if self.sam.masks else 0
+            num_masks = self._get_mask_count()
 
             # Update results
             result_text = (
@@ -1618,6 +1790,53 @@ class SamGeoPlugin:
         finally:
             self.progress_bar.setVisible(False)
 
+    def _reset_segmentation_state(self):
+        """Clear previous segmentation outputs when a new image is loaded."""
+        self.last_prompt_type = None
+        if self.sam is not None:
+            for attr in (
+                "masks",
+                "boxes",
+                "scores",
+                "logits",
+                "objects",
+                "prediction",
+                "mask_scores",
+            ):
+                if hasattr(self.sam, attr):
+                    setattr(self.sam, attr, None)
+
+    def _get_mask_count(self):
+        """Return the number of masks currently stored on self.sam."""
+        if self.sam is None:
+            return 0
+        masks = getattr(self.sam, "masks", None)
+        if masks is None:
+            return 0
+        if hasattr(masks, "ndim"):
+            if masks.size == 0 or not bool(masks.any()):
+                return 0
+            if (
+                not hasattr(self.sam, "generate_masks")
+                and getattr(self.sam, "scores", None) is not None
+            ):
+                return 1
+            return int(masks.shape[0])
+        return len(masks)
+
+    def _save_current_masks_to_raster(self, output_path, unique=True):
+        """Save current masks or prediction array to a raster file."""
+        masks = getattr(self.sam, "masks", None)
+        if (
+            hasattr(masks, "ndim")
+            and not hasattr(self.sam, "generate_masks")
+            and hasattr(self.sam, "save_prediction")
+            and getattr(self.sam, "scores", None) is not None
+        ):
+            self.sam.save_prediction(output_path)
+        else:
+            self.sam.save_masks(output=output_path, unique=unique)
+
     def _auto_show_results(self):
         """Automatically save and show results based on Output tab settings.
 
@@ -1628,7 +1847,7 @@ class SamGeoPlugin:
         if not self.auto_show_check.isChecked():
             return
 
-        if self.sam is None or self.sam.masks is None or len(self.sam.masks) == 0:
+        if self._get_mask_count() == 0:
             return
 
         import tempfile
@@ -1636,8 +1855,10 @@ class SamGeoPlugin:
         format_text = self.output_format_combo.currentText()
         output_path = self.output_path_edit.text().strip()
 
-        # Generate temp file path if not specified
+        # Default to source image directory if output path is not specified
         use_temp_file = False
+        if not output_path:
+            output_path = self._get_default_output_path(format_text)
         if not output_path:
             use_temp_file = True
             if "Raster" in format_text:
@@ -1657,7 +1878,7 @@ class SamGeoPlugin:
 
             if "Raster" in format_text:
                 # Save as raster
-                self.sam.save_masks(output=output_path, unique=unique)
+                self._save_current_masks_to_raster(output_path, unique=unique)
 
                 if self.add_to_map_check.isChecked():
                     layer_name = (
@@ -1674,7 +1895,7 @@ class SamGeoPlugin:
                     suffix=".tif", delete=False
                 ).name
                 try:
-                    self.sam.save_masks(output=temp_raster, unique=unique)
+                    self._save_current_masks_to_raster(temp_raster, unique=unique)
 
                     # Convert raster to vector
                     try:
@@ -1683,8 +1904,13 @@ class SamGeoPlugin:
                         from _samgeo_lib import get_samgeo
 
                     common = get_samgeo().common
-
-                    common.raster_to_vector(temp_raster, output_path)
+                    vector_attrs = self._get_vector_attributes()
+                    try:
+                        common.raster_to_vector(
+                            temp_raster, output_path, attributes=vector_attrs
+                        )
+                    except TypeError:
+                        common.raster_to_vector(temp_raster, output_path)
                     self._attach_mask_scores(output_path)
 
                     if self.add_to_map_check.isChecked():
@@ -1710,46 +1936,68 @@ class SamGeoPlugin:
             self.show_error(f"Auto-show failed: {str(e)}")
 
     def _attach_mask_scores(self, output_path):
-        """Write each mask's confidence score into the saved vector layer.
+        """Write contextual attributes (Name, Type) and confidence score into the vector layer.
 
         ``save_masks`` records ``mask_scores`` (raster value -> confidence) on
         the model (segment-geospatial >= 1.4.2), and ``raster_to_vector``
         keeps the raster value in a ``value`` field, so the two are joined
-        here as a ``score`` attribute. Older segment-geospatial versions have
-        no ``mask_scores`` and the layer is left unchanged.
+        here as a ``score`` attribute alongside source image ``Name`` and
+        prompt ``Type``.
 
         Args:
             output_path: Path of the vector file written by raster_to_vector.
         """
         scores = getattr(self.sam, "mask_scores", None)
-        if not scores:
+        vector_attrs = self._get_vector_attributes()
+        if not scores and not vector_attrs:
             return
         layer = QgsVectorLayer(output_path, "samgeo_scores", "ogr")
         if not layer.isValid():
             return
-        value_idx = layer.fields().indexOf("value")
-        if value_idx < 0:
-            return
         provider = layer.dataProvider()
-        if layer.fields().indexOf("score") < 0:
-            if not provider.addAttributes([QgsField("score", QVariant.Double)]):
+        new_fields = []
+        for field_name in ("Name", "Type"):
+            if field_name in vector_attrs and layer.fields().indexOf(field_name) < 0:
+                new_fields.append(QgsField(field_name, QVariant.String))
+        value_idx = layer.fields().indexOf("value")
+        if scores and value_idx >= 0 and layer.fields().indexOf("score") < 0:
+            new_fields.append(QgsField("score", QVariant.Double))
+        if new_fields:
+            if not provider.addAttributes(new_fields):
                 return
             layer.updateFields()
-        score_idx = layer.fields().indexOf("score")
+
+        name_idx = (
+            layer.fields().indexOf("Name") if "Name" in vector_attrs else -1
+        )
+        type_idx = (
+            layer.fields().indexOf("Type") if "Type" in vector_attrs else -1
+        )
+        score_idx = (
+            layer.fields().indexOf("score") if (scores and value_idx >= 0) else -1
+        )
         changes = {}
         for feature in layer.getFeatures():
-            try:
-                key = int(feature[value_idx])
-            except (TypeError, ValueError):
-                continue
-            if key in scores:
-                changes[feature.id()] = {score_idx: float(scores[key])}
+            feat_changes = {}
+            if name_idx >= 0 and not feature[name_idx]:
+                feat_changes[name_idx] = vector_attrs["Name"]
+            if type_idx >= 0 and not feature[type_idx]:
+                feat_changes[type_idx] = vector_attrs["Type"]
+            if score_idx >= 0:
+                try:
+                    key = int(feature[value_idx])
+                except (TypeError, ValueError):
+                    key = None
+                if key is not None and key in scores:
+                    feat_changes[score_idx] = float(scores[key])
+            if feat_changes:
+                changes[feature.id()] = feat_changes
         if changes:
             provider.changeAttributeValues(changes)
 
     def save_masks(self):
         """Save the segmentation masks."""
-        if self.sam is None or self.sam.masks is None or len(self.sam.masks) == 0:
+        if self._get_mask_count() == 0:
             self.show_error("No masks to save. Please run segmentation first.")
             return
 
@@ -1758,8 +2006,10 @@ class SamGeoPlugin:
         output_path = self.output_path_edit.text().strip()
         format_text = self.output_format_combo.currentText()
 
-        # Generate temp file path if not specified
+        # Default to source image directory if output path is not specified
         use_temp_file = False
+        if not output_path:
+            output_path = self._get_default_output_path(format_text)
         if not output_path:
             use_temp_file = True
             if "Raster" in format_text:
@@ -1783,7 +2033,7 @@ class SamGeoPlugin:
 
             if "Raster" in format_text:
                 # Save as raster
-                self.sam.save_masks(output=output_path, unique=unique)
+                self._save_current_masks_to_raster(output_path, unique=unique)
 
                 if self.add_to_map_check.isChecked():
                     layer_name = (
@@ -1800,7 +2050,7 @@ class SamGeoPlugin:
                     suffix=".tif", delete=False
                 ).name
                 try:
-                    self.sam.save_masks(output=temp_raster, unique=unique)
+                    self._save_current_masks_to_raster(temp_raster, unique=unique)
 
                     # Convert raster to vector
                     try:
@@ -1809,8 +2059,13 @@ class SamGeoPlugin:
                         from _samgeo_lib import get_samgeo
 
                     common = get_samgeo().common
-
-                    common.raster_to_vector(temp_raster, output_path)
+                    vector_attrs = self._get_vector_attributes()
+                    try:
+                        common.raster_to_vector(
+                            temp_raster, output_path, attributes=vector_attrs
+                        )
+                    except TypeError:
+                        common.raster_to_vector(temp_raster, output_path)
                     self._attach_mask_scores(output_path)
 
                     if self.add_to_map_check.isChecked():
@@ -1903,6 +2158,7 @@ class SamGeoPlugin:
                 # Also clear internal state for image and layer
                 self.current_image_path = None
                 self.current_layer = None
+                self.last_prompt_type = None
 
             except Exception:  # nosec B110
                 pass

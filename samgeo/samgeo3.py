@@ -247,6 +247,8 @@ class SamGeo3:
         self.boxes = None
         self.scores = None
         self.mask_scores: Optional[Dict[int, float]] = None
+        self.prompt_type = None
+        self._mask_metadata = {}
         self.logits = None
         self.objects = None
         self.prediction = None
@@ -415,6 +417,15 @@ class SamGeo3:
         self.sources_batch = None
         self.batch_state = None
         self.batch_results = None
+        self.masks = None
+        self.boxes = None
+        self.scores = None
+        self.logits = None
+        self.objects = None
+        self.prediction = None
+        self.mask_scores = None
+        self.prompt_type = None
+        self._mask_metadata = {}
 
         # Convert to PIL Image for processing
         image_for_processor = Image.fromarray(self.image)
@@ -503,6 +514,10 @@ class SamGeo3:
         # Store batch information
         self.images_batch = numpy_images
         self.sources_batch = sources
+        self.batch_results = None
+        self.source = None
+        self.prompt_type = None
+        self._mask_metadata = {}
 
         # Call the processor's set_image_batch method
         with self._meta_autocast():
@@ -592,6 +607,7 @@ class SamGeo3:
             batch_results.append(result)
 
         self.batch_results = batch_results
+        self.prompt_type = "text"
 
         # Print summary
         total_objects = sum(len(r.get("masks", [])) for r in batch_results)
@@ -975,6 +991,11 @@ class SamGeo3:
             common.array_to_image(
                 mask_array, output_path, source, dtype=dtype, **kwargs
             )
+            self._record_mask_output(
+                output_path,
+                source=source,
+                prompt_type=getattr(self, "prompt_type", None) or "text",
+            )
             saved_files.append(output_path)
             print(
                 f"Saved {valid_mask_count} mask(s) for image {i + 1} to {output_path}"
@@ -1240,6 +1261,7 @@ class SamGeo3:
 
         # Convert tensors to numpy to free GPU memory
         self._convert_results_to_numpy()
+        self.prompt_type = "text"
 
         # Filter masks by size if min_size or max_size is specified
         if min_size > 0 or max_size is not None:
@@ -1559,6 +1581,8 @@ class SamGeo3:
         # Store result for potential visualization
         self.objects = output_mask
         self.source = source
+        self.prompt_type = "text"
+        self._record_mask_output(output, source=source, prompt_type="text")
 
         return output
 
@@ -1844,6 +1868,7 @@ class SamGeo3:
 
         # Convert tensors to numpy to free GPU memory
         self._convert_results_to_numpy()
+        self.prompt_type = "box"
 
         # Filter masks by size if min_size or max_size is specified
         if min_size > 0 or max_size is not None:
@@ -2696,6 +2721,7 @@ class SamGeo3:
             common.array_to_image(
                 mask_array, output, self.source, dtype=dtype, **kwargs
             )
+            self._record_mask_output(output)
             print(f"Saved {valid_mask_count} mask(s) to {output}")
 
             # Save scores if requested
@@ -2735,10 +2761,14 @@ class SamGeo3:
         array = self.masks[index] * mask_multiplier
         self.prediction = array
         common.array_to_image(array, output, self.source, dtype=dtype, **kwargs)
+        self._record_mask_output(output)
 
         if vector is not None:
             common.raster_to_vector(
-                output, vector, simplify_tolerance=simplify_tolerance
+                output,
+                vector,
+                simplify_tolerance=simplify_tolerance,
+                attributes=self._get_vector_attributes(),
             )
 
     def show_masks(
@@ -3090,22 +3120,82 @@ class SamGeo3:
             plt.axis(axis)
             plt.show()
 
+    def _record_mask_output(
+        self,
+        output_path: str | None,
+        source: str | None = None,
+        prompt_type: str | None = None,
+    ) -> None:
+        """Record contextual vector attributes for a generated mask raster."""
+        if not isinstance(output_path, (str, os.PathLike)) or not str(output_path):
+            return
+        if not hasattr(self, "_mask_metadata") or self._mask_metadata is None:
+            self._mask_metadata = {}
+        src = getattr(self, "source", None) if source is None else source
+        ptype = (
+            getattr(self, "prompt_type", None) if prompt_type is None else prompt_type
+        )
+        meta: dict[str, Any] = {}
+        if isinstance(src, (str, os.PathLike)) and str(src):
+            meta["Name"] = os.path.basename(os.fspath(src))
+        if ptype:
+            meta["Type"] = ptype
+        self._mask_metadata[os.path.abspath(os.fspath(output_path))] = meta
+
+    def _get_vector_attributes(
+        self, attributes: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
+        """Build vector attributes dictionary from source image name and prompt type."""
+        attrs: dict[str, Any] = {}
+        if isinstance(getattr(self, "source", None), (str, os.PathLike)) and str(
+            self.source
+        ):
+            attrs["Name"] = os.path.basename(os.fspath(self.source))
+        if getattr(self, "prompt_type", None):
+            attrs["Type"] = self.prompt_type
+        if attributes:
+            attrs.update(attributes)
+        return attrs if attrs else None
+
     def raster_to_vector(
         self,
         raster: str,
-        vector: str,
-        simplify_tolerance: Optional[float] = None,
+        vector: str | None = None,
+        simplify_tolerance: float | None = None,
         **kwargs,
-    ) -> None:
+    ) -> str:
         """Convert a raster image file to a vector dataset.
 
         Args:
             raster (str): The path to the raster image.
-            vector (str): The path to the output vector file.
+            vector (str, optional): The path to the output vector file.
+                If None, defaults to the same directory and stem as ``raster``
+                with a ``.gpkg`` extension. Defaults to None.
             simplify_tolerance (float, optional): The maximum allowed geometry displacement.
+
+        Returns:
+            str: The path to the saved vector file.
         """
-        common.raster_to_vector(
-            raster, vector, simplify_tolerance=simplify_tolerance, **kwargs
+        caller_attributes = kwargs.pop("attributes", None)
+        mask_meta = getattr(self, "_mask_metadata", None) or {}
+        norm_raster = (
+            os.path.abspath(os.fspath(raster))
+            if isinstance(raster, (str, os.PathLike)) and str(raster)
+            else None
+        )
+        if norm_raster and norm_raster in mask_meta:
+            recorded = dict(mask_meta[norm_raster])
+            if caller_attributes:
+                recorded.update(caller_attributes)
+            attributes = recorded if recorded else None
+        else:
+            attributes = dict(caller_attributes) if caller_attributes else None
+        return common.raster_to_vector(
+            raster,
+            vector,
+            simplify_tolerance=simplify_tolerance,
+            attributes=attributes,
+            **kwargs,
         )
 
     def show_map(
@@ -3394,6 +3484,14 @@ class SamGeo3:
         )
         self.scores = list(scores) if isinstance(scores, np.ndarray) else [scores]
         self.logits = logits
+        if point_coords is not None and box is not None:
+            self.prompt_type = "point_box"
+        elif point_coords is not None:
+            self.prompt_type = "point"
+        elif box is not None:
+            self.prompt_type = "box"
+        elif mask_input is not None:
+            self.prompt_type = "mask"
 
         # Store point prompts for visualization
         if point_coords is not None:
@@ -3793,6 +3891,7 @@ class SamGeo3:
         self.masks = [masks[i] for i in range(len(masks))]
         self.scores = scores if isinstance(scores, list) else list(scores.flatten())
         self.logits = logits
+        self.prompt_type = "point"
 
         # Create output mask list with segmentation dict format for return value
         output_masks = []
