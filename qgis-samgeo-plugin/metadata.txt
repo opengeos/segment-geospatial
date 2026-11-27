@@ -3,7 +3,7 @@ name=SamGeo
 qgisMinimumVersion=3.22
 qgisMaximumVersion=4.99
 description=Segment remote sensing images using SAM (Segment Anything Model) with text, point, and box prompts.
-version=1.4.2
+version=1.5.0
 author=Qiusheng Wu
 email=giswqs@gmail.com
 about=A QGIS plugin for remote sensing image segmentation powered by Meta's Segment Anything Model (SAM).
@@ -22,6 +22,15 @@ icon=icons/icon.png
 experimental=True
 deprecated=False
 changelog=
+    1.5.0 - Model weights, mask attributes and tiled segmentation
+        - Choose model weights per family: vit_h/vit_l/vit_b for SAM 1,
+          hiera tiny/small/base-plus/large for SAM 2, sam3 or sam3.1 for SAM 3
+        - Saved vector masks carry "source" (image file name) and "prompt"
+          (text, point, box or batch_point) attributes
+        - Save dialogs default to the source image's folder, with an option
+          to save there automatically
+        - Tiled mode for text prompts on large images, with tile size,
+          overlap and processing scale settings
     1.4.2 - Confidence scores in vector output
         - Saved vector masks carry a per-feature "score" attribute with the
           model's confidence (requires segment-geospatial >= 1.4.2)
