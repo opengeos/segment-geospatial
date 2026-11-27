@@ -54,7 +54,7 @@ def get_sam_model(model_type, model_id=None, device=None, automatic=True, **kwar
     """Instantiate a SAM model.
 
     Args:
-        model_type: One of 'sam', 'sam2', 'sam3', 'fast_sam', 'hq_sam', 'text_sam'.
+        model_type: One of 'sam', 'sam2', 'sam3', 'hq_sam', 'text_sam'.
         model_id: Model identifier (varies by type).
         device: Device to use.
         automatic: Whether to use automatic mask generation mode.
@@ -63,6 +63,13 @@ def get_sam_model(model_type, model_id=None, device=None, automatic=True, **kwar
     Returns:
         Model instance.
     """
+    if model_type == "fast_sam":
+        raise ValueError(
+            "FastSAM is available through the separate AGPL Python integration. "
+            "Install segment-anything-fast[geo]>=0.1.3 and use "
+            "'from samgeo_fastsam import SamGeo'. This CLI does not support its API."
+        )
+
     check_samgeo_installed()
     device = get_device(device)
 
@@ -84,12 +91,6 @@ def get_sam_model(model_type, model_id=None, device=None, automatic=True, **kwar
         model_id = model_id or "facebook/sam3"
         return SamGeo3(model_id=model_id, device=device, **kwargs)
 
-    elif model_type == "fast_sam":
-        from samgeo.fast_sam import SamGeo as SamGeoFast
-
-        model_id = model_id or "FastSAM-x.pt"
-        return SamGeoFast(model=model_id, device=device, automatic=automatic, **kwargs)
-
     elif model_type == "hq_sam":
         from samgeo.hq_sam import SamGeo as SamGeoHQ
 
@@ -107,7 +108,7 @@ def get_sam_model(model_type, model_id=None, device=None, automatic=True, **kwar
     else:
         raise ValueError(
             f"Unknown model type: {model_type}. "
-            f"Choose from: sam, sam2, sam3, fast_sam, hq_sam, text_sam"
+            f"Choose from: sam, sam2, sam3, hq_sam, text_sam"
         )
 
 

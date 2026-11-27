@@ -6,7 +6,9 @@ USER root
 RUN apt-get update -y && apt-get install libgl1 sqlite3 -y
 
 USER 1000
-RUN mamba install -c conda-forge leafmap localtileserver segment-geospatial sam2==0.4.1 -y && \
+# Conda downloads can exceed the default nine-second connection timeout in CI.
+RUN export CONDA_REMOTE_CONNECT_TIMEOUT_SECS=60 && \
+    mamba install -c conda-forge leafmap localtileserver segment-geospatial sam2==0.4.1 -y && \
     pip install -U segment-geospatial jupyter-server-proxy && \
     mamba update -c conda-forge sqlite -y && \
     jupyter server extension enable --sys-prefix jupyter_server_proxy && \

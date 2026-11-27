@@ -64,23 +64,6 @@ MODEL_REGISTRY = {
             },
         },
     },
-    "fast_sam": {
-        "display_name": "FastSAM",
-        "description": "Fast Segment Anything Model (YOLO-based)",
-        "install": "pip install segment-geospatial[fast]",
-        "models": {
-            "FastSAM-x.pt": {
-                "name": "FastSAM-X (default)",
-                "params": "138M",
-                "description": "Larger, more accurate",
-            },
-            "FastSAM-s.pt": {
-                "name": "FastSAM-S",
-                "params": "11.8M",
-                "description": "Smaller, faster",
-            },
-        },
-    },
     "hq_sam": {
         "display_name": "HQ-SAM",
         "description": "High-Quality Segment Anything Model",
@@ -222,7 +205,6 @@ def get_default_model_id(model_type):
         "sam": "vit_h",
         "sam2": "sam2-hiera-large",
         "sam3": "facebook/sam3",
-        "fast_sam": "FastSAM-x.pt",
         "hq_sam": "vit_h",
         "text_sam": "vit_h",
     }
@@ -242,7 +224,6 @@ def check_model_available(model_type):
         "sam": "segment_anything",
         "sam2": "sam2",
         "sam3": "sam3",
-        "fast_sam": "ultralytics",
         "hq_sam": "segment_anything_hq",
         "text_sam": "groundingdino",
     }

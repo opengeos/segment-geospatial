@@ -216,6 +216,13 @@ class TestModel:
         assert "sam2" in types
         assert "sam3" in types
         assert "text_sam" in types
+        assert "fast_sam" not in types
+
+    def test_legacy_fastsam_project_gets_migration_guidance(self):
+        from cli_anything.samgeo.utils.samgeo_backend import get_sam_model
+
+        with pytest.raises(ValueError, match="separate AGPL Python integration"):
+            get_sam_model("fast_sam")
 
     def test_get_default_model_id(self):
         assert get_default_model_id("sam") == "vit_h"

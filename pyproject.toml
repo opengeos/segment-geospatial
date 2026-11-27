@@ -40,11 +40,6 @@ core = [
     "torch",
     "tqdm",
 ]
-fast = [
-    "segment_geospatial[core]",
-    "segment-anything-fast",
-    "sam2",
-    ]
 fer = [
     "segment_geospatial[core]",
     "gdal",
@@ -93,7 +88,7 @@ api = [
     "python-multipart>=0.0.6",
 ]
 all = [
-    "segment-geospatial[fast, hq, fer, samgeo, samgeo2, samgeo3, text, api]",
+    "segment-geospatial[hq, fer, samgeo, samgeo2, samgeo3, text, api]",
 ]
 extra = [
     "leafmap",
