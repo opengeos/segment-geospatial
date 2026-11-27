@@ -5,6 +5,7 @@
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 import numpy as np
 import rasterio
@@ -21,6 +22,27 @@ class TestCommon(unittest.TestCase):
 
     def tearDown(self):
         """Tear down test fixtures, if any."""
+
+    def test_choose_device_uses_fp16_autocast_before_ampere(self):
+        import torch
+
+        # choose_device turns on TF32 for Ampere; put the flags back afterwards
+        matmul, cudnn = torch.backends.cuda.matmul, torch.backends.cudnn
+        self.addCleanup(setattr, matmul, "allow_tf32", matmul.allow_tf32)
+        self.addCleanup(setattr, cudnn, "allow_tf32", cudnn.allow_tf32)
+
+        for major, expected in [(7, torch.float16), (8, torch.bfloat16)]:
+            with (
+                mock.patch("torch.cuda.is_available", return_value=True),
+                mock.patch("torch.cuda.empty_cache"),
+                mock.patch(
+                    "torch.cuda.get_device_properties",
+                    return_value=mock.Mock(major=major),
+                ),
+                mock.patch("torch.autocast") as autocast,
+            ):
+                common.choose_device()
+            self.assertEqual(autocast.call_args.kwargs["dtype"], expected)
 
     def test_is_colab(self):
         self.assertFalse(common.is_colab())
