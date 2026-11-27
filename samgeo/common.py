@@ -3,6 +3,7 @@ The source code is adapted from https://github.com/aliaksandr960/segment-anythin
 """
 
 import os
+import re
 import tempfile
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -1425,8 +1426,10 @@ def _rasterio_shapes_supports_wide_ints() -> bool:
     Returns:
         bool: True for rasterio 1.5 and later.
     """
-    major, minor = (int(part) for part in rasterio.__version__.split(".")[:2])
-    return (major, minor) >= (1, 5)
+    match = re.match(r"(\d+)\.(\d+)", rasterio.__version__)
+    if match is None:
+        return True
+    return (int(match.group(1)), int(match.group(2))) >= (1, 5)
 
 
 def _shapes_compatible(band: np.ndarray) -> np.ndarray:

@@ -94,8 +94,6 @@ class TestCommon(unittest.TestCase):
         self.assertEqual(values, [3, 70000])
 
     def test_shapes_compatible_casts_and_guards_on_old_rasterio(self):
-        from unittest import mock
-
         with mock.patch.object(
             common, "_rasterio_shapes_supports_wide_ints", return_value=False
         ):
@@ -108,8 +106,6 @@ class TestCommon(unittest.TestCase):
                 common._shapes_compatible(too_big)
 
     def test_shapes_compatible_keeps_wide_ints_on_new_rasterio(self):
-        from unittest import mock
-
         with mock.patch.object(
             common, "_rasterio_shapes_supports_wide_ints", return_value=True
         ):
