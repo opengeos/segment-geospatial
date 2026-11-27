@@ -28,10 +28,10 @@ changes; serialized objects referring to `samgeo.fast_sam` are not migrated.
 Model checkpoints are still separate downloads; the code license is not a new
 permission grant for those files.
 
-These instructions require the coordinated releases containing the new FastSAM
-module and the SamGeo removal. Older SamGeo releases still contain the adapted
-wrapper; installing the new add-on alone does not remove it from an existing
-environment. Upgrade SamGeo after its corrected release is available.
+The new FastSAM module ships in `segment-anything-fast` 0.1.3 and later. SamGeo
+removes its adapted wrapper in the release after 1.4.2; SamGeo 1.4.2 and earlier
+still contain `samgeo.fast_sam`, and installing the add-on alone does not remove
+it from an existing environment, so upgrade SamGeo as well.
 
 The agent CLI does not support this integration. Use the Python API above for
 FastSAM, or select another supported model in the CLI. FastSAM's methods differ
