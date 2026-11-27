@@ -3547,12 +3547,44 @@ def download_files(
             os.remove(file)
 
 
-def choose_device(empty_cache: bool = True, quiet: bool = True) -> str:
+def get_autocast_dtype(device: Any) -> Optional[Any]:
+    """Return the autocast dtype to use for a device.
+
+    GPUs with compute capability 8.0 or higher (Ampere and newer) use
+    bfloat16. Older GPUs (such as the T4, V100 and RTX 20 series) only emulate
+    bfloat16, which is slower than float32, so they use float16 instead.
+
+    Args:
+        device (Any): A ``torch.device`` or a device string such as ``"cuda"``
+            or ``"cuda:1"``.
+
+    Returns:
+        Optional[torch.dtype]: ``torch.bfloat16`` or ``torch.float16`` for a
+            CUDA device, or None for any other device.
+    """
+    import torch
+
+    device = torch.device(device)
+    if device.type != "cuda":
+        return None
+    if torch.cuda.get_device_properties(device).major >= 8:
+        return torch.bfloat16
+    return torch.float16
+
+
+def choose_device(
+    empty_cache: bool = True, quiet: bool = True, enable_autocast: bool = True
+) -> str:
     """Choose a device (CPU or GPU) for deep learning.
 
     Args:
         empty_cache (bool): Whether to empty the CUDA cache if a GPU is used. Defaults to True.
         quiet (bool): Whether to suppress device information printout. Defaults to True.
+        enable_autocast (bool): Whether to turn on CUDA autocast for the rest of
+            the session (bfloat16 on Ampere and newer GPUs, float16 on older
+            ones). Pass False to scope autocast yourself, for example with
+            ``torch.autocast("cuda", dtype=get_autocast_dtype(device))``.
+            Defaults to True.
 
     Returns:
         str: The device name.
@@ -3575,10 +3607,10 @@ def choose_device(empty_cache: bool = True, quiet: bool = True) -> str:
     if device.type == "cuda":
         if empty_cache:
             torch.cuda.empty_cache()
-        ampere = torch.cuda.get_device_properties(device).major >= 8
-        # older GPUs (T4, V100) only emulate bfloat16, so use float16 there
-        dtype = torch.bfloat16 if ampere else torch.float16
-        torch.autocast("cuda", dtype=dtype).__enter__()
+        dtype = get_autocast_dtype(device)
+        ampere = dtype == torch.bfloat16
+        if enable_autocast:
+            torch.autocast("cuda", dtype=dtype).__enter__()
         # turn on tfloat32 for Ampere GPUs (https://pytorch.org/docs/stable/notes/cuda.html#tensorfloat-32-tf32-on-ampere-devices)
         if ampere:
             torch.backends.cuda.matmul.allow_tf32 = True
