@@ -95,6 +95,75 @@ def _tensor_to_numpy(tensor):
     return tensor.numpy()
 
 
+def _cuda_autocast_dtype(device):
+    """Return the autocast dtype to use for SAM3 on a CUDA device.
+
+    bf16 is only fast on GPUs with compute capability 8.0+ (Ampere and newer).
+    ``torch.cuda.is_bf16_supported()`` also returns True on older GPUs because
+    it counts emulation, so check the capability directly and use fp16 there.
+
+    Args:
+        device: A CUDA device, e.g. ``"cuda"`` or ``"cuda:1"``.
+
+    Returns:
+        torch.dtype: ``torch.bfloat16`` or ``torch.float16``.
+    """
+    index = torch.device(device).index
+    if index is None:
+        index = torch.cuda.current_device()
+    if torch.cuda.get_device_capability(index) >= (8, 0):
+        return torch.bfloat16
+    return torch.float16
+
+
+def _make_fp16_aware_addmm_act(original):
+    """Wrap sam3's fused ``addmm_act`` so it runs in fp16 under fp16 autocast.
+
+    ``sam3.perflib.fused.addmm_act`` always casts to bf16. Any other case
+    (no autocast, bf16 autocast, grad enabled) uses the original function.
+    """
+
+    def addmm_act(activation, linear, mat1):
+        device_type = mat1.device.type
+        if (
+            torch.is_grad_enabled()
+            or not torch.is_autocast_enabled(device_type)
+            or torch.get_autocast_dtype(device_type) != torch.float16
+            or activation
+            not in (
+                torch.nn.functional.relu,
+                torch.nn.ReLU,
+                torch.nn.functional.gelu,
+                torch.nn.GELU,
+            )
+        ):
+            return original(activation, linear, mat1)
+
+        use_gelu = activation in (torch.nn.functional.gelu, torch.nn.GELU)
+        bias = linear.bias.detach().half()
+        weight = linear.weight.detach().half()
+        mat1 = mat1.half()
+        y = torch.ops.aten._addmm_activation(
+            bias, mat1.reshape(-1, mat1.shape[-1]), weight.t(), use_gelu=use_gelu
+        )
+        return y.view(mat1.shape[:-1] + (y.shape[-1],))
+
+    addmm_act._samgeo_fp16_aware = True
+    addmm_act.__wrapped__ = original
+    return addmm_act
+
+
+def _install_fp16_aware_addmm_act():
+    """Replace ``sam3.model.vitdet.addmm_act`` with the fp16-aware wrapper."""
+    try:
+        from sam3.model import vitdet
+    except ImportError:
+        return
+    current = getattr(vitdet, "addmm_act", None)
+    if current is not None and not getattr(current, "_samgeo_fp16_aware", False):
+        vitdet.addmm_act = _make_fp16_aware_addmm_act(current)
+
+
 def _download_sam31_checkpoint():
     """Download the SAM 3.1 checkpoint with released and source sam3 builds."""
     if download_ckpt_from_hf is not None:
@@ -305,6 +374,14 @@ class SamGeo3:
             checkpoint_path = _download_sam31_checkpoint()
             load_from_HF = False
 
+        if (
+            str(device).startswith("cuda")
+            and torch.cuda.is_available()
+            and _cuda_autocast_dtype(device) == torch.float16
+        ):
+            # Patch before building so torch.compile traces the fp16 kernel.
+            _install_fp16_aware_addmm_act()
+
         model = build_sam3_image_model(
             bpe_path=bpe_path,
             device=device,
@@ -354,13 +431,16 @@ class SamGeo3:
         autocast keeps activation and weight dtypes consistent (matching how
         Meta runs the model) and avoids a ``mat1 and mat2 must have the same
         dtype`` runtime error. On non-CUDA devices this is a no-op context.
+        GPUs older than Ampere use float16 instead (see ``_cuda_autocast_dtype``).
 
         Returns:
             A context manager: ``torch.autocast`` on CUDA, otherwise
             ``contextlib.nullcontext``.
         """
         if self.backend == "meta" and str(self.device).startswith("cuda"):
-            return torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+            return torch.autocast(
+                device_type="cuda", dtype=_cuda_autocast_dtype(self.device)
+            )
         return nullcontext()
 
     def set_image(
