@@ -214,7 +214,7 @@ def DeleteVectorFile(driver, strVectorFile):
         if os.path.exists(strVectorFile):
             driver.DeleteDataSource(strVectorFile)
     except Exception as e:
-        print("fail!" % strVectorFile)
+        print("fail to delete %s!" % strVectorFile)
         print("ERROR:", e)
 
 

@@ -95,6 +95,101 @@ def _tensor_to_numpy(tensor):
     return tensor.numpy()
 
 
+def _cuda_autocast_dtype(device):
+    """Return the autocast dtype to use for SAM3 on a CUDA device.
+
+    bf16 is only fast on GPUs with compute capability 8.0+ (Ampere and newer).
+    ``torch.cuda.is_bf16_supported()`` also returns True on older GPUs because
+    it counts emulation, so check the capability directly and use fp16 there.
+
+    Args:
+        device: A CUDA device, e.g. ``"cuda"`` or ``"cuda:1"``.
+
+    Returns:
+        torch.dtype: ``torch.bfloat16`` or ``torch.float16``.
+    """
+    index = torch.device(device).index
+    if index is None:
+        index = torch.cuda.current_device()
+    if torch.cuda.get_device_capability(index) >= (8, 0):
+        return torch.bfloat16
+    return torch.float16
+
+
+def _autocast_dtype_if_enabled(device_type):
+    """Return the active autocast dtype for a device type, or None if off.
+
+    ``torch.is_autocast_enabled(device_type)`` and ``torch.get_autocast_dtype``
+    were added in PyTorch 2.4; older releases only expose per-backend
+    functions.
+
+    Args:
+        device_type: A torch device type such as ``"cuda"`` or ``"cpu"``.
+
+    Returns:
+        torch.dtype or None: The autocast dtype for ``device_type``, or None
+        when autocast is disabled for it.
+    """
+    if hasattr(torch, "get_autocast_dtype"):
+        if not torch.is_autocast_enabled(device_type):
+            return None
+        return torch.get_autocast_dtype(device_type)
+    if device_type == "cpu":
+        if not torch.is_autocast_cpu_enabled():
+            return None
+        return torch.get_autocast_cpu_dtype()
+    if not torch.is_autocast_enabled():
+        return None
+    return torch.get_autocast_gpu_dtype()
+
+
+def _make_fp16_aware_addmm_act(original):
+    """Wrap sam3's fused ``addmm_act`` so it runs in fp16 under fp16 autocast.
+
+    ``sam3.perflib.fused.addmm_act`` always casts to bf16. Any other case
+    (no autocast, bf16 autocast, grad enabled) uses the original function.
+    """
+
+    def addmm_act(activation, linear, mat1):
+        device_type = mat1.device.type
+        if (
+            torch.is_grad_enabled()
+            or _autocast_dtype_if_enabled(device_type) != torch.float16
+            or activation
+            not in (
+                torch.nn.functional.relu,
+                torch.nn.ReLU,
+                torch.nn.functional.gelu,
+                torch.nn.GELU,
+            )
+        ):
+            return original(activation, linear, mat1)
+
+        use_gelu = activation in (torch.nn.functional.gelu, torch.nn.GELU)
+        bias = linear.bias.detach().half()
+        weight = linear.weight.detach().half()
+        mat1 = mat1.half()
+        y = torch.ops.aten._addmm_activation(
+            bias, mat1.reshape(-1, mat1.shape[-1]), weight.t(), use_gelu=use_gelu
+        )
+        return y.view(mat1.shape[:-1] + (y.shape[-1],))
+
+    addmm_act._samgeo_fp16_aware = True
+    addmm_act.__wrapped__ = original
+    return addmm_act
+
+
+def _install_fp16_aware_addmm_act():
+    """Replace ``sam3.model.vitdet.addmm_act`` with the fp16-aware wrapper."""
+    try:
+        from sam3.model import vitdet
+    except ImportError:
+        return
+    current = getattr(vitdet, "addmm_act", None)
+    if current is not None and not getattr(current, "_samgeo_fp16_aware", False):
+        vitdet.addmm_act = _make_fp16_aware_addmm_act(current)
+
+
 def _download_sam31_checkpoint():
     """Download the SAM 3.1 checkpoint with released and source sam3 builds."""
     if download_ckpt_from_hf is not None:
@@ -305,6 +400,14 @@ class SamGeo3:
             checkpoint_path = _download_sam31_checkpoint()
             load_from_HF = False
 
+        if (
+            str(device).startswith("cuda")
+            and torch.cuda.is_available()
+            and _cuda_autocast_dtype(device) == torch.float16
+        ):
+            # Patch before building so torch.compile traces the fp16 kernel.
+            _install_fp16_aware_addmm_act()
+
         model = build_sam3_image_model(
             bpe_path=bpe_path,
             device=device,
@@ -354,13 +457,16 @@ class SamGeo3:
         autocast keeps activation and weight dtypes consistent (matching how
         Meta runs the model) and avoids a ``mat1 and mat2 must have the same
         dtype`` runtime error. On non-CUDA devices this is a no-op context.
+        GPUs older than Ampere use float16 instead (see ``_cuda_autocast_dtype``).
 
         Returns:
             A context manager: ``torch.autocast`` on CUDA, otherwise
             ``contextlib.nullcontext``.
         """
         if self.backend == "meta" and str(self.device).startswith("cuda"):
-            return torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+            return torch.autocast(
+                device_type="cuda", dtype=_cuda_autocast_dtype(self.device)
+            )
         return nullcontext()
 
     def set_image(
@@ -1680,23 +1786,82 @@ class SamGeo3:
             mask = region == 0
             region[mask] = tile_region[mask]
 
+    @staticmethod
+    def _boxes_to_list(
+        boxes: Union[List[List[float]], str, "gpd.GeoDataFrame", dict, np.ndarray],
+        box_crs: Optional[str] = None,
+    ) -> Tuple[List[List[float]], Optional[str]]:
+        """Normalize box prompts to a list of ``[xmin, ymin, xmax, ymax]``.
+
+        Args:
+            boxes: A list of XYXY boxes, a numpy array, a GeoJSON-like dict
+                (such as ``leafmap.Map().user_rois``), a GeoDataFrame or a path
+                to a vector file. Geometries are reduced to their bounds.
+            box_crs (str, optional): The CRS of the box coordinates. For a
+                GeoDataFrame or vector file with a CRS, that CRS is used when
+                ``box_crs`` is None.
+
+        Returns:
+            Tuple[List[List[float]], Optional[str]]: The boxes and their CRS.
+        """
+        if isinstance(boxes, dict):
+            if not boxes.get("features"):
+                # Empty FeatureCollection (e.g. nothing drawn on the map)
+                return [], box_crs
+
+            import geopandas as gpd
+
+            # GeoJSON-like dict
+            boxes = gpd.GeoDataFrame.from_features(boxes)
+
+        if isinstance(boxes, list):
+            return boxes, box_crs
+        if isinstance(boxes, np.ndarray):
+            return boxes.tolist(), box_crs
+
+        import geopandas as gpd
+
+        if not isinstance(boxes, (str, gpd.GeoDataFrame)):
+            raise ValueError(
+                "boxes must be a list, GeoDataFrame, file path, or numpy array."
+            )
+        # Copy so setting the CRS below does not modify the caller's frame
+        gdf = gpd.read_file(boxes) if isinstance(boxes, str) else boxes.copy()
+
+        if gdf.crs is None and box_crs is not None:
+            gdf.crs = box_crs
+        elif gdf.crs is not None and box_crs is None:
+            box_crs = str(gdf.crs)
+
+        # Extract bounding boxes from geometries
+        return gdf.geometry.apply(lambda geom: list(geom.bounds)).tolist(), box_crs
+
     def generate_masks_by_boxes(
         self,
-        boxes: List[List[float]],
+        boxes: Union[List[List[float]], str, "gpd.GeoDataFrame", dict, np.ndarray],
         box_labels: Optional[List[bool]] = None,
         box_crs: Optional[str] = None,
         min_size: int = 0,
         max_size: Optional[int] = None,
+        prompt: Optional[str] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """
         Generate masks using bounding box prompts.
 
+        Box prompts can be combined with a text prompt. SAM 3 then finds every
+        object matching the text, using positive boxes as examples of what to
+        keep and negative boxes as examples of what to reject, which helps cut
+        false positives from a text prompt alone.
+
         Args:
-            boxes (List[List[float]]): List of bounding boxes in XYXY format
-                [[xmin, ymin, xmax, ymax], ...].
+            boxes: Bounding boxes in XYXY format [[xmin, ymin, xmax, ymax], ...]
+                as a list or numpy array, or a GeoJSON-like dict (such as
+                ``leafmap.Map().user_rois``), GeoDataFrame or vector file path,
+                whose geometries are reduced to their bounds.
                 If box_crs is None: pixel coordinates.
                 If box_crs is specified: coordinates in the given CRS (e.g., "EPSG:4326").
+                May be empty when ``prompt`` is given.
             box_labels (List[bool], optional): List of boolean labels for each box.
                 True for positive prompt (include), False for negative prompt (exclude).
                 If None, all boxes are treated as positive prompts.
@@ -1707,6 +1872,10 @@ class SamGeo3:
                 will be filtered out. Defaults to 0.
             max_size (int, optional): Maximum mask size in pixels. Masks larger than
                 this will be filtered out. Defaults to None (no maximum).
+            prompt (str, optional): A text prompt describing the objects to
+                segment, used together with the boxes. If None, only the boxes
+                are used. At least one box or a prompt is required. Defaults
+                to None.
             **kwargs: Additional keyword arguments.
 
         Returns:
@@ -1716,6 +1885,13 @@ class SamGeo3:
             # For pixel coordinates:
             boxes = [[100, 200, 300, 400]]
             sam.generate_masks_by_boxes(boxes)
+
+            # Text prompt refined with a positive and a negative box:
+            sam.generate_masks_by_boxes(
+                [[100, 200, 300, 400], [500, 600, 700, 800]],
+                box_labels=[True, False],
+                prompt="building",
+            )
 
             # For geographic coordinates (GeoTIFF):
             boxes = [[-122.5, 37.7, -122.4, 37.8]]  # [lon_min, lat_min, lon_max, lat_max]
@@ -1727,6 +1903,18 @@ class SamGeo3:
         else:  # transformers
             if not hasattr(self, "pil_image"):
                 raise ValueError("No image set. Please call set_image() first.")
+
+        boxes, box_crs = self._boxes_to_list(boxes, box_crs)
+        if not boxes and not prompt:
+            raise ValueError("Provide at least one box or a text prompt.")
+        if boxes and box_crs is not None and self.source is None:
+            warnings.warn(
+                f"box_crs={box_crs!r} is ignored because the image has no "
+                "georeference (it was not set from a GeoTIFF path); boxes are "
+                "used as pixel coordinates.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         if box_labels is None:
             box_labels = [True] * len(boxes)
@@ -1779,6 +1967,14 @@ class SamGeo3:
             # Reset all prompts
             self.processor.reset_all_prompts(self.inference_state)
 
+            # The text prompt stays in the state, so the boxes added below
+            # refine it instead of replacing it.
+            if prompt:
+                with self._meta_autocast():
+                    self.inference_state = self.processor.set_text_prompt(
+                        state=self.inference_state, prompt=prompt
+                    )
+
             # Process each box
             for box, label in zip(boxes, box_labels):
                 # Convert XYXY to CxCyWH format
@@ -1813,9 +2009,20 @@ class SamGeo3:
                 [[float(coord) for coord in box] for box in boxes]
             ]  # Wrap in list for image level and convert to float
 
-            # Prepare inputs with boxes
+            input_boxes_labels = [[int(bool(label)) for label in box_labels]]
+
+            # Prepare inputs with boxes (and the text prompt, if any)
+            processor_kwargs = {}
+            if prompt:
+                processor_kwargs["text"] = prompt
+            if boxes:
+                processor_kwargs["input_boxes"] = input_boxes
+                # Only send labels when needed: boxes default to positive, and
+                # older processors may not accept input_boxes_labels.
+                if not all(box_labels):
+                    processor_kwargs["input_boxes_labels"] = input_boxes_labels
             inputs = self.processor(
-                images=self.pil_image, input_boxes=input_boxes, return_tensors="pt"
+                images=self.pil_image, return_tensors="pt", **processor_kwargs
             ).to(self.device)
 
             # Get original sizes for post-processing
@@ -2079,8 +2286,6 @@ class SamGeo3:
             ...     output="masks.tif",
             ... )
         """
-        import geopandas as gpd
-
         if self.backend != "meta":
             raise NotImplementedError(
                 "generate_masks_by_boxes_inst is only available for the Meta backend. "
@@ -2099,33 +2304,7 @@ class SamGeo3:
                 "enable_inst_interactivity=True."
             )
 
-        # Process boxes based on input type
-        if isinstance(boxes, dict):
-            # GeoJSON-like dict
-            boxes = gpd.GeoDataFrame.from_features(boxes)
-
-        if isinstance(boxes, (str, gpd.GeoDataFrame)):
-            # File path or GeoDataFrame
-            if isinstance(boxes, str):
-                gdf = gpd.read_file(boxes)
-            else:
-                gdf = boxes
-
-            if gdf.crs is None and box_crs is not None:
-                gdf.crs = box_crs
-            elif gdf.crs is not None and box_crs is None:
-                box_crs = str(gdf.crs)
-
-            # Extract bounding boxes from geometries
-            boxes_list = gdf.geometry.apply(lambda geom: list(geom.bounds)).tolist()
-        elif isinstance(boxes, list):
-            boxes_list = boxes
-        elif isinstance(boxes, np.ndarray):
-            boxes_list = boxes.tolist()
-        else:
-            raise ValueError(
-                "boxes must be a list, GeoDataFrame, file path, or numpy array."
-            )
+        boxes_list, box_crs = self._boxes_to_list(boxes, box_crs)
 
         # Filter boxes that are out of image bounds if box_crs is provided
         if box_crs is not None and self.source is not None:

@@ -1,4 +1,6 @@
+import functools
 import os
+from contextlib import nullcontext
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import cv2
@@ -9,6 +11,24 @@ from tqdm import tqdm
 
 
 from samgeo import common
+
+
+def _with_model_autocast(func):
+    """Run a SamGeo2 method under the model's own autocast context.
+
+    Args:
+        func: The SamGeo2 method to wrap.
+
+    Returns:
+        The wrapped method.
+    """
+
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        with self._model_autocast():
+            return func(self, *args, **kwargs)
+
+    return wrapper
 
 
 class SamGeo2:
@@ -134,8 +154,15 @@ class SamGeo2:
                 f"model_id must be one of the following: {', '.join(allowed_models)}"
             )
 
+        # Autocast is scoped to this model's own calls (see _model_autocast)
+        # rather than turned on for the whole session, so models on GPUs that
+        # need different dtypes do not change each other's precision.
+        autocast_dtype = None
         if device is None:
-            device = common.choose_device(empty_cache=empty_cache)
+            device = common.choose_device(
+                empty_cache=empty_cache, enable_autocast=False
+            )
+            autocast_dtype = common.get_autocast_dtype(device)
 
         if hydra_overrides_extra is None:
             hydra_overrides_extra = []
@@ -143,6 +170,7 @@ class SamGeo2:
         self.model_id = model_id
         self.model_version = "sam2"
         self.device = device
+        self._autocast_dtype = autocast_dtype
         self.mask_scores: Optional[Dict[int, float]] = None
 
         if video:
@@ -195,6 +223,23 @@ class SamGeo2:
                 **kwargs,
             )
 
+    def _model_autocast(self):
+        """Return the autocast context for this model's forward passes.
+
+        When SamGeo2 picks the device itself, CUDA inference runs under
+        autocast with the dtype that suits that GPU (bfloat16 on Ampere and
+        newer, float16 on older GPUs). With an explicit ``device`` no autocast
+        is applied, as before.
+
+        Returns:
+            A context manager: ``torch.autocast`` or ``contextlib.nullcontext``.
+        """
+        dtype = getattr(self, "_autocast_dtype", None)
+        if dtype is None:
+            return nullcontext()
+        return torch.autocast(device_type="cuda", dtype=dtype)
+
+    @_with_model_autocast
     def generate(
         self,
         source: Union[str, np.ndarray],
@@ -491,6 +536,7 @@ class SamGeo2:
                 array = self.annotations
             common.array_to_image(array, output, self.source, **kwargs)
 
+    @_with_model_autocast
     @torch.no_grad()
     def set_image(
         self,
@@ -528,6 +574,7 @@ class SamGeo2:
 
         self.predictor.set_image(image)
 
+    @_with_model_autocast
     @torch.no_grad()
     def set_image_batch(
         self,
@@ -568,6 +615,7 @@ class SamGeo2:
 
         self.predictor.set_image_batch(images)
 
+    @_with_model_autocast
     def predict(
         self,
         point_coords: Optional[np.ndarray] = None,
@@ -717,6 +765,7 @@ class SamGeo2:
         if return_results:
             return masks, scores, logits
 
+    @_with_model_autocast
     def predict_by_points(
         self,
         point_coords_batch: List[np.ndarray] = None,
@@ -877,6 +926,7 @@ class SamGeo2:
         if return_results:
             return output_masks, scores, logits
 
+    @_with_model_autocast
     def predict_batch(
         self,
         point_coords_batch: List[np.ndarray] = None,
@@ -919,6 +969,7 @@ class SamGeo2:
             normalize_coords=normalize_coords,
         )
 
+    @_with_model_autocast
     @torch.inference_mode()
     def init_state(
         self,
@@ -948,6 +999,7 @@ class SamGeo2:
             async_loading_frames=async_loading_frames,
         )
 
+    @_with_model_autocast
     @torch.inference_mode()
     def reset_state(self, inference_state: Any) -> None:
         """Remove all input points or masks in all frames throughout the video.
@@ -957,6 +1009,7 @@ class SamGeo2:
         """
         self.predictor.reset_state(inference_state)
 
+    @_with_model_autocast
     @torch.inference_mode()
     def add_new_points_or_box(
         self,
@@ -995,6 +1048,7 @@ class SamGeo2:
             box=box,
         )
 
+    @_with_model_autocast
     @torch.inference_mode()
     def add_new_mask(
         self,
@@ -1016,6 +1070,7 @@ class SamGeo2:
         """
         return self.predictor.add_new_mask(inference_state, frame_idx, obj_id, mask)
 
+    @_with_model_autocast
     @torch.inference_mode()
     def propagate_in_video_preflight(self, inference_state: Any) -> Any:
         """Propagate the inference state in video preflight.
@@ -1048,12 +1103,34 @@ class SamGeo2:
         Returns:
             Any: The propagated inference state.
         """
-        return self.predictor.propagate_in_video(
+        frames = self.predictor.propagate_in_video(
             inference_state,
             start_frame_idx=start_frame_idx,
             max_frame_num_to_track=max_frame_num_to_track,
             reverse=reverse,
         )
+        return self._iter_with_model_autocast(frames)
+
+    def _iter_with_model_autocast(self, iterator: Any) -> Any:
+        """Advance an iterator one step at a time under the model's autocast.
+
+        Autocast is only active while the model computes each item, not while
+        the caller handles it between steps.
+
+        Args:
+            iterator (Any): The iterator to advance, such as the generator
+                returned by the SAM2 video predictor's ``propagate_in_video``.
+
+        Yields:
+            Any: The items produced by ``iterator``.
+        """
+        while True:
+            with self._model_autocast():
+                try:
+                    item = next(iterator)
+                except StopIteration:
+                    return
+            yield item
 
     def tensor_to_numpy(
         self,
@@ -1251,6 +1328,7 @@ class SamGeo2:
 
         return prompts
 
+    @_with_model_autocast
     def set_video(
         self,
         video_path: str,
@@ -1302,6 +1380,7 @@ class SamGeo2:
         self._frame_names = sorted(os.listdir(output_dir))
         self.inference_state = self.predictor.init_state(video_path=output_dir)
 
+    @_with_model_autocast
     def predict_video(
         self,
         prompts: Dict[int, Any] = None,

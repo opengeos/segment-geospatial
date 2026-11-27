@@ -3,6 +3,7 @@
 import importlib.util
 import sys
 import types
+import warnings
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -332,3 +333,298 @@ def test_save_masks_promotes_dtype_so_scores_stay_aligned(monkeypatch, samgeo3):
 
     with pytest.raises(ValueError, match="integer dtype"):
         model.save_masks(output=None, dtype="float32")
+
+
+@pytest.mark.parametrize(
+    "capability, expected",
+    [
+        ((7, 0), "float16"),
+        ((7, 5), "float16"),
+        ((8, 0), "bfloat16"),
+        ((8, 9), "bfloat16"),
+    ],
+)
+def test_autocast_dtype_uses_fp16_before_ampere(
+    monkeypatch, samgeo3, capability, expected
+):
+    """GPUs below compute capability 8.0 get fp16, newer ones keep bf16."""
+    torch = pytest.importorskip("torch")
+    get_capability = Mock(return_value=capability)
+    monkeypatch.setattr(torch.cuda, "get_device_capability", get_capability)
+    monkeypatch.setattr(torch.cuda, "current_device", Mock(return_value=0))
+
+    assert samgeo3._cuda_autocast_dtype("cuda") == getattr(torch, expected)
+    assert samgeo3._cuda_autocast_dtype("cuda:1") == getattr(torch, expected)
+    assert [c.args[0] for c in get_capability.call_args_list] == [0, 1]
+
+
+def test_meta_autocast_uses_fp16_on_turing(monkeypatch, samgeo3):
+    """The Meta backend autocasts to fp16 on a T4-class GPU."""
+    torch = pytest.importorskip("torch")
+    monkeypatch.setattr(torch.cuda, "get_device_capability", Mock(return_value=(7, 5)))
+    monkeypatch.setattr(torch.cuda, "current_device", Mock(return_value=0))
+    model = samgeo3.SamGeo3.__new__(samgeo3.SamGeo3)
+    model.backend = "meta"
+    model.device = "cuda"
+
+    with warnings.catch_warnings():
+        # torch warns that CUDA autocast is disabled when there is no GPU
+        warnings.simplefilter("ignore", UserWarning)
+        ctx = model._meta_autocast()
+    assert ctx.fast_dtype == torch.float16
+
+
+def _sam3_addmm_act(activation, linear, mat1):
+    """Same as sam3.perflib.fused.addmm_act: always casts to bf16."""
+    import torch
+
+    if torch.is_grad_enabled():
+        raise ValueError("Expected grad to be disabled.")
+    use_gelu = activation in (torch.nn.functional.gelu, torch.nn.GELU)
+    y = torch.ops.aten._addmm_activation(
+        linear.bias.detach().bfloat16(),
+        mat1.bfloat16().view(-1, mat1.shape[-1]),
+        linear.weight.detach().bfloat16().t(),
+        use_gelu=use_gelu,
+    )
+    return y.view(mat1.shape[:-1] + (y.shape[-1],))
+
+
+@pytest.mark.parametrize("act", ["GELU", "ReLU"])
+def test_addmm_act_wrapper_runs_in_fp16(samgeo3, act):
+    """Under fp16 autocast the wrapped kernel returns fp16 close to fp32."""
+    torch = pytest.importorskip("torch")
+    torch.manual_seed(0)
+    linear = torch.nn.Linear(16, 32)
+    x = torch.randn(2, 5, 16)
+    activation = getattr(torch.nn, act)
+    original = Mock(side_effect=AssertionError("should not call the bf16 kernel"))
+    wrapped = samgeo3._make_fp16_aware_addmm_act(original)
+
+    with torch.no_grad():
+        expected = activation()(linear(x))
+        with torch.autocast("cpu", dtype=torch.float16):
+            out = wrapped(activation, linear, x)
+
+    original.assert_not_called()
+    assert out.dtype == torch.float16
+    assert out.shape == (2, 5, 32)
+    torch.testing.assert_close(out.float(), expected, atol=1e-2, rtol=1e-2)
+
+
+def test_addmm_act_wrapper_keeps_bf16_behavior(samgeo3):
+    """Without fp16 autocast the wrapper behaves exactly like sam3's kernel."""
+    torch = pytest.importorskip("torch")
+    linear = torch.nn.Linear(8, 8)
+    x = torch.randn(3, 8)
+    wrapped = samgeo3._make_fp16_aware_addmm_act(_sam3_addmm_act)
+
+    with torch.no_grad():
+        assert wrapped(torch.nn.GELU, linear, x).dtype == torch.bfloat16
+        with torch.autocast("cpu", dtype=torch.bfloat16):
+            assert wrapped(torch.nn.GELU, linear, x).dtype == torch.bfloat16
+    with pytest.raises(ValueError, match="grad"):
+        wrapped(torch.nn.GELU, linear, x)
+
+
+def test_install_addmm_act_wrapper_only_once(monkeypatch, samgeo3):
+    """Installing the wrapper twice does not wrap it a second time."""
+    vitdet = types.ModuleType("sam3.model.vitdet")
+    vitdet.addmm_act = _sam3_addmm_act
+    sam3_model = types.ModuleType("sam3.model")
+    sam3_model.vitdet = vitdet
+    monkeypatch.setitem(sys.modules, "sam3", types.ModuleType("sam3"))
+    monkeypatch.setitem(sys.modules, "sam3.model", sam3_model)
+    monkeypatch.setitem(sys.modules, "sam3.model.vitdet", vitdet)
+
+    samgeo3._install_fp16_aware_addmm_act()
+    wrapped = vitdet.addmm_act
+    samgeo3._install_fp16_aware_addmm_act()
+
+    assert vitdet.addmm_act is wrapped
+    assert wrapped.__wrapped__ is _sam3_addmm_act
+
+
+def _box_prompt_model(samgeo3, backend):
+    """Build a bare SamGeo3 with a mocked processor for box prompt tests."""
+    model = samgeo3.SamGeo3.__new__(samgeo3.SamGeo3)
+    model.backend = backend
+    model.device = "cpu"
+    model.source = None
+    model.image_width = 100
+    model.image_height = 50
+    model.confidence_threshold = 0.5
+    model.mask_threshold = 0.5
+    model._convert_results_to_numpy = Mock()
+    result = {"masks": [], "boxes": [], "scores": []}
+    model.processor = Mock()
+    if backend == "meta":
+        model.inference_state = {}
+        model.processor.set_text_prompt.return_value = result
+        model.processor.add_geometric_prompt.return_value = result
+    else:
+        model.pil_image = object()
+        model.model = Mock()
+        model.processor.return_value.to.return_value = {}
+        model.processor.post_process_instance_segmentation.return_value = [result]
+    return model
+
+
+def test_boxes_with_text_prompt_meta_sets_text_before_boxes(samgeo3):
+    """The Meta backend sets the text prompt, then adds each box on top of it."""
+    model = _box_prompt_model(samgeo3, "meta")
+
+    model.generate_masks_by_boxes(
+        [[10, 10, 30, 20], [50, 20, 70, 40]],
+        box_labels=[True, False],
+        prompt="building",
+    )
+
+    calls = [c[0] for c in model.processor.method_calls]
+    assert calls == [
+        "reset_all_prompts",
+        "set_text_prompt",
+        "add_geometric_prompt",
+        "add_geometric_prompt",
+    ]
+    assert model.processor.set_text_prompt.call_args.kwargs["prompt"] == "building"
+    box_calls = model.processor.add_geometric_prompt.call_args_list
+    assert [c.kwargs["label"] for c in box_calls] == [True, False]
+    assert box_calls[0].kwargs["box"] == [0.2, 0.3, 0.2, 0.2]
+
+
+def test_boxes_without_text_prompt_meta_skips_text(samgeo3):
+    """Without a text prompt the Meta backend uses the boxes alone."""
+    model = _box_prompt_model(samgeo3, "meta")
+
+    model.generate_masks_by_boxes([[10, 10, 30, 20]])
+
+    model.processor.set_text_prompt.assert_not_called()
+    model.processor.add_geometric_prompt.assert_called_once()
+
+
+def test_boxes_with_text_prompt_transformers_passes_text_and_labels(samgeo3):
+    """The Transformers backend sends the text, boxes and box labels together."""
+    pytest.importorskip("torch")
+    model = _box_prompt_model(samgeo3, "transformers")
+
+    model.generate_masks_by_boxes(
+        [[10, 10, 30, 20], [50, 20, 70, 40]],
+        box_labels=[True, False],
+        prompt="building",
+    )
+
+    kwargs = model.processor.call_args.kwargs
+    assert kwargs["text"] == "building"
+    assert kwargs["input_boxes"] == [
+        [[10.0, 10.0, 30.0, 20.0], [50.0, 20.0, 70.0, 40.0]]
+    ]
+    assert kwargs["input_boxes_labels"] == [[1, 0]]
+
+
+def test_boxes_transformers_sends_negative_labels_without_text(samgeo3):
+    """Negative boxes are no longer silently treated as positive."""
+    pytest.importorskip("torch")
+    model = _box_prompt_model(samgeo3, "transformers")
+
+    model.generate_masks_by_boxes([[10, 10, 30, 20]], box_labels=[False])
+
+    kwargs = model.processor.call_args.kwargs
+    assert "text" not in kwargs
+    assert kwargs["input_boxes_labels"] == [[0]]
+
+
+@pytest.mark.parametrize("backend", ["meta", "transformers"])
+def test_text_prompt_with_no_boxes(samgeo3, backend):
+    """An empty box list with a text prompt falls back to text only."""
+    pytest.importorskip("torch")
+    model = _box_prompt_model(samgeo3, backend)
+
+    model.generate_masks_by_boxes([], prompt="building")
+
+    if backend == "meta":
+        model.processor.set_text_prompt.assert_called_once()
+        model.processor.add_geometric_prompt.assert_not_called()
+    else:
+        kwargs = model.processor.call_args.kwargs
+        assert kwargs["text"] == "building"
+        assert "input_boxes" not in kwargs
+
+
+def test_no_boxes_and_no_text_prompt_raises(samgeo3):
+    """Calling with neither boxes nor a prompt fails with a clear message."""
+    model = _box_prompt_model(samgeo3, "meta")
+
+    with pytest.raises(ValueError, match="at least one box or a text prompt"):
+        model.generate_masks_by_boxes([])
+
+
+def test_boxes_accept_geojson_feature_collection(samgeo3):
+    """Drawn regions (a GeoJSON FeatureCollection) are reduced to their bounds."""
+    pytest.importorskip("geopandas")
+    rois = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[1, 2], [3, 2], [3, 5], [1, 5], [1, 2]]],
+                },
+            }
+        ],
+    }
+
+    boxes, crs = samgeo3.SamGeo3._boxes_to_list(rois, "EPSG:4326")
+
+    assert boxes == [[1.0, 2.0, 3.0, 5.0]]
+    assert crs == "EPSG:4326"
+
+
+@pytest.mark.parametrize("prompt", [None, "building"])
+def test_empty_feature_collection(samgeo3, prompt):
+    """Nothing drawn on the map: text-only with a prompt, a clear error without."""
+    pytest.importorskip("torch")
+    model = _box_prompt_model(samgeo3, "meta")
+    empty = {"type": "FeatureCollection", "features": []}
+
+    if prompt is None:
+        with pytest.raises(ValueError, match="at least one box or a text prompt"):
+            model.generate_masks_by_boxes(empty, box_crs="EPSG:4326")
+    else:
+        model.generate_masks_by_boxes(empty, box_crs="EPSG:4326", prompt=prompt)
+        model.processor.set_text_prompt.assert_called_once()
+        model.processor.add_geometric_prompt.assert_not_called()
+
+
+def test_boxes_to_list_does_not_modify_caller_geodataframe(samgeo3):
+    """Setting the CRS on a CRS-less GeoDataFrame works on a copy."""
+    gpd = pytest.importorskip("geopandas")
+    shapely_geometry = pytest.importorskip("shapely.geometry")
+    gdf = gpd.GeoDataFrame(geometry=[shapely_geometry.box(1, 2, 3, 5)])
+
+    boxes, crs = samgeo3.SamGeo3._boxes_to_list(gdf, "EPSG:4326")
+
+    assert boxes == [[1.0, 2.0, 3.0, 5.0]]
+    assert crs == "EPSG:4326"
+    assert gdf.crs is None
+
+
+def test_box_crs_without_georeference_warns(samgeo3):
+    """A CRS on boxes for a non-georeferenced image is flagged, not silently used."""
+    pytest.importorskip("torch")
+    model = _box_prompt_model(samgeo3, "meta")
+
+    with pytest.warns(UserWarning, match="no georeference"):
+        model.generate_masks_by_boxes([[10, 10, 30, 20]], box_crs="EPSG:4326")
+
+
+def test_all_positive_boxes_transformers_omits_labels(samgeo3):
+    """All-positive boxes need no labels, so older processors keep working."""
+    pytest.importorskip("torch")
+    model = _box_prompt_model(samgeo3, "transformers")
+
+    model.generate_masks_by_boxes([[10, 10, 30, 20]], prompt="building")
+
+    assert "input_boxes_labels" not in model.processor.call_args.kwargs
