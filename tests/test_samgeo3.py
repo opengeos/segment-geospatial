@@ -580,3 +580,41 @@ def test_boxes_accept_geojson_feature_collection(samgeo3):
 
     assert boxes == [[1.0, 2.0, 3.0, 5.0]]
     assert crs == "EPSG:4326"
+
+
+@pytest.mark.parametrize("prompt", [None, "building"])
+def test_empty_feature_collection(samgeo3, prompt):
+    """Nothing drawn on the map: text-only with a prompt, a clear error without."""
+    pytest.importorskip("torch")
+    model = _box_prompt_model(samgeo3, "meta")
+    empty = {"type": "FeatureCollection", "features": []}
+
+    if prompt is None:
+        with pytest.raises(ValueError, match="at least one box or a text prompt"):
+            model.generate_masks_by_boxes(empty, box_crs="EPSG:4326")
+    else:
+        model.generate_masks_by_boxes(empty, box_crs="EPSG:4326", prompt=prompt)
+        model.processor.set_text_prompt.assert_called_once()
+        model.processor.add_geometric_prompt.assert_not_called()
+
+
+def test_boxes_to_list_does_not_modify_caller_geodataframe(samgeo3):
+    """Setting the CRS on a CRS-less GeoDataFrame works on a copy."""
+    gpd = pytest.importorskip("geopandas")
+    shapely_geometry = pytest.importorskip("shapely.geometry")
+    gdf = gpd.GeoDataFrame(geometry=[shapely_geometry.box(1, 2, 3, 5)])
+
+    boxes, crs = samgeo3.SamGeo3._boxes_to_list(gdf, "EPSG:4326")
+
+    assert boxes == [[1.0, 2.0, 3.0, 5.0]]
+    assert crs == "EPSG:4326"
+    assert gdf.crs is None
+
+
+def test_box_crs_without_georeference_warns(samgeo3):
+    """A CRS on boxes for a non-georeferenced image is flagged, not silently used."""
+    pytest.importorskip("torch")
+    model = _box_prompt_model(samgeo3, "meta")
+
+    with pytest.warns(UserWarning, match="no georeference"):
+        model.generate_masks_by_boxes([[10, 10, 30, 20]], box_crs="EPSG:4326")

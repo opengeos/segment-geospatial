@@ -1805,6 +1805,10 @@ class SamGeo3:
             Tuple[List[List[float]], Optional[str]]: The boxes and their CRS.
         """
         if isinstance(boxes, dict):
+            if not boxes.get("features"):
+                # Empty FeatureCollection (e.g. nothing drawn on the map)
+                return [], box_crs
+
             import geopandas as gpd
 
             # GeoJSON-like dict
@@ -1821,7 +1825,8 @@ class SamGeo3:
             raise ValueError(
                 "boxes must be a list, GeoDataFrame, file path, or numpy array."
             )
-        gdf = gpd.read_file(boxes) if isinstance(boxes, str) else boxes
+        # Copy so setting the CRS below does not modify the caller's frame
+        gdf = gpd.read_file(boxes) if isinstance(boxes, str) else boxes.copy()
 
         if gdf.crs is None and box_crs is not None:
             gdf.crs = box_crs
@@ -1902,6 +1907,14 @@ class SamGeo3:
         boxes, box_crs = self._boxes_to_list(boxes, box_crs)
         if not boxes and not prompt:
             raise ValueError("Provide at least one box or a text prompt.")
+        if boxes and box_crs is not None and self.source is None:
+            warnings.warn(
+                f"box_crs={box_crs!r} is ignored because the image has no "
+                "georeference (it was not set from a GeoTIFF path); boxes are "
+                "used as pixel coordinates.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         if box_labels is None:
             box_labels = [True] * len(boxes)
