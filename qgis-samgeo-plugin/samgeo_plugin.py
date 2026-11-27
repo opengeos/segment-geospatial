@@ -37,10 +37,37 @@ from qgis.core import (
     QgsWkbTypes,
     Qgis,
     QgsMessageLog,
+    QgsCoordinateReferenceSystem,
+    QgsCoordinateTransform,
 )
 
 # Import the map tools
 from .map_tools import PointPromptTool, BoxPromptTool
+from . import plugin_utils
+from .plugin_utils import (
+    PROMPT_BATCH_POINT,
+    PROMPT_BOX,
+    PROMPT_FIELD,
+    PROMPT_POINT,
+    PROMPT_TEXT,
+    SCALE_MAX,
+    SCALE_MIN,
+    SOURCE_FIELD,
+    TILE_OVERLAP_DEFAULT,
+    TILE_SIZE_DEFAULT,
+    default_output_path,
+    failed_tile_messages,
+    is_geotiff,
+    mask_attributes,
+    model_constructor_kwargs,
+    model_family,
+    model_weight_options,
+    output_extension,
+    scaled_size,
+    source_directory,
+    tile_count,
+    validate_tile_settings,
+)
 
 TOOLBAR_OBJECT_NAME = "SamGeo"
 MENU_TITLE = "&SamGeo"
@@ -73,7 +100,15 @@ class SamGeoPlugin:
         # SamGeo model instance
         self.sam = None
         self.current_layer = None
+        self._inv_gt_cache = None
         self.current_image_path = None
+        # Prompt type and source image of the current masks, written to the
+        # ``prompt`` and ``source`` fields. Recorded only after a successful
+        # segmentation so a failed run or a new image does not relabel them.
+        self.last_prompt_type = None
+        self.mask_source_path = None
+        # Set when tiled mode replaced the model's image with its last tile
+        self.image_needs_reset = False
 
         # Point and box prompts
         self.point_coords = []
@@ -467,6 +502,19 @@ class SamGeoPlugin:
         version_row.addWidget(self.model_combo)
         backend_layout.addLayout(version_row)
 
+        # Model weights (follows the selected model family)
+        weights_row = QHBoxLayout()
+        weights_row.addWidget(QLabel("Weights:"))
+        self.weights_combo = QComboBox()
+        self.weights_combo.setToolTip(
+            "Model checkpoint size. Larger weights are more accurate but\n"
+            "slower and need more memory."
+        )
+        weights_row.addWidget(self.weights_combo)
+        backend_layout.addLayout(weights_row)
+        self.model_combo.currentTextChanged.connect(self._update_weight_options)
+        self._update_weight_options(self.model_combo.currentText())
+
         backend_row = QHBoxLayout()
         backend_row.addWidget(QLabel("Backend:"))
         self.backend_combo = QComboBox()
@@ -585,6 +633,65 @@ class SamGeoPlugin:
         self.max_size_spin.setSpecialValueText("No limit")
         size_row.addWidget(self.max_size_spin)
         text_group_layout.addLayout(size_row)
+
+        # Tiled mode for large images
+        self.tiled_check = QCheckBox("Tiled mode for large images")
+        self.tiled_check.setChecked(False)
+        self.tiled_check.setToolTip(
+            "Split the image into overlapping tiles, segment each tile with\n"
+            "the text prompt and merge the results (SamGeo3, GeoTIFF only).\n"
+            "SAM works best on image patches of about 1000 pixels, so this\n"
+            "gives better results on full scenes. Setting the image first is\n"
+            "not required; the result is saved using the Output tab settings."
+        )
+        text_group_layout.addWidget(self.tiled_check)
+
+        self.tiled_options = QWidget()
+        tiled_layout = QVBoxLayout()
+        tiled_layout.setContentsMargins(0, 0, 0, 0)
+        self.tiled_options.setLayout(tiled_layout)
+
+        tile_row = QHBoxLayout()
+        tile_row.addWidget(QLabel("Tile size:"))
+        self.tile_size_spin = QSpinBox()
+        self.tile_size_spin.setRange(256, 8192)
+        self.tile_size_spin.setSingleStep(128)
+        self.tile_size_spin.setValue(TILE_SIZE_DEFAULT)
+        self.tile_size_spin.setSuffix(" px")
+        tile_row.addWidget(self.tile_size_spin)
+
+        tile_row.addWidget(QLabel("Overlap:"))
+        self.tile_overlap_spin = QSpinBox()
+        self.tile_overlap_spin.setRange(0, 4096)
+        self.tile_overlap_spin.setSingleStep(32)
+        self.tile_overlap_spin.setValue(TILE_OVERLAP_DEFAULT)
+        self.tile_overlap_spin.setSuffix(" px")
+        self.tile_overlap_spin.setToolTip(
+            "Overlap between neighboring tiles. More overlap merges objects\n"
+            "on tile edges better but takes longer."
+        )
+        tile_row.addWidget(self.tile_overlap_spin)
+        tiled_layout.addLayout(tile_row)
+
+        scale_row = QHBoxLayout()
+        scale_row.addWidget(QLabel("Processing scale:"))
+        self.tile_scale_spin = QSpinBox()
+        self.tile_scale_spin.setRange(SCALE_MIN, SCALE_MAX)
+        self.tile_scale_spin.setSingleStep(10)
+        self.tile_scale_spin.setValue(100)
+        self.tile_scale_spin.setSuffix(" %")
+        self.tile_scale_spin.setToolTip(
+            "Resample the image before tiling. Below 100% processes a coarser\n"
+            "copy (faster, suits large objects); above 100% an upsampled one\n"
+            "(slower, can help with small objects). The mask keeps the\n"
+            "processing resolution."
+        )
+        scale_row.addWidget(self.tile_scale_spin)
+        tiled_layout.addLayout(scale_row)
+
+        self.tiled_options.setVisible(False)
+        self.tiled_check.toggled.connect(self.tiled_options.setVisible)
+        text_group_layout.addWidget(self.tiled_options)
 
         self.text_segment_btn = QPushButton("Segment by Text")
         self.text_segment_btn.clicked.connect(self.segment_by_text)
@@ -846,6 +953,18 @@ class SamGeoPlugin:
         )
         output_group_layout.addWidget(self.auto_show_check)
 
+        # Save next to the source image when no output path is given
+        self.save_to_source_dir_check = QCheckBox(
+            "Save next to source image when no path is set"
+        )
+        self.save_to_source_dir_check.setChecked(False)
+        self.save_to_source_dir_check.setToolTip(
+            "If the output path is empty, write the result to the source\n"
+            "image's folder as <image>_<prompt>_masks.<ext> instead of a\n"
+            "temporary file. Existing files are never overwritten."
+        )
+        output_group_layout.addWidget(self.save_to_source_dir_check)
+
         # Output path
         output_path_row = QHBoxLayout()
         self.output_path_edit = QLineEdit()
@@ -926,7 +1045,10 @@ class SamGeoPlugin:
     def browse_batch_output(self):
         """Browse for batch output file location."""
         file_path, _ = QFileDialog.getSaveFileName(
-            self.iface.mainWindow(), "Save Batch Output", "", "GeoTIFF (*.tif)"
+            self.iface.mainWindow(),
+            "Save Batch Output",
+            default_output_path(self.current_image_path, PROMPT_BATCH_POINT, ".tif"),
+            "GeoTIFF (*.tif)",
         )
         if file_path:
             self.batch_output_edit.setText(file_path)
@@ -952,11 +1074,31 @@ class SamGeoPlugin:
         else:
             filter_str = "GeoTIFF (*.tif)"
 
+        start_path = self.output_path_edit.text().strip()
+        if not start_path:
+            source = self.mask_source_path or self.current_image_path
+            start_path = default_output_path(
+                source,
+                self.last_prompt_type,
+                output_extension(format_text),
+            ) or source_directory(source)
+
         file_path, _ = QFileDialog.getSaveFileName(
-            self.iface.mainWindow(), "Save Output", "", filter_str
+            self.iface.mainWindow(), "Save Output", start_path, filter_str
         )
         if file_path:
             self.output_path_edit.setText(file_path)
+
+    def _update_weight_options(self, model_text):
+        """Fill the weights combo with the choices of the selected family.
+
+        Args:
+            model_text: Text of the model combo, e.g. ``"SamGeo2 (SAM2)"``.
+        """
+        self.weights_combo.clear()
+        for label, value in model_weight_options(model_family(model_text)):
+            self.weights_combo.addItem(label, value)
+        self.weights_combo.setCurrentIndex(0)
 
     def load_model(self):
         """Load the SamGeo model."""
@@ -976,49 +1118,42 @@ class SamGeoPlugin:
             confidence = self.conf_spin.value()
             enable_interactive = self.interactive_check.isChecked()
 
+            family = model_family(model_version)
+            weight_kwargs = model_constructor_kwargs(
+                family, self.weights_combo.currentData()
+            )
+            weight_name = next(iter(weight_kwargs.values()))
+
+            try:
+                from ._samgeo_lib import get_samgeo
+            except ImportError:
+                from _samgeo_lib import get_samgeo
+
+            samgeo = get_samgeo()
+
             # Import and initialize the appropriate model
-            if "SamGeo3" in model_version:
-                try:
-                    from ._samgeo_lib import get_samgeo
-                except ImportError:
-                    from _samgeo_lib import get_samgeo
-
-                samgeo = get_samgeo()
-                SamGeo3 = samgeo.SamGeo3
-
-                self.sam = SamGeo3(
+            if family == "sam3":
+                self.sam = samgeo.SamGeo3(
                     backend=backend,
                     device=device,
                     confidence_threshold=confidence,
                     enable_inst_interactivity=enable_interactive,
+                    **weight_kwargs,
                 )
                 model_name = "SamGeo3"
-            elif "SamGeo2" in model_version:
-                try:
-                    from ._samgeo_lib import get_samgeo
-                except ImportError:
-                    from _samgeo_lib import get_samgeo
-
-                samgeo = get_samgeo()
-                SamGeo2 = samgeo.SamGeo2
-
-                self.sam = SamGeo2(
+            elif family == "sam2":
+                self.sam = samgeo.SamGeo2(
                     device=device,
+                    **weight_kwargs,
                 )
                 model_name = "SamGeo2"
             else:
-                try:
-                    from ._samgeo_lib import get_samgeo
-                except ImportError:
-                    from _samgeo_lib import get_samgeo
-
-                samgeo = get_samgeo()
-                SamGeo = samgeo.SamGeo
-
-                self.sam = SamGeo(
+                self.sam = samgeo.SamGeo(
                     device=device,
+                    **weight_kwargs,
                 )
                 model_name = "SamGeo"
+            model_name = f"{model_name} ({weight_name})"
 
             self.model_status.setText(f"Model: {model_name} loaded")
             self.model_status.setStyleSheet("color: green;")
@@ -1062,7 +1197,10 @@ class SamGeoPlugin:
 
             self.sam.set_image(source)
             self.current_layer = layer
+            self._inv_gt_cache = None
             self.current_image_path = source
+            self.image_needs_reset = False
+            self._clear_mask_result()
 
             self.image_status.setText(f"Image: {layer.name()}")
             self.image_status.setStyleSheet("color: green;")
@@ -1095,7 +1233,10 @@ class SamGeoPlugin:
 
             self.sam.set_image(file_path)
             self.current_image_path = file_path
+            self.image_needs_reset = False
+            self._clear_mask_result()
             self.current_layer = None
+            self._inv_gt_cache = None
 
             self.image_status.setText(f"Image: {os.path.basename(file_path)}")
             self.image_status.setStyleSheet("color: green;")
@@ -1106,6 +1247,7 @@ class SamGeoPlugin:
             if layer.isValid():
                 QgsProject.instance().addMapLayer(layer)
                 self.current_layer = layer
+                self._inv_gt_cache = None
                 self.refresh_layers()
 
         except Exception as e:
@@ -1122,8 +1264,11 @@ class SamGeoPlugin:
             self.show_error("Please load the model first.")
             return
 
-        if self.current_image_path is None:
-            self.show_error("Please set an image first.")
+        if self.tiled_check.isChecked():
+            self.segment_by_text_tiled()
+            return
+
+        if not self._image_ready():
             return
 
         prompt = self.text_prompt_edit.text().strip()
@@ -1144,6 +1289,7 @@ class SamGeoPlugin:
             )
 
             self.sam.generate_masks(prompt, min_size=min_size, max_size=max_size)
+            self._record_mask_result(PROMPT_TEXT)
 
             num_masks = len(self.sam.masks) if self.sam.masks else 0
             self.results_text.setText(
@@ -1181,6 +1327,284 @@ class SamGeoPlugin:
         finally:
             self.progress_bar.setVisible(False)
 
+    def _image_ready(self):
+        """Check that an image is set on the model, showing an error if not.
+
+        Returns:
+            True if prompts can run against the current image.
+        """
+        if self.current_image_path is None:
+            self.show_error("Please set an image first.")
+            return False
+        if self.image_needs_reset:
+            self.show_error(
+                "Tiled mode replaced the model's image. Please set the image "
+                "again before using this prompt."
+            )
+            return False
+        return True
+
+    def _tiled_source_path(self):
+        """Return the raster path to use for tiled text segmentation.
+
+        Tiled mode reads the file directly, so the image does not have to be
+        set on the model first. The current image wins; otherwise the
+        selected raster layer, then the file path on the Model tab.
+
+        Returns:
+            The source path, or None if no usable file is selected.
+        """
+        if self.current_image_path and os.path.exists(self.current_image_path):
+            return self.current_image_path
+        layer_id = self.layer_combo.currentData()
+        if layer_id:
+            layer = QgsProject.instance().mapLayer(layer_id)
+            if layer is not None and os.path.exists(layer.source()):
+                return layer.source()
+        file_path = self.image_path_edit.text().strip()
+        if file_path and os.path.exists(file_path):
+            return file_path
+        return None
+
+    def _resample_for_tiling(self, source, scale):
+        """Write a resampled GeoTIFF copy of the source at a processing scale.
+
+        Args:
+            source: Path of the source GeoTIFF.
+            scale: Processing scale in percent of the native resolution.
+
+        Returns:
+            The path of the temporary resampled GeoTIFF.
+        """
+        import tempfile
+
+        from osgeo import gdal
+
+        temp_file = tempfile.NamedTemporaryFile(suffix=".tif", delete=False)
+        output = temp_file.name
+        temp_file.close()
+        options = dict(
+            format="GTiff",
+            widthPct=scale,
+            heightPct=scale,
+            resampleAlg="average" if scale < 100 else "bilinear",
+            creationOptions=["COMPRESS=DEFLATE", "TILED=YES", "BIGTIFF=IF_SAFER"],
+        )
+        # Raise GDAL errors as exceptions locally without changing the
+        # process-wide setting that QGIS and other plugins rely on.
+        try:
+            if hasattr(gdal, "ExceptionMgr"):
+                with gdal.ExceptionMgr(useExceptions=True):
+                    dataset = gdal.Translate(output, source, **options)
+            else:
+                dataset = gdal.Translate(output, source, **options)
+            if dataset is None:
+                raise RuntimeError(f"Could not resample {source} to {scale}%.")
+            dataset = None  # Close and flush to disk.
+        except Exception:
+            if os.path.exists(output):
+                os.remove(output)
+            raise
+        return output
+
+    def segment_by_text_tiled(self):
+        """Segment a large GeoTIFF with the text prompt, tile by tile.
+
+        Uses ``SamGeo3.generate_masks_tiled``, which writes the merged mask
+        raster directly, so the result is saved right away with the Output
+        tab settings instead of being kept for **Save Masks**.
+        """
+        if not hasattr(self.sam, "generate_masks_tiled"):
+            self.show_error(
+                "Tiled mode requires the SamGeo3 (SAM3) model and "
+                "segment-geospatial 1.2 or later."
+            )
+            return
+
+        prompt = self.text_prompt_edit.text().strip()
+        if not prompt:
+            self.show_error("Please enter a text prompt.")
+            return
+
+        source = self._tiled_source_path()
+        if source is None:
+            self.show_error(
+                "Please set an image, or select a raster layer or image file "
+                "on the Model tab."
+            )
+            return
+        if not is_geotiff(source):
+            self.show_error("Tiled mode needs a GeoTIFF (.tif or .tiff) image.")
+            return
+
+        tile_size = self.tile_size_spin.value()
+        overlap = self.tile_overlap_spin.value()
+        scale = self.tile_scale_spin.value()
+        error = validate_tile_settings(tile_size, overlap, scale)
+        if error:
+            self.show_error(error)
+            return
+
+        import tempfile
+
+        min_size = self.min_size_spin.value()
+        max_size = self.max_size_spin.value() or None
+        format_text = self.output_format_combo.currentText()
+        unique = self.unique_check.isChecked()
+        is_raster = "Raster" in format_text
+        image_was_set = self.current_image_path is not None
+        tiles_started = False
+        temp_files = []
+
+        try:
+            self.progress_bar.setVisible(True)
+            self.progress_bar.setRange(0, 0)
+            self.text_status_label.setText("Processing tiles...")
+            self.text_status_label.setStyleSheet("color: orange;")
+            QCoreApplication.processEvents()
+
+            work_source = source
+            n_tiles = None
+            source_layer = QgsRasterLayer(source, "samgeo_tiled_source")
+            if source_layer.isValid():
+                width, height = scaled_size(
+                    source_layer.width(), source_layer.height(), scale
+                )
+                n_tiles = tile_count(width, height, tile_size, overlap)
+            if scale != 100:
+                self.text_status_label.setText(f"Resampling image to {scale}%...")
+                QCoreApplication.processEvents()
+                work_source = self._resample_for_tiling(source, scale)
+                temp_files.append(work_source)
+
+            if n_tiles is not None:
+                self.text_status_label.setText(f"Processing {n_tiles} tile(s)...")
+                QCoreApplication.processEvents()
+
+            output_path, use_temp_file = self._resolve_output_path(
+                format_text, source, PROMPT_TEXT
+            )
+            if is_raster:
+                raster_path = output_path
+            else:
+                temp_file = tempfile.NamedTemporaryFile(suffix=".tif", delete=False)
+                raster_path = temp_file.name
+                temp_file.close()
+                temp_files.append(raster_path)
+
+            tiles_started = True
+            # generate_masks_tiled skips tiles that raise and only reports
+            # them in its verbose output, so capture that output (it also
+            # keeps tqdm off QGIS's stderr) and look for failed tiles.
+            import contextlib
+            import io
+
+            log = io.StringIO()
+            with contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):
+                self.sam.generate_masks_tiled(
+                    source=work_source,
+                    prompt=prompt,
+                    output=raster_path,
+                    tile_size=tile_size,
+                    overlap=overlap,
+                    min_size=min_size,
+                    max_size=max_size,
+                    unique=unique,
+                    verbose=True,
+                )
+            failures = failed_tile_messages(log.getvalue())
+            for message in failures:
+                self.log_message(message, level=Qgis.MessageLevel.Warning)
+            self.last_prompt_type = PROMPT_TEXT
+            self.mask_source_path = source
+
+            if not is_raster:
+                try:
+                    from ._samgeo_lib import get_samgeo
+                except ImportError:
+                    from _samgeo_lib import get_samgeo
+
+                get_samgeo().common.raster_to_vector(raster_path, output_path)
+                # Tiled masks have no per-mask scores.
+                self._attach_mask_attributes(output_path, None, source)
+                result_layer = QgsVectorLayer(
+                    output_path,
+                    "samgeo_masks" if use_temp_file else os.path.basename(output_path),
+                    "ogr",
+                )
+                num_objects = (
+                    result_layer.featureCount() if result_layer.isValid() else 0
+                )
+            else:
+                result_layer = QgsRasterLayer(
+                    output_path,
+                    "samgeo_masks" if use_temp_file else os.path.basename(output_path),
+                )
+                objects = getattr(self.sam, "objects", None)
+                num_objects = None
+                if objects is not None and unique:
+                    import numpy as np
+
+                    num_objects = int(np.count_nonzero(np.unique(objects)))
+
+            if self.add_to_map_check.isChecked() and result_layer.isValid():
+                QgsProject.instance().addMapLayer(result_layer)
+
+            found = "unknown" if num_objects is None else num_objects
+            lines = [
+                "Tiled Text Segmentation Results:",
+                f"Prompt: {prompt}",
+                f"Image: {os.path.basename(source)}",
+                f"Tile size: {tile_size}, overlap: {overlap}, scale: {scale}%",
+            ]
+            if n_tiles is not None:
+                lines.append(f"Tiles: {n_tiles}")
+            if failures:
+                lines.append(
+                    f"Failed tiles: {len(failures)} (skipped; see the SamGeo log)"
+                )
+            if not is_raster:
+                lines.append(f"Polygons: {found}")
+            else:
+                lines.append(f"Objects found: {found}")
+            lines.append(f"Saved to: {output_path}")
+            self.results_text.setText("\n".join(lines) + "\n")
+
+            if failures:
+                self.text_status_label.setText(
+                    f"Incomplete: {len(failures)} tile(s) failed. Saved to "
+                    f"{os.path.basename(output_path)}"
+                )
+                self.text_status_label.setStyleSheet("color: orange;")
+            else:
+                self.text_status_label.setText(
+                    f"Done. Saved to {os.path.basename(output_path)}"
+                )
+                self.text_status_label.setStyleSheet("color: green;")
+            self.log_message(f"Tiled text segmentation saved to: {output_path}")
+
+        except Exception as e:
+            self.text_status_label.setText("Segmentation failed!")
+            self.text_status_label.setStyleSheet("color: red;")
+            self.show_error(f"Tiled segmentation failed: {str(e)}")
+
+        finally:
+            for path in temp_files:
+                try:
+                    if os.path.exists(path):
+                        os.remove(path)
+                except OSError:
+                    pass
+            # generate_masks_tiled replaces the model's image with the last
+            # tile, so point/box prompts need the image to be set again.
+            if image_was_set and tiles_started:
+                self.image_needs_reset = True
+                self.image_status.setText(
+                    "Image: set it again (tiled mode replaced it)"
+                )
+                self.image_status.setStyleSheet("color: orange;")
+            self.progress_bar.setVisible(False)
+
     def start_point_tool(self, foreground=True):
         """Start the point prompt tool."""
         if self.current_layer is None:
@@ -1206,13 +1630,7 @@ class SamGeoPlugin:
         """Add a point prompt."""
         # Convert map coordinates to pixel coordinates
         if self.current_layer is not None:
-            extent = self.current_layer.extent()
-            width = self.current_layer.width()
-            height = self.current_layer.height()
-
-            # Calculate pixel coordinates
-            px = (point.x() - extent.xMinimum()) / extent.width() * width
-            py = (extent.yMaximum() - point.y()) / extent.height() * height
+            px, py = self._point_to_pixel(point)
 
             self.point_coords.append([px, py])
             self.point_labels.append(1 if foreground else 0)
@@ -1252,13 +1670,7 @@ class SamGeoPlugin:
     def add_batch_point(self, point):
         """Add a batch point prompt."""
         if self.current_layer is not None:
-            extent = self.current_layer.extent()
-            width = self.current_layer.width()
-            height = self.current_layer.height()
-
-            # Calculate pixel coordinates
-            px = (point.x() - extent.xMinimum()) / extent.width() * width
-            py = (extent.yMaximum() - point.y()) / extent.height() * height
+            px, py = self._point_to_pixel(point)
 
             self.batch_point_coords.append([px, py])
             self.batch_point_coords_map.append([point.x(), point.y()])
@@ -1292,8 +1704,7 @@ class SamGeoPlugin:
             self.show_error("Please load the model first.")
             return
 
-        if self.current_image_path is None:
-            self.show_error("Please set an image first.")
+        if not self._image_ready():
             return
 
         if not self.point_coords:
@@ -1324,6 +1735,7 @@ class SamGeoPlugin:
                     point_coords=point_coords,
                     point_labels=point_labels,
                 )
+            self._record_mask_result(PROMPT_POINT)
 
             num_masks = len(self.sam.masks) if self.sam.masks else 0
             self.results_text.setText(
@@ -1383,15 +1795,13 @@ class SamGeoPlugin:
     def set_box(self, rect):
         """Set the box prompt from a rectangle."""
         if self.current_layer is not None:
-            extent = self.current_layer.extent()
-            width = self.current_layer.width()
-            height = self.current_layer.height()
-
-            # Convert to pixel coordinates
-            x1 = (rect.xMinimum() - extent.xMinimum()) / extent.width() * width
-            y1 = (extent.yMaximum() - rect.yMaximum()) / extent.height() * height
-            x2 = (rect.xMaximum() - extent.xMinimum()) / extent.width() * width
-            y2 = (extent.yMaximum() - rect.yMinimum()) / extent.height() * height
+            x1, y1, x2, y2 = plugin_utils.rect_to_pixel_box(
+                self._inverse_geotransform(),
+                rect.xMinimum(),
+                rect.yMinimum(),
+                rect.xMaximum(),
+                rect.yMaximum(),
+            )
 
             self.box_coords = [x1, y1, x2, y2]
             self.box_label.setText(f"Box: ({x1:.1f}, {y1:.1f}) - ({x2:.1f}, {y2:.1f})")
@@ -1410,8 +1820,7 @@ class SamGeoPlugin:
             self.show_error("Please load the model first.")
             return
 
-        if self.current_image_path is None:
-            self.show_error("Please set an image first.")
+        if not self._image_ready():
             return
 
         if self.box_coords is None:
@@ -1433,6 +1842,7 @@ class SamGeoPlugin:
                 import numpy as np
 
                 self.sam.predict(box=np.array(self.box_coords))
+            self._record_mask_result(PROMPT_BOX)
 
             num_masks = len(self.sam.masks) if self.sam.masks else 0
             self.results_text.setText(
@@ -1473,14 +1883,136 @@ class SamGeoPlugin:
         finally:
             self.progress_bar.setVisible(False)
 
+    def _inverse_geotransform(self):
+        """Return the inverse geotransform of the current raster layer.
+
+        The raster's own geotransform is read with GDAL (bundled with QGIS),
+        so rotated or sheared rasters map correctly. If it cannot be read, a
+        north-up transform is built from the layer extent. The result is
+        cached per layer.
+
+        Returns:
+            A 6-tuple inverse geotransform.
+        """
+        layer = self.current_layer
+        if layer is None:
+            raise ValueError("Please set an image first.")
+        cache = getattr(self, "_inv_gt_cache", None)
+        if cache is not None and cache[0] == layer.id():
+            return cache[1]
+
+        gt = None
+        try:
+            from osgeo import gdal
+
+            # SamGeo reads the file itself, so use the file's own pixel grid
+            # (QGIS displays rotated rasters through a warped north-up view
+            # whose size differs from the file's).
+            ds = gdal.Open(layer.source())
+            if ds is not None:
+                gt = ds.GetGeoTransform(can_return_null=True)
+            ds = None
+        except Exception:  # fall back to the layer extent below
+            gt = None
+        if not gt:
+            extent = layer.extent()
+            gt = plugin_utils.geotransform_from_extent(
+                extent.xMinimum(),
+                extent.yMaximum(),
+                extent.width(),
+                extent.height(),
+                layer.width(),
+                layer.height(),
+            )
+        inv = plugin_utils.invert_geotransform(gt)
+        self._inv_gt_cache = (layer.id(), inv)
+        return inv
+
+    def _point_to_pixel(self, point):
+        """Convert a map-coordinate point in the raster layer CRS to pixel coordinates."""
+        return plugin_utils.map_to_pixel(
+            self._inverse_geotransform(), point.x(), point.y()
+        )
+
+    def _vector_layer_to_pixel_points(self, layer, source_crs=None):
+        """Extract point features from a vector layer as raster pixel coordinates.
+
+        SamGeo's batch method can transform vector/map coordinates to pixel
+        coordinates with rasterio/PROJ, but QGIS plugin environments sometimes
+        lack a rasterio PROJ database context. Converting through QGIS first
+        avoids that dependency and passes pixel coordinates directly to SamGeo.
+        """
+        if self.current_layer is None:
+            raise ValueError("Please set an image first.")
+
+        raster_crs = self.current_layer.crs()
+        vector_crs = source_crs or layer.crs()
+
+        if not vector_crs.isValid():
+            raise ValueError(
+                "Point layer CRS is unknown. Please enter a valid CRS, e.g., EPSG:4326."
+            )
+
+        transform = None
+        if raster_crs.isValid() and vector_crs.isValid() and vector_crs != raster_crs:
+            transform = QgsCoordinateTransform(
+                vector_crs, raster_crs, QgsProject.instance()
+            )
+
+        pixel_points = []
+        skipped = 0
+        for feature in layer.getFeatures():
+            geom = feature.geometry()
+            if geom is None or geom.isEmpty():
+                skipped += 1
+                continue
+
+            points = []
+            if QgsWkbTypes.isMultiType(geom.wkbType()):
+                points = geom.asMultiPoint()
+            else:
+                points = [geom.asPoint()]
+
+            for point in points:
+                try:
+                    if transform is not None:
+                        point = transform.transform(point)
+                    px, py = self._point_to_pixel(point)
+                    if (
+                        0 <= px < self.current_layer.width()
+                        and 0 <= py < self.current_layer.height()
+                    ):
+                        pixel_points.append([px, py])
+                    else:
+                        skipped += 1
+                except Exception as exc:
+                    skipped += 1
+                    self.log_message(
+                        f"Skipped point feature {feature.id()}: {exc}",
+                        level=Qgis.MessageLevel.Warning,
+                    )
+
+        if not pixel_points:
+            raise ValueError(
+                "No valid point features fall within the current image extent. "
+                "Check the point layer CRS and image extent."
+            )
+
+        if skipped:
+            self.log_message(
+                f"Skipped {skipped} point(s) outside the image extent or with invalid geometry.",
+                level=Qgis.MessageLevel.Warning,
+            )
+
+        return pixel_points
+
     def segment_by_points_batch(self):
         """Segment using batch point prompts from interactive points or vector file/layer."""
         if self.sam is None:
             self.show_error("Please load the model first.")
             return
 
-        if self.current_image_path is None:
-            self.show_error("Please set an image first.")
+        if not self._image_ready():
             return
 
         # Check if batch method is available
@@ -1505,22 +2037,35 @@ class SamGeoPlugin:
             point_crs = None  # Already in pixel coordinates
             source_description = f"{len(self.batch_point_coords)} interactive points"
         else:
-            # Check if a layer is selected
+            # Convert file/layer point coordinates to raster pixel coordinates using
+            # QGIS CRS transforms, then pass pixel coordinates directly to SamGeo.
+            # This avoids rasterio/PROJ failures in QGIS Python environments.
+            crs_text = self.point_crs_edit.text().strip()
+            source_crs = None
+            if crs_text:
+                source_crs = QgsCoordinateReferenceSystem(crs_text)
+                if not source_crs.isValid():
+                    self.show_error(f"Invalid point CRS: {crs_text}")
+                    return
+
+            layer = None
             layer_id = self.vector_layer_combo.currentData()
             if layer_id:
                 layer = QgsProject.instance().mapLayer(layer_id)
                 if layer and layer.isValid():
-                    point_source = layer.source()
                     source_description = layer.name()
-                    # Get CRS from layer
-                    if layer.crs().isValid():
-                        point_crs = layer.crs().authid()
+                else:
+                    layer = None
 
-            # If no layer, check for file path
-            if point_source is None:
+            if layer is None:
                 vector_file = self.vector_file_edit.text().strip()
                 if vector_file and os.path.exists(vector_file):
-                    point_source = vector_file
+                    layer = QgsVectorLayer(
+                        vector_file, os.path.basename(vector_file), "ogr"
+                    )
+                    if not layer.isValid():
+                        self.show_error(f"Could not load vector file: {vector_file}")
+                        return
                     source_description = os.path.basename(vector_file)
                 else:
                     self.show_error(
@@ -1528,10 +2073,12 @@ class SamGeoPlugin:
                     )
                     return
 
-            # Get CRS from input field if specified
-            crs_text = self.point_crs_edit.text().strip()
-            if crs_text:
-                point_crs = crs_text
+            try:
+                point_source = self._vector_layer_to_pixel_points(layer, source_crs)
+                point_crs = None  # Converted to pixel coordinates already.
+            except Exception as exc:
+                self.show_error(f"Could not prepare point layer: {exc}")
+                return
 
         # Get output path
         output_path = self.batch_output_edit.text().strip()
@@ -1563,6 +2110,7 @@ class SamGeoPlugin:
                 min_size=min_size,
                 max_size=max_size,
             )
+            self._record_mask_result(PROMPT_BATCH_POINT)
 
             num_masks = len(self.sam.masks) if self.sam.masks else 0
 
@@ -1631,75 +2179,8 @@ class SamGeoPlugin:
         if self.sam is None or self.sam.masks is None or len(self.sam.masks) == 0:
             return
 
-        import tempfile
-
-        format_text = self.output_format_combo.currentText()
-        output_path = self.output_path_edit.text().strip()
-
-        # Generate temp file path if not specified
-        use_temp_file = False
-        if not output_path:
-            use_temp_file = True
-            if "Raster" in format_text:
-                temp_file = tempfile.NamedTemporaryFile(suffix=".tif", delete=False)
-                output_path = temp_file.name
-                temp_file.close()
-            elif "GeoPackage" in format_text:
-                temp_file = tempfile.NamedTemporaryFile(suffix=".gpkg", delete=False)
-                output_path = temp_file.name
-                temp_file.close()
-            else:  # Shapefile
-                temp_dir = tempfile.mkdtemp()
-                output_path = os.path.join(temp_dir, "masks.shp")
-
         try:
-            unique = self.unique_check.isChecked()
-
-            if "Raster" in format_text:
-                # Save as raster
-                self.sam.save_masks(output=output_path, unique=unique)
-
-                if self.add_to_map_check.isChecked():
-                    layer_name = (
-                        "samgeo_masks"
-                        if use_temp_file
-                        else os.path.basename(output_path)
-                    )
-                    layer = QgsRasterLayer(output_path, layer_name)
-                    if layer.isValid():
-                        QgsProject.instance().addMapLayer(layer)
-            else:
-                # Save as vector - first save as raster, then convert
-                temp_raster = tempfile.NamedTemporaryFile(
-                    suffix=".tif", delete=False
-                ).name
-                try:
-                    self.sam.save_masks(output=temp_raster, unique=unique)
-
-                    # Convert raster to vector
-                    try:
-                        from ._samgeo_lib import get_samgeo
-                    except ImportError:
-                        from _samgeo_lib import get_samgeo
-
-                    common = get_samgeo().common
-
-                    common.raster_to_vector(temp_raster, output_path)
-                    self._attach_mask_scores(output_path)
-
-                    if self.add_to_map_check.isChecked():
-                        layer_name = (
-                            "samgeo_masks"
-                            if use_temp_file
-                            else os.path.basename(output_path)
-                        )
-                        layer = QgsVectorLayer(output_path, layer_name, "ogr")
-                        if layer.isValid():
-                            QgsProject.instance().addMapLayer(layer)
-                finally:
-                    if os.path.exists(temp_raster):
-                        os.remove(temp_raster)
-
+            output_path = self._write_masks()
             self.results_text.append(f"\nAuto-saved to: {output_path}")
             self.log_message(f"Auto-saved masks to: {output_path}")
 
@@ -1709,41 +2190,209 @@ class SamGeoPlugin:
             )
             self.show_error(f"Auto-show failed: {str(e)}")
 
-    def _attach_mask_scores(self, output_path):
-        """Write each mask's confidence score into the saved vector layer.
+    def _resolve_output_path(self, format_text, source_path=None, prompt_type=None):
+        """Return the output path for the masks and whether it is temporary.
+
+        Uses the Output tab path when set. Otherwise, if "Save next to source
+        image" is checked and the source folder is writable, suggests a new
+        file there; else falls back to a temporary file.
+
+        Args:
+            format_text: Text of the output format combo.
+            source_path: Source raster path. Defaults to the current image.
+            prompt_type: Prompt type for the suggested file name. Defaults
+                to the prompt type of the current masks.
+
+        Returns:
+            A ``(output_path, use_temp_file)`` tuple.
+        """
+        import tempfile
+
+        output_path = self.output_path_edit.text().strip()
+        if output_path:
+            return output_path, False
+
+        extension = output_extension(format_text)
+        if self.save_to_source_dir_check.isChecked():
+            suggested = default_output_path(
+                source_path or self.mask_source_path or self.current_image_path,
+                prompt_type or self.last_prompt_type,
+                extension,
+            )
+            if suggested and self._dir_is_writable(os.path.dirname(suggested)):
+                return suggested, False
+            self.log_message(
+                "Source image folder is unknown or not writable; "
+                "saving to a temporary file instead.",
+                level=Qgis.MessageLevel.Warning,
+            )
+
+        if extension == ".shp":
+            temp_dir = tempfile.mkdtemp()
+            return os.path.join(temp_dir, "masks.shp"), True
+        temp_file = tempfile.NamedTemporaryFile(suffix=extension, delete=False)
+        output_path = temp_file.name
+        temp_file.close()
+        return output_path, True
+
+    @staticmethod
+    def _dir_is_writable(directory):
+        """Return True if a file can actually be created in a directory.
+
+        ``os.access`` is unreliable for this on Windows, where it ignores
+        ACLs, so this creates and removes a temporary file instead.
+
+        Args:
+            directory: Directory to test.
+
+        Returns:
+            True if a file could be created there.
+        """
+        import tempfile
+
+        try:
+            with tempfile.TemporaryFile(dir=directory):
+                pass
+        except OSError:
+            return False
+        return True
+
+    def _record_mask_result(self, prompt_type):
+        """Remember how the current masks were made.
+
+        Called right after a segmentation call returns, so the ``prompt`` and
+        ``source`` fields describe the masks actually being saved.
+
+        Args:
+            prompt_type: Prompt type, e.g. ``"text"`` or ``"box"``.
+        """
+        self.last_prompt_type = prompt_type
+        self.mask_source_path = self.current_image_path
+
+    def _clear_mask_result(self):
+        """Drop masks left over from the previous image.
+
+        ``set_image`` does not clear the model's masks, but it does change
+        the georeference that ``save_masks`` writes them with, so saving them
+        after a new image is set would misplace and mislabel them.
+        """
+        if self.sam is not None and hasattr(self.sam, "masks"):
+            self.sam.masks = None
+        self.last_prompt_type = None
+        self.mask_source_path = None
+
+    def _write_masks(self):
+        """Write the current masks using the Output tab settings.
+
+        Rasters are written directly. Vectors are written as a temporary
+        raster first and then polygonized, after which the ``source``,
+        ``prompt`` and ``score`` attributes are added.
+
+        Returns:
+            The path of the written file.
+        """
+        import tempfile
+
+        format_text = self.output_format_combo.currentText()
+        output_path, use_temp_file = self._resolve_output_path(format_text)
+        unique = self.unique_check.isChecked()
+        layer_name = "samgeo_masks" if use_temp_file else os.path.basename(output_path)
+
+        if "Raster" in format_text:
+            self.sam.save_masks(output=output_path, unique=unique)
+
+            if self.add_to_map_check.isChecked():
+                layer = QgsRasterLayer(output_path, layer_name)
+                if layer.isValid():
+                    QgsProject.instance().addMapLayer(layer)
+            return output_path
+
+        # Save as vector - first save as raster, then convert
+        temp_file = tempfile.NamedTemporaryFile(suffix=".tif", delete=False)
+        temp_raster = temp_file.name
+        temp_file.close()
+        try:
+            self.sam.save_masks(output=temp_raster, unique=unique)
+
+            try:
+                from ._samgeo_lib import get_samgeo
+            except ImportError:
+                from _samgeo_lib import get_samgeo
+
+            common = get_samgeo().common
+
+            common.raster_to_vector(temp_raster, output_path)
+            self._attach_mask_attributes(
+                output_path, getattr(self.sam, "mask_scores", None)
+            )
+
+            if self.add_to_map_check.isChecked():
+                layer = QgsVectorLayer(output_path, layer_name, "ogr")
+                if layer.isValid():
+                    QgsProject.instance().addMapLayer(layer)
+        finally:
+            if os.path.exists(temp_raster):
+                os.remove(temp_raster)
+        return output_path
+
+    def _attach_mask_attributes(self, output_path, scores=None, source_path=None):
+        """Write per-mask attributes into the saved vector layer.
+
+        Every feature gets ``source`` (the source raster's file name) and
+        ``prompt`` (the prompt type, e.g. ``text``, ``point`` or ``box``).
 
         ``save_masks`` records ``mask_scores`` (raster value -> confidence) on
         the model (segment-geospatial >= 1.4.2), and ``raster_to_vector``
         keeps the raster value in a ``value`` field, so the two are joined
-        here as a ``score`` attribute. Older segment-geospatial versions have
-        no ``mask_scores`` and the layer is left unchanged.
+        here as a ``score`` attribute. Without scores (older
+        segment-geospatial versions) no ``score`` field is added.
 
         Args:
             output_path: Path of the vector file written by raster_to_vector.
+            scores: Optional mapping of raster value to confidence score.
+            source_path: Source raster path. Defaults to the current image.
         """
-        scores = getattr(self.sam, "mask_scores", None)
-        if not scores:
-            return
-        layer = QgsVectorLayer(output_path, "samgeo_scores", "ogr")
+        layer = QgsVectorLayer(output_path, "samgeo_attributes", "ogr")
         if not layer.isValid():
             return
-        value_idx = layer.fields().indexOf("value")
-        if value_idx < 0:
-            return
         provider = layer.dataProvider()
-        if layer.fields().indexOf("score") < 0:
-            if not provider.addAttributes([QgsField("score", QVariant.Double)]):
+
+        attrs = mask_attributes(
+            source_path or self.mask_source_path or self.current_image_path,
+            self.last_prompt_type,
+        )
+        new_fields = [
+            QgsField(name, QVariant.String, "", 254)
+            for name in (SOURCE_FIELD, PROMPT_FIELD)
+            if layer.fields().indexOf(name) < 0
+        ]
+        value_idx = layer.fields().indexOf("value")
+        if scores and value_idx >= 0 and layer.fields().indexOf("score") < 0:
+            new_fields.append(QgsField("score", QVariant.Double))
+        if new_fields:
+            if not provider.addAttributes(new_fields):
+                self.log_message(
+                    f"Could not add attribute fields to {output_path}",
+                    level=Qgis.MessageLevel.Warning,
+                )
                 return
             layer.updateFields()
-        score_idx = layer.fields().indexOf("score")
+
+        fields = layer.fields()
+        fixed = {fields.indexOf(name): value for name, value in attrs.items()}
+        score_idx = fields.indexOf("score") if scores and value_idx >= 0 else -1
+
         changes = {}
         for feature in layer.getFeatures():
-            try:
-                key = int(feature[value_idx])
-            except (TypeError, ValueError):
-                continue
-            if key in scores:
-                changes[feature.id()] = {score_idx: float(scores[key])}
+            values = dict(fixed)
+            if score_idx >= 0:
+                try:
+                    key = int(feature[value_idx])
+                except (TypeError, ValueError):
+                    key = None
+                if key in scores:
+                    values[score_idx] = float(scores[key])
+            changes[feature.id()] = values
         if changes:
             provider.changeAttributeValues(changes)
 
@@ -1753,78 +2402,12 @@ class SamGeoPlugin:
             self.show_error("No masks to save. Please run segmentation first.")
             return
 
-        import tempfile
-
-        output_path = self.output_path_edit.text().strip()
-        format_text = self.output_format_combo.currentText()
-
-        # Generate temp file path if not specified
-        use_temp_file = False
-        if not output_path:
-            use_temp_file = True
-            if "Raster" in format_text:
-                temp_file = tempfile.NamedTemporaryFile(suffix=".tif", delete=False)
-                output_path = temp_file.name
-                temp_file.close()
-            elif "GeoPackage" in format_text:
-                temp_file = tempfile.NamedTemporaryFile(suffix=".gpkg", delete=False)
-                output_path = temp_file.name
-                temp_file.close()
-            else:  # Shapefile
-                temp_dir = tempfile.mkdtemp()
-                output_path = os.path.join(temp_dir, "masks.shp")
-
         try:
             self.progress_bar.setVisible(True)
             self.progress_bar.setRange(0, 0)
             QCoreApplication.processEvents()
 
-            unique = self.unique_check.isChecked()
-
-            if "Raster" in format_text:
-                # Save as raster
-                self.sam.save_masks(output=output_path, unique=unique)
-
-                if self.add_to_map_check.isChecked():
-                    layer_name = (
-                        "samgeo_masks"
-                        if use_temp_file
-                        else os.path.basename(output_path)
-                    )
-                    layer = QgsRasterLayer(output_path, layer_name)
-                    if layer.isValid():
-                        QgsProject.instance().addMapLayer(layer)
-            else:
-                # Save as vector - first save as raster, then convert
-                temp_raster = tempfile.NamedTemporaryFile(
-                    suffix=".tif", delete=False
-                ).name
-                try:
-                    self.sam.save_masks(output=temp_raster, unique=unique)
-
-                    # Convert raster to vector
-                    try:
-                        from ._samgeo_lib import get_samgeo
-                    except ImportError:
-                        from _samgeo_lib import get_samgeo
-
-                    common = get_samgeo().common
-
-                    common.raster_to_vector(temp_raster, output_path)
-                    self._attach_mask_scores(output_path)
-
-                    if self.add_to_map_check.isChecked():
-                        layer_name = (
-                            "samgeo_masks"
-                            if use_temp_file
-                            else os.path.basename(output_path)
-                        )
-                        layer = QgsVectorLayer(output_path, layer_name, "ogr")
-                        if layer.isValid():
-                            QgsProject.instance().addMapLayer(layer)
-                finally:
-                    if os.path.exists(temp_raster):
-                        os.remove(temp_raster)
+            output_path = self._write_masks()
             self.results_text.append(f"\nSaved to: {output_path}")
             self.log_message(f"Masks saved to: {output_path}")
 
@@ -1903,6 +2486,7 @@ class SamGeoPlugin:
                 # Also clear internal state for image and layer
                 self.current_image_path = None
                 self.current_layer = None
+                self._inv_gt_cache = None
 
             except Exception:  # nosec B110
                 pass
