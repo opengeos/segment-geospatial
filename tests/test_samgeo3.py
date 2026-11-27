@@ -618,3 +618,13 @@ def test_box_crs_without_georeference_warns(samgeo3):
 
     with pytest.warns(UserWarning, match="no georeference"):
         model.generate_masks_by_boxes([[10, 10, 30, 20]], box_crs="EPSG:4326")
+
+
+def test_all_positive_boxes_transformers_omits_labels(samgeo3):
+    """All-positive boxes need no labels, so older processors keep working."""
+    pytest.importorskip("torch")
+    model = _box_prompt_model(samgeo3, "transformers")
+
+    model.generate_masks_by_boxes([[10, 10, 30, 20]], prompt="building")
+
+    assert "input_boxes_labels" not in model.processor.call_args.kwargs

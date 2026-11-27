@@ -2017,7 +2017,10 @@ class SamGeo3:
                 processor_kwargs["text"] = prompt
             if boxes:
                 processor_kwargs["input_boxes"] = input_boxes
-                processor_kwargs["input_boxes_labels"] = input_boxes_labels
+                # Only send labels when needed: boxes default to positive, and
+                # older processors may not accept input_boxes_labels.
+                if not all(box_labels):
+                    processor_kwargs["input_boxes_labels"] = input_boxes_labels
             inputs = self.processor(
                 images=self.pil_image, return_tensors="pt", **processor_kwargs
             ).to(self.device)
