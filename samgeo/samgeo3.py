@@ -1687,10 +1687,16 @@ class SamGeo3:
         box_crs: Optional[str] = None,
         min_size: int = 0,
         max_size: Optional[int] = None,
+        prompt: Optional[str] = None,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """
         Generate masks using bounding box prompts.
+
+        Box prompts can be combined with a text prompt. SAM 3 then finds every
+        object matching the text, using positive boxes as examples of what to
+        keep and negative boxes as examples of what to reject, which helps cut
+        false positives from a text prompt alone.
 
         Args:
             boxes (List[List[float]]): List of bounding boxes in XYXY format
@@ -1707,6 +1713,9 @@ class SamGeo3:
                 will be filtered out. Defaults to 0.
             max_size (int, optional): Maximum mask size in pixels. Masks larger than
                 this will be filtered out. Defaults to None (no maximum).
+            prompt (str, optional): A text prompt describing the objects to
+                segment, used together with the boxes. If None, only the boxes
+                are used. Defaults to None.
             **kwargs: Additional keyword arguments.
 
         Returns:
@@ -1716,6 +1725,13 @@ class SamGeo3:
             # For pixel coordinates:
             boxes = [[100, 200, 300, 400]]
             sam.generate_masks_by_boxes(boxes)
+
+            # Text prompt refined with a positive and a negative box:
+            sam.generate_masks_by_boxes(
+                [[100, 200, 300, 400], [500, 600, 700, 800]],
+                box_labels=[True, False],
+                prompt="building",
+            )
 
             # For geographic coordinates (GeoTIFF):
             boxes = [[-122.5, 37.7, -122.4, 37.8]]  # [lon_min, lat_min, lon_max, lat_max]
@@ -1779,6 +1795,14 @@ class SamGeo3:
             # Reset all prompts
             self.processor.reset_all_prompts(self.inference_state)
 
+            # The text prompt stays in the state, so the boxes added below
+            # refine it instead of replacing it.
+            if prompt:
+                with self._meta_autocast():
+                    self.inference_state = self.processor.set_text_prompt(
+                        state=self.inference_state, prompt=prompt
+                    )
+
             # Process each box
             for box, label in zip(boxes, box_labels):
                 # Convert XYXY to CxCyWH format
@@ -1813,9 +1837,17 @@ class SamGeo3:
                 [[float(coord) for coord in box] for box in boxes]
             ]  # Wrap in list for image level and convert to float
 
-            # Prepare inputs with boxes
+            input_boxes_labels = [[int(bool(label)) for label in box_labels]]
+
+            # Prepare inputs with boxes (and the text prompt, if any)
+            processor_kwargs = {}
+            if prompt:
+                processor_kwargs["text"] = prompt
+            if boxes:
+                processor_kwargs["input_boxes"] = input_boxes
+                processor_kwargs["input_boxes_labels"] = input_boxes_labels
             inputs = self.processor(
-                images=self.pil_image, input_boxes=input_boxes, return_tensors="pt"
+                images=self.pil_image, return_tensors="pt", **processor_kwargs
             ).to(self.device)
 
             # Get original sizes for post-processing

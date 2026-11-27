@@ -332,3 +332,78 @@ def test_save_masks_promotes_dtype_so_scores_stay_aligned(monkeypatch, samgeo3):
 
     with pytest.raises(ValueError, match="integer dtype"):
         model.save_masks(output=None, dtype="float32")
+
+
+def _box_prompt_model(samgeo3, backend):
+    """Build a bare SamGeo3 with a mocked processor for box prompt tests."""
+    model = samgeo3.SamGeo3.__new__(samgeo3.SamGeo3)
+    model.backend = backend
+    model.device = "cpu"
+    model.source = None
+    model.image_width = 100
+    model.image_height = 50
+    model.confidence_threshold = 0.5
+    model.mask_threshold = 0.5
+    model._convert_results_to_numpy = Mock()
+    result = {"masks": [], "boxes": [], "scores": []}
+    model.processor = Mock()
+    if backend == "meta":
+        model.inference_state = {}
+        model.processor.set_text_prompt.return_value = result
+        model.processor.add_geometric_prompt.return_value = result
+    else:
+        model.pil_image = object()
+        model.model = Mock()
+        model.processor.return_value.to.return_value = {}
+        model.processor.post_process_instance_segmentation.return_value = [result]
+    return model
+
+
+def test_boxes_with_text_prompt_meta_sets_text_before_boxes(samgeo3):
+    """The Meta backend sets the text prompt, then adds each box on top of it."""
+    model = _box_prompt_model(samgeo3, "meta")
+
+    model.generate_masks_by_boxes(
+        [[10, 10, 30, 20], [50, 20, 70, 40]],
+        box_labels=[True, False],
+        prompt="building",
+    )
+
+    calls = [c[0] for c in model.processor.method_calls]
+    assert calls == [
+        "reset_all_prompts",
+        "set_text_prompt",
+        "add_geometric_prompt",
+        "add_geometric_prompt",
+    ]
+    assert model.processor.set_text_prompt.call_args.kwargs["prompt"] == "building"
+    box_calls = model.processor.add_geometric_prompt.call_args_list
+    assert [c.kwargs["label"] for c in box_calls] == [True, False]
+    assert box_calls[0].kwargs["box"] == [0.2, 0.3, 0.2, 0.2]
+
+
+def test_boxes_without_text_prompt_meta_skips_text(samgeo3):
+    """Without a text prompt the Meta backend uses the boxes alone."""
+    model = _box_prompt_model(samgeo3, "meta")
+
+    model.generate_masks_by_boxes([[10, 10, 30, 20]])
+
+    model.processor.set_text_prompt.assert_not_called()
+    model.processor.add_geometric_prompt.assert_called_once()
+
+
+def test_boxes_with_text_prompt_transformers_passes_text_and_labels(samgeo3):
+    """The Transformers backend sends the text, boxes and box labels together."""
+    pytest.importorskip("torch")
+    model = _box_prompt_model(samgeo3, "transformers")
+
+    model.generate_masks_by_boxes(
+        [[10, 10, 30, 20], [50, 20, 70, 40]],
+        box_labels=[True, False],
+        prompt="building",
+    )
+
+    kwargs = model.processor.call_args.kwargs
+    assert kwargs["text"] == "building"
+    assert kwargs["input_boxes"] == [[[10.0, 10.0, 30.0, 20.0], [50.0, 20.0, 70.0, 40.0]]]
+    assert kwargs["input_boxes_labels"] == [[1, 0]]
