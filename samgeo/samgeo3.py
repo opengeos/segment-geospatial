@@ -116,22 +116,30 @@ def _cuda_autocast_dtype(device):
     return torch.float16
 
 
-def _get_autocast_dtype(device_type):
-    """Return the active autocast dtype for a device type.
+def _autocast_dtype_if_enabled(device_type):
+    """Return the active autocast dtype for a device type, or None if off.
 
-    ``torch.get_autocast_dtype`` was added in PyTorch 2.4; older releases only
-    expose per-backend getters.
+    ``torch.is_autocast_enabled(device_type)`` and ``torch.get_autocast_dtype``
+    were added in PyTorch 2.4; older releases only expose per-backend
+    functions.
 
     Args:
         device_type: A torch device type such as ``"cuda"`` or ``"cpu"``.
 
     Returns:
-        torch.dtype: The autocast dtype for ``device_type``.
+        torch.dtype or None: The autocast dtype for ``device_type``, or None
+        when autocast is disabled for it.
     """
     if hasattr(torch, "get_autocast_dtype"):
+        if not torch.is_autocast_enabled(device_type):
+            return None
         return torch.get_autocast_dtype(device_type)
     if device_type == "cpu":
+        if not torch.is_autocast_cpu_enabled():
+            return None
         return torch.get_autocast_cpu_dtype()
+    if not torch.is_autocast_enabled():
+        return None
     return torch.get_autocast_gpu_dtype()
 
 
@@ -146,8 +154,7 @@ def _make_fp16_aware_addmm_act(original):
         device_type = mat1.device.type
         if (
             torch.is_grad_enabled()
-            or not torch.is_autocast_enabled(device_type)
-            or _get_autocast_dtype(device_type) != torch.float16
+            or _autocast_dtype_if_enabled(device_type) != torch.float16
             or activation
             not in (
                 torch.nn.functional.relu,
