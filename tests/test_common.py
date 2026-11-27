@@ -74,6 +74,44 @@ class TestCommon(unittest.TestCase):
                 self.assertEqual(common.get_autocast_dtype("cuda:1"), expected)
             self.assertEqual(props.call_args.args[0], torch.device("cuda:1"))
 
+    def test_raster_to_vector_uint32_mask(self):
+        import geopandas as gpd
+
+        data = np.zeros((1, 20, 20), dtype=np.uint32)
+        data[0, 2:6, 2:6] = 70000  # above uint16, inside int32
+        data[0, 10:15, 10:15] = 3
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "mask.tif")
+            out = os.path.join(tmp, "mask.geojson")
+            with rasterio.open(
+                src, "w", driver="GTiff", width=20, height=20, count=1,
+                dtype="uint32", crs="EPSG:3857",
+                transform=from_origin(0, 20, 1, 1),
+            ) as dst:
+                dst.write(data)
+            common.raster_to_vector(src, out)
+            values = sorted(gpd.read_file(out)["value"].astype(int))
+        self.assertEqual(values, [3, 70000])
+
+    def test_shapes_compatible_casts_and_guards_on_old_rasterio(self):
+        with mock.patch.object(
+            common, "_rasterio_shapes_supports_wide_ints", return_value=False
+        ):
+            band = np.array([[0, 5]], dtype=np.uint32)
+            self.assertEqual(common._shapes_compatible(band).dtype, np.int32)
+            same = np.array([[0, 5]], dtype=np.uint16)
+            self.assertIs(common._shapes_compatible(same), same)
+            too_big = np.array([[2**31]], dtype=np.uint64)
+            with self.assertRaises(ValueError):
+                common._shapes_compatible(too_big)
+
+    def test_shapes_compatible_keeps_wide_ints_on_new_rasterio(self):
+        with mock.patch.object(
+            common, "_rasterio_shapes_supports_wide_ints", return_value=True
+        ):
+            big = np.array([[0, 2**31]], dtype=np.uint32)
+            self.assertIs(common._shapes_compatible(big), big)
+
     def test_is_colab(self):
         self.assertFalse(common.is_colab())
 
