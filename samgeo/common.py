@@ -3575,7 +3575,7 @@ def choose_device(empty_cache: bool = True, quiet: bool = True) -> str:
     if device.type == "cuda":
         if empty_cache:
             torch.cuda.empty_cache()
-        ampere = torch.cuda.get_device_properties(0).major >= 8
+        ampere = torch.cuda.get_device_properties(device).major >= 8
         # older GPUs (T4, V100) only emulate bfloat16, so use float16 there
         dtype = torch.bfloat16 if ampere else torch.float16
         torch.autocast("cuda", dtype=dtype).__enter__()
