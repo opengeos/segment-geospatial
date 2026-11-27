@@ -3,6 +3,7 @@
 import importlib.util
 import sys
 import types
+import warnings
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -332,3 +333,113 @@ def test_save_masks_promotes_dtype_so_scores_stay_aligned(monkeypatch, samgeo3):
 
     with pytest.raises(ValueError, match="integer dtype"):
         model.save_masks(output=None, dtype="float32")
+
+
+@pytest.mark.parametrize(
+    "capability, expected",
+    [
+        ((7, 0), "float16"),
+        ((7, 5), "float16"),
+        ((8, 0), "bfloat16"),
+        ((8, 9), "bfloat16"),
+    ],
+)
+def test_autocast_dtype_uses_fp16_before_ampere(
+    monkeypatch, samgeo3, capability, expected
+):
+    """GPUs below compute capability 8.0 get fp16, newer ones keep bf16."""
+    torch = pytest.importorskip("torch")
+    get_capability = Mock(return_value=capability)
+    monkeypatch.setattr(torch.cuda, "get_device_capability", get_capability)
+    monkeypatch.setattr(torch.cuda, "current_device", Mock(return_value=0))
+
+    assert samgeo3._cuda_autocast_dtype("cuda") == getattr(torch, expected)
+    assert samgeo3._cuda_autocast_dtype("cuda:1") == getattr(torch, expected)
+    assert [c.args[0] for c in get_capability.call_args_list] == [0, 1]
+
+
+def test_meta_autocast_uses_fp16_on_turing(monkeypatch, samgeo3):
+    """The Meta backend autocasts to fp16 on a T4-class GPU."""
+    torch = pytest.importorskip("torch")
+    monkeypatch.setattr(torch.cuda, "get_device_capability", Mock(return_value=(7, 5)))
+    monkeypatch.setattr(torch.cuda, "current_device", Mock(return_value=0))
+    model = samgeo3.SamGeo3.__new__(samgeo3.SamGeo3)
+    model.backend = "meta"
+    model.device = "cuda"
+
+    with warnings.catch_warnings():
+        # torch warns that CUDA autocast is disabled when there is no GPU
+        warnings.simplefilter("ignore", UserWarning)
+        ctx = model._meta_autocast()
+    assert ctx.fast_dtype == torch.float16
+
+
+def _sam3_addmm_act(activation, linear, mat1):
+    """Same as sam3.perflib.fused.addmm_act: always casts to bf16."""
+    import torch
+
+    if torch.is_grad_enabled():
+        raise ValueError("Expected grad to be disabled.")
+    use_gelu = activation in (torch.nn.functional.gelu, torch.nn.GELU)
+    y = torch.ops.aten._addmm_activation(
+        linear.bias.detach().bfloat16(),
+        mat1.bfloat16().view(-1, mat1.shape[-1]),
+        linear.weight.detach().bfloat16().t(),
+        use_gelu=use_gelu,
+    )
+    return y.view(mat1.shape[:-1] + (y.shape[-1],))
+
+
+@pytest.mark.parametrize("act", ["GELU", "ReLU"])
+def test_addmm_act_wrapper_runs_in_fp16(samgeo3, act):
+    """Under fp16 autocast the wrapped kernel returns fp16 close to fp32."""
+    torch = pytest.importorskip("torch")
+    torch.manual_seed(0)
+    linear = torch.nn.Linear(16, 32)
+    x = torch.randn(2, 5, 16)
+    activation = getattr(torch.nn, act)
+    original = Mock(side_effect=AssertionError("should not call the bf16 kernel"))
+    wrapped = samgeo3._make_fp16_aware_addmm_act(original)
+
+    with torch.no_grad():
+        expected = activation()(linear(x))
+        with torch.autocast("cpu", dtype=torch.float16):
+            out = wrapped(activation, linear, x)
+
+    original.assert_not_called()
+    assert out.dtype == torch.float16
+    assert out.shape == (2, 5, 32)
+    torch.testing.assert_close(out.float(), expected, atol=1e-2, rtol=1e-2)
+
+
+def test_addmm_act_wrapper_keeps_bf16_behavior(samgeo3):
+    """Without fp16 autocast the wrapper behaves exactly like sam3's kernel."""
+    torch = pytest.importorskip("torch")
+    linear = torch.nn.Linear(8, 8)
+    x = torch.randn(3, 8)
+    wrapped = samgeo3._make_fp16_aware_addmm_act(_sam3_addmm_act)
+
+    with torch.no_grad():
+        assert wrapped(torch.nn.GELU, linear, x).dtype == torch.bfloat16
+        with torch.autocast("cpu", dtype=torch.bfloat16):
+            assert wrapped(torch.nn.GELU, linear, x).dtype == torch.bfloat16
+    with pytest.raises(ValueError, match="grad"):
+        wrapped(torch.nn.GELU, linear, x)
+
+
+def test_install_addmm_act_wrapper_only_once(monkeypatch, samgeo3):
+    """Installing the wrapper twice does not wrap it a second time."""
+    vitdet = types.ModuleType("sam3.model.vitdet")
+    vitdet.addmm_act = _sam3_addmm_act
+    sam3_model = types.ModuleType("sam3.model")
+    sam3_model.vitdet = vitdet
+    monkeypatch.setitem(sys.modules, "sam3", types.ModuleType("sam3"))
+    monkeypatch.setitem(sys.modules, "sam3.model", sam3_model)
+    monkeypatch.setitem(sys.modules, "sam3.model.vitdet", vitdet)
+
+    samgeo3._install_fp16_aware_addmm_act()
+    wrapped = vitdet.addmm_act
+    samgeo3._install_fp16_aware_addmm_act()
+
+    assert vitdet.addmm_act is wrapped
+    assert wrapped.__wrapped__ is _sam3_addmm_act
