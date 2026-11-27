@@ -1786,9 +1786,54 @@ class SamGeo3:
             mask = region == 0
             region[mask] = tile_region[mask]
 
+    @staticmethod
+    def _boxes_to_list(
+        boxes: Union[List[List[float]], str, "gpd.GeoDataFrame", dict, np.ndarray],
+        box_crs: Optional[str] = None,
+    ) -> Tuple[List[List[float]], Optional[str]]:
+        """Normalize box prompts to a list of ``[xmin, ymin, xmax, ymax]``.
+
+        Args:
+            boxes: A list of XYXY boxes, a numpy array, a GeoJSON-like dict
+                (such as ``leafmap.Map().user_rois``), a GeoDataFrame or a path
+                to a vector file. Geometries are reduced to their bounds.
+            box_crs (str, optional): The CRS of the box coordinates. For a
+                GeoDataFrame or vector file with a CRS, that CRS is used when
+                ``box_crs`` is None.
+
+        Returns:
+            Tuple[List[List[float]], Optional[str]]: The boxes and their CRS.
+        """
+        if isinstance(boxes, dict):
+            import geopandas as gpd
+
+            # GeoJSON-like dict
+            boxes = gpd.GeoDataFrame.from_features(boxes)
+
+        if isinstance(boxes, list):
+            return boxes, box_crs
+        if isinstance(boxes, np.ndarray):
+            return boxes.tolist(), box_crs
+
+        import geopandas as gpd
+
+        if not isinstance(boxes, (str, gpd.GeoDataFrame)):
+            raise ValueError(
+                "boxes must be a list, GeoDataFrame, file path, or numpy array."
+            )
+        gdf = gpd.read_file(boxes) if isinstance(boxes, str) else boxes
+
+        if gdf.crs is None and box_crs is not None:
+            gdf.crs = box_crs
+        elif gdf.crs is not None and box_crs is None:
+            box_crs = str(gdf.crs)
+
+        # Extract bounding boxes from geometries
+        return gdf.geometry.apply(lambda geom: list(geom.bounds)).tolist(), box_crs
+
     def generate_masks_by_boxes(
         self,
-        boxes: List[List[float]],
+        boxes: Union[List[List[float]], str, "gpd.GeoDataFrame", dict, np.ndarray],
         box_labels: Optional[List[bool]] = None,
         box_crs: Optional[str] = None,
         min_size: int = 0,
@@ -1805,10 +1850,13 @@ class SamGeo3:
         false positives from a text prompt alone.
 
         Args:
-            boxes (List[List[float]]): List of bounding boxes in XYXY format
-                [[xmin, ymin, xmax, ymax], ...].
+            boxes: Bounding boxes in XYXY format [[xmin, ymin, xmax, ymax], ...]
+                as a list or numpy array, or a GeoJSON-like dict (such as
+                ``leafmap.Map().user_rois``), GeoDataFrame or vector file path,
+                whose geometries are reduced to their bounds.
                 If box_crs is None: pixel coordinates.
                 If box_crs is specified: coordinates in the given CRS (e.g., "EPSG:4326").
+                May be empty when ``prompt`` is given.
             box_labels (List[bool], optional): List of boolean labels for each box.
                 True for positive prompt (include), False for negative prompt (exclude).
                 If None, all boxes are treated as positive prompts.
@@ -1821,7 +1869,8 @@ class SamGeo3:
                 this will be filtered out. Defaults to None (no maximum).
             prompt (str, optional): A text prompt describing the objects to
                 segment, used together with the boxes. If None, only the boxes
-                are used. Defaults to None.
+                are used. At least one box or a prompt is required. Defaults
+                to None.
             **kwargs: Additional keyword arguments.
 
         Returns:
@@ -1849,6 +1898,10 @@ class SamGeo3:
         else:  # transformers
             if not hasattr(self, "pil_image"):
                 raise ValueError("No image set. Please call set_image() first.")
+
+        boxes, box_crs = self._boxes_to_list(boxes, box_crs)
+        if not boxes and not prompt:
+            raise ValueError("Provide at least one box or a text prompt.")
 
         if box_labels is None:
             box_labels = [True] * len(boxes)
@@ -2217,8 +2270,6 @@ class SamGeo3:
             ...     output="masks.tif",
             ... )
         """
-        import geopandas as gpd
-
         if self.backend != "meta":
             raise NotImplementedError(
                 "generate_masks_by_boxes_inst is only available for the Meta backend. "
@@ -2237,33 +2288,7 @@ class SamGeo3:
                 "enable_inst_interactivity=True."
             )
 
-        # Process boxes based on input type
-        if isinstance(boxes, dict):
-            # GeoJSON-like dict
-            boxes = gpd.GeoDataFrame.from_features(boxes)
-
-        if isinstance(boxes, (str, gpd.GeoDataFrame)):
-            # File path or GeoDataFrame
-            if isinstance(boxes, str):
-                gdf = gpd.read_file(boxes)
-            else:
-                gdf = boxes
-
-            if gdf.crs is None and box_crs is not None:
-                gdf.crs = box_crs
-            elif gdf.crs is not None and box_crs is None:
-                box_crs = str(gdf.crs)
-
-            # Extract bounding boxes from geometries
-            boxes_list = gdf.geometry.apply(lambda geom: list(geom.bounds)).tolist()
-        elif isinstance(boxes, list):
-            boxes_list = boxes
-        elif isinstance(boxes, np.ndarray):
-            boxes_list = boxes.tolist()
-        else:
-            raise ValueError(
-                "boxes must be a list, GeoDataFrame, file path, or numpy array."
-            )
+        boxes_list, box_crs = self._boxes_to_list(boxes, box_crs)
 
         # Filter boxes that are out of image bounds if box_crs is provided
         if box_crs is not None and self.source is not None:

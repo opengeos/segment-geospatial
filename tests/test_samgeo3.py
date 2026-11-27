@@ -516,5 +516,67 @@ def test_boxes_with_text_prompt_transformers_passes_text_and_labels(samgeo3):
 
     kwargs = model.processor.call_args.kwargs
     assert kwargs["text"] == "building"
-    assert kwargs["input_boxes"] == [[[10.0, 10.0, 30.0, 20.0], [50.0, 20.0, 70.0, 40.0]]]
+    assert kwargs["input_boxes"] == [
+        [[10.0, 10.0, 30.0, 20.0], [50.0, 20.0, 70.0, 40.0]]
+    ]
     assert kwargs["input_boxes_labels"] == [[1, 0]]
+
+
+def test_boxes_transformers_sends_negative_labels_without_text(samgeo3):
+    """Negative boxes are no longer silently treated as positive."""
+    pytest.importorskip("torch")
+    model = _box_prompt_model(samgeo3, "transformers")
+
+    model.generate_masks_by_boxes([[10, 10, 30, 20]], box_labels=[False])
+
+    kwargs = model.processor.call_args.kwargs
+    assert "text" not in kwargs
+    assert kwargs["input_boxes_labels"] == [[0]]
+
+
+@pytest.mark.parametrize("backend", ["meta", "transformers"])
+def test_text_prompt_with_no_boxes(samgeo3, backend):
+    """An empty box list with a text prompt falls back to text only."""
+    pytest.importorskip("torch")
+    model = _box_prompt_model(samgeo3, backend)
+
+    model.generate_masks_by_boxes([], prompt="building")
+
+    if backend == "meta":
+        model.processor.set_text_prompt.assert_called_once()
+        model.processor.add_geometric_prompt.assert_not_called()
+    else:
+        kwargs = model.processor.call_args.kwargs
+        assert kwargs["text"] == "building"
+        assert "input_boxes" not in kwargs
+
+
+def test_no_boxes_and_no_text_prompt_raises(samgeo3):
+    """Calling with neither boxes nor a prompt fails with a clear message."""
+    model = _box_prompt_model(samgeo3, "meta")
+
+    with pytest.raises(ValueError, match="at least one box or a text prompt"):
+        model.generate_masks_by_boxes([])
+
+
+def test_boxes_accept_geojson_feature_collection(samgeo3):
+    """Drawn regions (a GeoJSON FeatureCollection) are reduced to their bounds."""
+    pytest.importorskip("geopandas")
+    rois = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[1, 2], [3, 2], [3, 5], [1, 5], [1, 2]]],
+                },
+            }
+        ],
+    }
+
+    boxes, crs = samgeo3.SamGeo3._boxes_to_list(rois, "EPSG:4326")
+
+    assert boxes == [[1.0, 2.0, 3.0, 5.0]]
+    assert crs == "EPSG:4326"
