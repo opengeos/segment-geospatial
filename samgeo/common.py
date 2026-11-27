@@ -3575,10 +3575,12 @@ def choose_device(empty_cache: bool = True, quiet: bool = True) -> str:
     if device.type == "cuda":
         if empty_cache:
             torch.cuda.empty_cache()
-        # use bfloat16 for the entire notebook
-        torch.autocast("cuda", dtype=torch.bfloat16).__enter__()
+        ampere = torch.cuda.get_device_properties(0).major >= 8
+        # older GPUs (T4, V100) only emulate bfloat16, so use float16 there
+        dtype = torch.bfloat16 if ampere else torch.float16
+        torch.autocast("cuda", dtype=dtype).__enter__()
         # turn on tfloat32 for Ampere GPUs (https://pytorch.org/docs/stable/notes/cuda.html#tensorfloat-32-tf32-on-ampere-devices)
-        if torch.cuda.get_device_properties(0).major >= 8:
+        if ampere:
             torch.backends.cuda.matmul.allow_tf32 = True
             torch.backends.cudnn.allow_tf32 = True
     elif device.type == "mps":
