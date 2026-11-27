@@ -336,7 +336,103 @@ def failed_tile_messages(log_text):
     if not log_text:
         return []
     return [
-        line.strip().removeprefix("Warning: ")
+        _strip_prefix(line.strip(), "Warning: ")
         for line in log_text.splitlines()
         if "Failed to process tile" in line
     ]
+
+
+def _strip_prefix(text, prefix):
+    """Remove ``prefix`` from the start of ``text`` if present.
+
+    ``str.removeprefix`` needs Python 3.9, and some QGIS 3.22 builds still
+    ship Python 3.8.
+
+    Args:
+        text: The string to strip.
+        prefix: The prefix to remove.
+
+    Returns:
+        ``text`` without ``prefix``.
+    """
+    return text[len(prefix) :] if text.startswith(prefix) else text
+
+
+def geotransform_from_extent(x_min, y_max, extent_width, extent_height, width, height):
+    """Build a north-up GDAL geotransform from a raster's extent and size.
+
+    Used as a fallback when the raster's own geotransform cannot be read.
+
+    Args:
+        x_min: Left edge of the extent in map units.
+        y_max: Top edge of the extent in map units.
+        extent_width: Extent width in map units.
+        extent_height: Extent height in map units.
+        width: Raster width in pixels.
+        height: Raster height in pixels.
+
+    Returns:
+        A 6-tuple GDAL geotransform.
+    """
+    return (x_min, extent_width / width, 0.0, y_max, 0.0, -extent_height / height)
+
+
+def invert_geotransform(gt):
+    """Invert a GDAL geotransform, including rotated or sheared ones.
+
+    Args:
+        gt: A 6-tuple ``(x0, a, b, y0, d, e)`` where
+            ``x = x0 + a*col + b*row`` and ``y = y0 + d*col + e*row``.
+
+    Returns:
+        The inverse 6-tuple, mapping map coordinates to ``(col, row)``.
+
+    Raises:
+        ValueError: If the geotransform is not invertible.
+    """
+    x0, a, b, y0, d, e = gt
+    det = a * e - b * d
+    if det == 0:
+        raise ValueError("Geotransform is not invertible.")
+    ia, ib = e / det, -b / det
+    id_, ie = -d / det, a / det
+    return (-(ia * x0 + ib * y0), ia, ib, -(id_ * x0 + ie * y0), id_, ie)
+
+
+def map_to_pixel(inv_gt, x, y):
+    """Convert map coordinates to fractional pixel coordinates.
+
+    Args:
+        inv_gt: An inverse geotransform from :func:`invert_geotransform`.
+        x: Map x coordinate in the raster's CRS.
+        y: Map y coordinate in the raster's CRS.
+
+    Returns:
+        A ``[col, row]`` list of floats.
+    """
+    c0, ca, cb, r0, rd, re_ = inv_gt
+    return [c0 + ca * x + cb * y, r0 + rd * x + re_ * y]
+
+
+def rect_to_pixel_box(inv_gt, x_min, y_min, x_max, y_max):
+    """Convert a map rectangle to a pixel-space XYXY box.
+
+    All four corners are transformed, so a rotated raster still gets the box
+    that encloses the drawn rectangle.
+
+    Args:
+        inv_gt: An inverse geotransform from :func:`invert_geotransform`.
+        x_min: Rectangle left edge in map units.
+        y_min: Rectangle bottom edge in map units.
+        x_max: Rectangle right edge in map units.
+        y_max: Rectangle top edge in map units.
+
+    Returns:
+        ``[col_min, row_min, col_max, row_max]``.
+    """
+    corners = [
+        map_to_pixel(inv_gt, x, y) for x in (x_min, x_max) for y in (y_min, y_max)
+    ]
+    cols = [c for c, _ in corners]
+    rows = [r for _, r in corners]
+    return [min(cols), min(rows), max(cols), max(rows)]
