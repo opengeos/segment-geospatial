@@ -1419,13 +1419,24 @@ def draw_tile(source, lat0, lon0, lat1, lon1, zoom, filename, **kwargs):
     return image
 
 
+def _rasterio_shapes_supports_wide_ints() -> bool:
+    """Return whether ``rasterio.features.shapes`` accepts uint32/int64/uint64.
+
+    Returns:
+        bool: True for rasterio 1.5 and later.
+    """
+    major, minor = (int(part) for part in rasterio.__version__.split(".")[:2])
+    return (major, minor) >= (1, 5)
+
+
 def _shapes_compatible(band: np.ndarray) -> np.ndarray:
     """Cast a mask band to a dtype that ``rasterio.features.shapes`` accepts.
 
     rasterio added uint32, int64 and uint64 support to ``shapes`` only in 1.5
     (which needs Python 3.12+), so older environments such as QGIS builds
     with an older Python reject the uint32 masks samgeo writes by default.
-    Such bands are cast to int32, which every rasterio release accepts.
+    On those versions such bands are cast to int32, which every rasterio
+    release accepts; on rasterio 1.5+ the band is returned unchanged.
 
     Args:
         band (np.ndarray): The raster values to polygonize.
@@ -1434,10 +1445,12 @@ def _shapes_compatible(band: np.ndarray) -> np.ndarray:
         np.ndarray: ``band`` unchanged, or cast to int32.
 
     Raises:
-        ValueError: If a value does not fit in int32, so casting would change
-            mask IDs.
+        ValueError: On rasterio < 1.5, if a value does not fit in int32, so
+            casting would change mask IDs.
     """
     if band.dtype not in (np.uint32, np.int64, np.uint64):
+        return band
+    if _rasterio_shapes_supports_wide_ints():
         return band
     info = np.iinfo(np.int32)
     if band.size and (band.max() > info.max or band.min() < info.min):
