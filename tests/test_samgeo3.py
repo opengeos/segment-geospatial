@@ -443,3 +443,188 @@ def test_install_addmm_act_wrapper_only_once(monkeypatch, samgeo3):
 
     assert vitdet.addmm_act is wrapped
     assert wrapped.__wrapped__ is _sam3_addmm_act
+
+
+def _box_prompt_model(samgeo3, backend):
+    """Build a bare SamGeo3 with a mocked processor for box prompt tests."""
+    model = samgeo3.SamGeo3.__new__(samgeo3.SamGeo3)
+    model.backend = backend
+    model.device = "cpu"
+    model.source = None
+    model.image_width = 100
+    model.image_height = 50
+    model.confidence_threshold = 0.5
+    model.mask_threshold = 0.5
+    model._convert_results_to_numpy = Mock()
+    result = {"masks": [], "boxes": [], "scores": []}
+    model.processor = Mock()
+    if backend == "meta":
+        model.inference_state = {}
+        model.processor.set_text_prompt.return_value = result
+        model.processor.add_geometric_prompt.return_value = result
+    else:
+        model.pil_image = object()
+        model.model = Mock()
+        model.processor.return_value.to.return_value = {}
+        model.processor.post_process_instance_segmentation.return_value = [result]
+    return model
+
+
+def test_boxes_with_text_prompt_meta_sets_text_before_boxes(samgeo3):
+    """The Meta backend sets the text prompt, then adds each box on top of it."""
+    model = _box_prompt_model(samgeo3, "meta")
+
+    model.generate_masks_by_boxes(
+        [[10, 10, 30, 20], [50, 20, 70, 40]],
+        box_labels=[True, False],
+        prompt="building",
+    )
+
+    calls = [c[0] for c in model.processor.method_calls]
+    assert calls == [
+        "reset_all_prompts",
+        "set_text_prompt",
+        "add_geometric_prompt",
+        "add_geometric_prompt",
+    ]
+    assert model.processor.set_text_prompt.call_args.kwargs["prompt"] == "building"
+    box_calls = model.processor.add_geometric_prompt.call_args_list
+    assert [c.kwargs["label"] for c in box_calls] == [True, False]
+    assert box_calls[0].kwargs["box"] == [0.2, 0.3, 0.2, 0.2]
+
+
+def test_boxes_without_text_prompt_meta_skips_text(samgeo3):
+    """Without a text prompt the Meta backend uses the boxes alone."""
+    model = _box_prompt_model(samgeo3, "meta")
+
+    model.generate_masks_by_boxes([[10, 10, 30, 20]])
+
+    model.processor.set_text_prompt.assert_not_called()
+    model.processor.add_geometric_prompt.assert_called_once()
+
+
+def test_boxes_with_text_prompt_transformers_passes_text_and_labels(samgeo3):
+    """The Transformers backend sends the text, boxes and box labels together."""
+    pytest.importorskip("torch")
+    model = _box_prompt_model(samgeo3, "transformers")
+
+    model.generate_masks_by_boxes(
+        [[10, 10, 30, 20], [50, 20, 70, 40]],
+        box_labels=[True, False],
+        prompt="building",
+    )
+
+    kwargs = model.processor.call_args.kwargs
+    assert kwargs["text"] == "building"
+    assert kwargs["input_boxes"] == [
+        [[10.0, 10.0, 30.0, 20.0], [50.0, 20.0, 70.0, 40.0]]
+    ]
+    assert kwargs["input_boxes_labels"] == [[1, 0]]
+
+
+def test_boxes_transformers_sends_negative_labels_without_text(samgeo3):
+    """Negative boxes are no longer silently treated as positive."""
+    pytest.importorskip("torch")
+    model = _box_prompt_model(samgeo3, "transformers")
+
+    model.generate_masks_by_boxes([[10, 10, 30, 20]], box_labels=[False])
+
+    kwargs = model.processor.call_args.kwargs
+    assert "text" not in kwargs
+    assert kwargs["input_boxes_labels"] == [[0]]
+
+
+@pytest.mark.parametrize("backend", ["meta", "transformers"])
+def test_text_prompt_with_no_boxes(samgeo3, backend):
+    """An empty box list with a text prompt falls back to text only."""
+    pytest.importorskip("torch")
+    model = _box_prompt_model(samgeo3, backend)
+
+    model.generate_masks_by_boxes([], prompt="building")
+
+    if backend == "meta":
+        model.processor.set_text_prompt.assert_called_once()
+        model.processor.add_geometric_prompt.assert_not_called()
+    else:
+        kwargs = model.processor.call_args.kwargs
+        assert kwargs["text"] == "building"
+        assert "input_boxes" not in kwargs
+
+
+def test_no_boxes_and_no_text_prompt_raises(samgeo3):
+    """Calling with neither boxes nor a prompt fails with a clear message."""
+    model = _box_prompt_model(samgeo3, "meta")
+
+    with pytest.raises(ValueError, match="at least one box or a text prompt"):
+        model.generate_masks_by_boxes([])
+
+
+def test_boxes_accept_geojson_feature_collection(samgeo3):
+    """Drawn regions (a GeoJSON FeatureCollection) are reduced to their bounds."""
+    pytest.importorskip("geopandas")
+    rois = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[1, 2], [3, 2], [3, 5], [1, 5], [1, 2]]],
+                },
+            }
+        ],
+    }
+
+    boxes, crs = samgeo3.SamGeo3._boxes_to_list(rois, "EPSG:4326")
+
+    assert boxes == [[1.0, 2.0, 3.0, 5.0]]
+    assert crs == "EPSG:4326"
+
+
+@pytest.mark.parametrize("prompt", [None, "building"])
+def test_empty_feature_collection(samgeo3, prompt):
+    """Nothing drawn on the map: text-only with a prompt, a clear error without."""
+    pytest.importorskip("torch")
+    model = _box_prompt_model(samgeo3, "meta")
+    empty = {"type": "FeatureCollection", "features": []}
+
+    if prompt is None:
+        with pytest.raises(ValueError, match="at least one box or a text prompt"):
+            model.generate_masks_by_boxes(empty, box_crs="EPSG:4326")
+    else:
+        model.generate_masks_by_boxes(empty, box_crs="EPSG:4326", prompt=prompt)
+        model.processor.set_text_prompt.assert_called_once()
+        model.processor.add_geometric_prompt.assert_not_called()
+
+
+def test_boxes_to_list_does_not_modify_caller_geodataframe(samgeo3):
+    """Setting the CRS on a CRS-less GeoDataFrame works on a copy."""
+    gpd = pytest.importorskip("geopandas")
+    shapely_geometry = pytest.importorskip("shapely.geometry")
+    gdf = gpd.GeoDataFrame(geometry=[shapely_geometry.box(1, 2, 3, 5)])
+
+    boxes, crs = samgeo3.SamGeo3._boxes_to_list(gdf, "EPSG:4326")
+
+    assert boxes == [[1.0, 2.0, 3.0, 5.0]]
+    assert crs == "EPSG:4326"
+    assert gdf.crs is None
+
+
+def test_box_crs_without_georeference_warns(samgeo3):
+    """A CRS on boxes for a non-georeferenced image is flagged, not silently used."""
+    pytest.importorskip("torch")
+    model = _box_prompt_model(samgeo3, "meta")
+
+    with pytest.warns(UserWarning, match="no georeference"):
+        model.generate_masks_by_boxes([[10, 10, 30, 20]], box_crs="EPSG:4326")
+
+
+def test_all_positive_boxes_transformers_omits_labels(samgeo3):
+    """All-positive boxes need no labels, so older processors keep working."""
+    pytest.importorskip("torch")
+    model = _box_prompt_model(samgeo3, "transformers")
+
+    model.generate_masks_by_boxes([[10, 10, 30, 20]], prompt="building")
+
+    assert "input_boxes_labels" not in model.processor.call_args.kwargs
