@@ -398,13 +398,15 @@ def test_addmm_act_wrapper_runs_in_fp16(samgeo3, act):
     linear = torch.nn.Linear(16, 32)
     x = torch.randn(2, 5, 16)
     activation = getattr(torch.nn, act)
-    wrapped = samgeo3._make_fp16_aware_addmm_act(_sam3_addmm_act)
+    original = Mock(side_effect=AssertionError("should not call the bf16 kernel"))
+    wrapped = samgeo3._make_fp16_aware_addmm_act(original)
 
     with torch.no_grad():
         expected = activation()(linear(x))
         with torch.autocast("cpu", dtype=torch.float16):
             out = wrapped(activation, linear, x)
 
+    original.assert_not_called()
     assert out.dtype == torch.float16
     assert out.shape == (2, 5, 32)
     torch.testing.assert_close(out.float(), expected, atol=1e-2, rtol=1e-2)
