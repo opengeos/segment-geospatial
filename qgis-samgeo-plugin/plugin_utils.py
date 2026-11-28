@@ -121,6 +121,21 @@ def model_constructor_kwargs(family, weight):
     return {key: weight}
 
 
+def layer_file_path(source):
+    """Return the file path of a QGIS layer source string.
+
+    QGIS appends provider options after a ``|`` (for example
+    ``image.tif|layername=x``); those are stripped.
+
+    Args:
+        source: A QGIS layer ``source()`` string.
+
+    Returns:
+        The file path part of ``source``.
+    """
+    return str(source).split("|", 1)[0].strip()
+
+
 def source_name(source_path):
     """Return the file name of a source raster for the ``source`` field.
 
