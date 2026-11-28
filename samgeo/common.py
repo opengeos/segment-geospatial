@@ -3,6 +3,7 @@ The source code is adapted from https://github.com/aliaksandr960/segment-anythin
 """
 
 import os
+import re
 import tempfile
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -1419,6 +1420,50 @@ def draw_tile(source, lat0, lon0, lat1, lon1, zoom, filename, **kwargs):
     return image
 
 
+def _rasterio_shapes_supports_wide_ints() -> bool:
+    """Return whether ``rasterio.features.shapes`` accepts uint32/int64/uint64.
+
+    Returns:
+        bool: True for rasterio 1.5 and later.
+    """
+    match = re.match(r"(\d+)\.(\d+)", rasterio.__version__)
+    if match is None:
+        return True
+    return (int(match.group(1)), int(match.group(2))) >= (1, 5)
+
+
+def _shapes_compatible(band: np.ndarray) -> np.ndarray:
+    """Cast a mask band to a dtype that ``rasterio.features.shapes`` accepts.
+
+    rasterio added uint32, int64 and uint64 support to ``shapes`` only in 1.5
+    (which needs Python 3.12+), so older environments such as QGIS builds
+    with an older Python reject the uint32 masks samgeo writes by default.
+    On those versions such bands are cast to int32, which every rasterio
+    release accepts; on rasterio 1.5+ the band is returned unchanged.
+
+    Args:
+        band (np.ndarray): The raster values to polygonize.
+
+    Returns:
+        np.ndarray: ``band`` unchanged, or cast to int32.
+
+    Raises:
+        ValueError: On rasterio < 1.5, if a value does not fit in int32, so
+            casting would change mask IDs.
+    """
+    if band.dtype not in (np.uint32, np.int64, np.uint64):
+        return band
+    if _rasterio_shapes_supports_wide_ints():
+        return band
+    info = np.iinfo(np.int32)
+    if band.size and (band.max() > info.max or band.min() < info.min):
+        raise ValueError(
+            f"Raster values exceed the int32 range ({band.min()}..{band.max()}); "
+            "they cannot be polygonized without changing mask IDs."
+        )
+    return band.astype(np.int32)
+
+
 def raster_to_vector(source, output, simplify_tolerance=None, dst_crs=None, **kwargs):
     """Vectorize a raster dataset.
 
@@ -1431,7 +1476,7 @@ def raster_to_vector(source, output, simplify_tolerance=None, dst_crs=None, **kw
     from rasterio import features
 
     with rasterio.open(source) as src:
-        band = src.read()
+        band = _shapes_compatible(src.read())
 
         mask = band != 0
         shapes = features.shapes(band, mask=mask, transform=src.transform)
