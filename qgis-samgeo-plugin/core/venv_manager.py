@@ -31,7 +31,7 @@ VENV_DIR = os.path.join(CACHE_DIR, f"venv_{PYTHON_VERSION}")
 REQUIRED_PACKAGES = [
     ("torch", ">=2.0.0"),
     ("torchvision", ">=0.15.0"),
-    ("segment-geospatial", ""),
+    ("segment-geospatial", ">=1.6.0"),
     ("sam3", ""),
     ("psutil", ""),
     ("scikit-image", ""),
@@ -733,6 +733,117 @@ def venv_exists(venv_dir: str = None) -> bool:
     return os.path.exists(python_path)
 
 
+_OPENMP_RUNTIME_NAMES = ("libomp.dylib", "libiomp5.dylib", "libgomp.1.dylib")
+
+# LLVM/Intel OpenMP DLLs on Windows. MSVC's vcomp*.dll is a different
+# runtime that doesn't trigger the duplicate-runtime abort, so it is left out.
+_OPENMP_RUNTIME_DLLS = ("libiomp5md.dll", "libomp.dll", "libomp140.x86_64.dll")
+
+
+def _loaded_openmp_runtimes() -> List[str]:
+    """List the OpenMP runtimes already loaded into this process.
+
+    Reads dyld's image list on macOS, so nothing new is loaded.
+
+    Returns:
+        Paths of loaded modules whose file name is a known OpenMP runtime.
+        Empty when the list cannot be read or on other platforms.
+    """
+    if sys.platform != "darwin":
+        return []
+    try:
+        import ctypes
+
+        libc = ctypes.CDLL("/usr/lib/libSystem.B.dylib")
+        libc._dyld_image_count.restype = ctypes.c_uint32
+        libc._dyld_get_image_name.restype = ctypes.c_char_p
+        libc._dyld_get_image_name.argtypes = [ctypes.c_uint32]
+        loaded = []
+        for index in range(libc._dyld_image_count()):
+            name = libc._dyld_get_image_name(index)
+            if not name:
+                continue
+            path = name.decode("utf-8", "replace")
+            if os.path.basename(path) in _OPENMP_RUNTIME_NAMES:
+                loaded.append(path)
+        return loaded
+    except Exception:
+        return []
+
+
+def _windows_openmp_dlls_on_path() -> List[str]:
+    """Find LLVM/Intel OpenMP DLLs that QGIS can load from its DLL path.
+
+    On Windows nothing is loaded yet when the plugin starts: conda-forge QGIS
+    loads ``Library\\bin\\libiomp5md.dll`` and ``libomp.dll`` later, when a
+    package such as scikit-image is imported after torch. So this looks for
+    the files instead of the loaded module list.
+
+    Returns:
+        Paths of OpenMP DLLs in ``sys.prefix\\Library\\bin`` or on PATH.
+    """
+    folders = [os.path.join(sys.prefix, "Library", "bin")]
+    folders.extend(os.environ.get("PATH", "").split(os.pathsep))
+    found = []
+    seen = set()
+    for folder in folders:
+        if not folder:
+            continue
+        key = os.path.normcase(os.path.abspath(folder))
+        if key in seen:
+            continue
+        seen.add(key)
+        for name in _OPENMP_RUNTIME_DLLS:
+            path = os.path.join(folder, name)
+            if os.path.isfile(path):
+                found.append(path)
+    return found
+
+
+def _configure_duplicate_openmp_runtime() -> None:
+    """Let the venv's PyTorch run next to an OpenMP runtime from QGIS.
+
+    PyTorch wheels for macOS and Windows ship their own OpenMP runtime. When
+    QGIS brings another one (conda-forge QGIS loads libomp on macOS, and has
+    Intel's libiomp5md.dll and LLVM's libomp.dll on its DLL path on Windows),
+    the second runtime aborts QGIS with "OMP: Error #15". Allowing the
+    duplicate with ``KMP_DUPLICATE_LIB_OK=TRUE`` avoids the abort.
+
+    On macOS, SamGeo's first multithreaded torch op then segfaults with two
+    runtimes loaded, so OpenMP is also limited to one thread
+    (``OMP_NUM_THREADS=1``), which makes CPU inference slower. Windows does
+    not need that, and one thread is about 8x slower there.
+
+    On macOS the variables are set only when another runtime is already
+    loaded. On Windows the runtimes load after this runs, so they are set
+    when an OpenMP DLL is on QGIS's DLL path, which in practice is every
+    Windows install (the VC++ runtime puts libomp140.x86_64.dll in
+    System32). Each variable is set only when
+    the user has not set it. LLVM and Intel document two OpenMP runtimes in
+    one process as unsupported; the alternative here is QGIS crashing.
+    """
+    if sys.platform == "win32":
+        found = _windows_openmp_dlls_on_path()
+        settings = (("KMP_DUPLICATE_LIB_OK", "TRUE"),)
+    else:
+        found = _loaded_openmp_runtimes()
+        settings = (("KMP_DUPLICATE_LIB_OK", "TRUE"), ("OMP_NUM_THREADS", "1"))
+    if not found:
+        return
+    changed = []
+    for name, value in settings:
+        if not os.environ.get(name):
+            os.environ[name] = value
+            changed.append(f"{name}={value}")
+    if changed:
+        _log(
+            "Found OpenMP runtimes that can load next to PyTorch's own "
+            "({}); set {} so PyTorch can run inside QGIS instead of "
+            "crashing it".format(", ".join(found), " and ".join(changed)),
+            Qgis.MessageLevel.Warning,
+        )
+
+
 def ensure_venv_packages_available() -> bool:
     """Add the venv site-packages to sys.path so packages can be imported.
 
@@ -763,6 +874,11 @@ def ensure_venv_packages_available() -> bool:
     # On Windows, register DLL directories for native packages (torch, etc.)
     if sys.platform == "win32":
         _add_windows_dll_directories(site_packages)
+
+    # On macOS and Windows, the venv's torch bundles its own OpenMP
+    # runtime. Must run before torch is imported into the QGIS process.
+    if sys.platform in ("darwin", "win32"):
+        _configure_duplicate_openmp_runtime()
 
     # Fix stale typing_extensions (QGIS may load old version missing TypeIs)
     if "typing_extensions" in sys.modules:
