@@ -30,7 +30,8 @@ changelog=
         - Fix QGIS crashing with "OMP: Error #15" when loading a model on
           macOS and Windows (conda-forge QGIS ships its own OpenMP runtime)
         - Vector output works with rasterio < 1.5 (QGIS builds with an older
-          Python); requires segment-geospatial >= 1.6.0 for tiled vector output
+          Python); the plugin now installs segment-geospatial >= 1.6.0 and
+          asks existing setups to update their dependencies
     1.5.0 - Model weights, mask attributes and tiled segmentation
         - Choose model weights per family: vit_h/vit_l/vit_b for SAM 1,
           hiera tiny/small/base-plus/large for SAM 2, sam3 or sam3.1 for SAM 3

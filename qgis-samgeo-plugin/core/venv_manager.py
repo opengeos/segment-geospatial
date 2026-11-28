@@ -31,7 +31,7 @@ VENV_DIR = os.path.join(CACHE_DIR, f"venv_{PYTHON_VERSION}")
 REQUIRED_PACKAGES = [
     ("torch", ">=2.0.0"),
     ("torchvision", ">=0.15.0"),
-    ("segment-geospatial", ""),
+    ("segment-geospatial", ">=1.6.0"),
     ("sam3", ""),
     ("psutil", ""),
     ("scikit-image", ""),
