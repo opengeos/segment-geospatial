@@ -20,8 +20,8 @@ jobs:
         env:
             TAG: ${{ github.event.release.tag_name || inputs.tag }}
             PLUGIN_DIR: qgis-samgeo-plugin
-            PLUGIN_NAME: samgeo_plugin
-            ZIP_PATH: dist/samgeo_plugin.zip
+            PLUGIN_NAME: samgeo
+            ZIP_PATH: dist/samgeo.zip
         steps:
             - uses: actions/checkout@v7
 
