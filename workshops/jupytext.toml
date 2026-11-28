@@ -1,0 +1,9 @@
+# Install jupytext using: conda install jupytext -c conda-forge
+# Always pair ipynb notebooks to md files.
+# formats = "ipynb,md"
+formats = "ipynb,myst"
+
+# jupytext --to ipynb *.md                        # convert all .md files to notebooks with no outputs
+# jupytext --to ipynb --execute *.md              # convert all .md files to notebooks and execute them
+# jupytext --set-formats ipynb,md --execute *.md  # convert all .md files to paired notebooks and execute them
+# jupytext --to md *.ipynb                        # convert all .ipynb files to .md files
