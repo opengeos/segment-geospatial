@@ -3,7 +3,7 @@ name=SamGeo
 qgisMinimumVersion=3.22
 qgisMaximumVersion=4.99
 description=Segment remote sensing images using SAM (Segment Anything Model) with text, point, and box prompts.
-version=1.5.0
+version=1.6.0
 author=Qiusheng Wu
 email=giswqs@gmail.com
 about=A QGIS plugin for remote sensing image segmentation powered by Meta's Segment Anything Model (SAM).
@@ -22,6 +22,15 @@ icon=icons/icon.png
 experimental=True
 deprecated=False
 changelog=
+    1.6.0 - Model weights, mask attributes, tiled segmentation and fixes
+        - Includes all 1.5.0 changes below (1.5.0 was not published)
+        - Clicks, boxes and batch points use the raster's geotransform, so
+          rotated or sheared rasters map to the right pixels
+        - Python 3.8 compatibility for older QGIS 3.22 builds
+        - Fix QGIS crashing with "OMP: Error #15" when loading a model on
+          macOS and Windows (conda-forge QGIS ships its own OpenMP runtime)
+        - Vector output works with rasterio < 1.5 (QGIS builds with an older
+          Python); requires segment-geospatial >= 1.6.0 for tiled vector output
     1.5.0 - Model weights, mask attributes and tiled segmentation
         - Choose model weights per family: vit_h/vit_l/vit_b for SAM 1,
           hiera tiny/small/base-plus/large for SAM 2, sam3 or sam3.1 for SAM 3

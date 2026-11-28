@@ -3,6 +3,7 @@ SamGeo QGIS Plugin - Main Plugin Class
 """
 
 import os
+import sys
 
 from qgis.PyQt.QtCore import Qt, QCoreApplication, QVariant
 from qgis.PyQt.QtGui import QIcon
@@ -1184,7 +1185,7 @@ class SamGeoPlugin:
             return
 
         # Get the layer's file path
-        source = layer.source()
+        source = plugin_utils.layer_file_path(layer.source())
         if not os.path.exists(source):
             self.show_error(f"Layer source file not found: {source}")
             return
@@ -1359,8 +1360,10 @@ class SamGeoPlugin:
         layer_id = self.layer_combo.currentData()
         if layer_id:
             layer = QgsProject.instance().mapLayer(layer_id)
-            if layer is not None and os.path.exists(layer.source()):
-                return layer.source()
+            if layer is not None:
+                path = plugin_utils.layer_file_path(layer.source())
+                if os.path.exists(path):
+                    return path
         file_path = self.image_path_edit.text().strip()
         if file_path and os.path.exists(file_path):
             return file_path
@@ -1894,23 +1897,46 @@ class SamGeoPlugin:
         Returns:
             A 6-tuple inverse geotransform.
         """
+        return self._raster_grid()[0]
+
+    def _raster_size(self):
+        """Return the current raster's pixel size as ``(width, height)``.
+
+        This is the size of the file's own grid, which matches
+        :meth:`_inverse_geotransform`. For rotated rasters it differs from the
+        QGIS layer's warped north-up size.
+
+        Returns:
+            A ``(width, height)`` tuple in pixels.
+        """
+        return self._raster_grid()[1]
+
+    def _raster_grid(self):
+        """Read and cache the current raster's inverse geotransform and size.
+
+        Returns:
+            A ``(inverse_geotransform, (width, height))`` tuple.
+        """
         layer = self.current_layer
         if layer is None:
             raise ValueError("Please set an image first.")
         cache = getattr(self, "_inv_gt_cache", None)
         if cache is not None and cache[0] == layer.id():
-            return cache[1]
+            return cache[1], cache[2]
 
         gt = None
+        size = (layer.width(), layer.height())
         try:
             from osgeo import gdal
 
             # SamGeo reads the file itself, so use the file's own pixel grid
             # (QGIS displays rotated rasters through a warped north-up view
             # whose size differs from the file's).
-            ds = gdal.Open(layer.source())
+            ds = gdal.Open(plugin_utils.layer_file_path(layer.source()))
             if ds is not None:
                 gt = ds.GetGeoTransform(can_return_null=True)
+                if gt:
+                    size = (ds.RasterXSize, ds.RasterYSize)
             ds = None
         except Exception:  # fall back to the layer extent below
             gt = None
@@ -1925,8 +1951,8 @@ class SamGeoPlugin:
                 layer.height(),
             )
         inv = plugin_utils.invert_geotransform(gt)
-        self._inv_gt_cache = (layer.id(), inv)
-        return inv
+        self._inv_gt_cache = (layer.id(), inv, size)
+        return inv, size
 
     def _point_to_pixel(self, point):
         """Convert a map-coordinate point in the raster layer CRS to pixel coordinates."""
@@ -1959,6 +1985,7 @@ class SamGeoPlugin:
                 vector_crs, raster_crs, QgsProject.instance()
             )
 
+        width, height = self._raster_size()
         pixel_points = []
         skipped = 0
         for feature in layer.getFeatures():
@@ -1978,10 +2005,7 @@ class SamGeoPlugin:
                     if transform is not None:
                         point = transform.transform(point)
                     px, py = self._point_to_pixel(point)
-                    if (
-                        0 <= px < self.current_layer.width()
-                        and 0 <= py < self.current_layer.height()
-                    ):
+                    if 0 <= px < width and 0 <= py < height:
                         pixel_points.append([px, py])
                     else:
                         skipped += 1
@@ -2432,15 +2456,10 @@ class SamGeoPlugin:
 
         cleared_items = []
 
-        # Import torch early to use for cleanup
-        torch = None
-        try:
-            import torch as _torch
-
-            torch = _torch
-        except ImportError:
-            # PyTorch is optional; continue without GPU memory clearing if not installed.
-            pass
+        # Use torch only if a model already imported it. Importing it here
+        # could load its OpenMP runtime before the venv setup has run, and
+        # there is no GPU memory to clear when torch was never loaded.
+        torch = sys.modules.get("torch")
 
         # Clear SamGeo model if loaded
         if self.sam is not None:
